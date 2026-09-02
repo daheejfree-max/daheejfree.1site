@@ -599,7 +599,7 @@ export default function App() {
         unreadMessagesCount={unreadMessagesCount}
         pendingRequestsCount={pendingRequestsCount}
         acceptedMatchesCount={acceptedMatchesCount}
-        hideMobileNav={currentTab === 'call' || (currentTab === 'messages' && (isMobileChatActive || Boolean(selectedChatUserId)))}
+        hideMobileNav={currentTab === 'call' || (currentTab === 'messages' && isMobileChatActive)}
       />
 
       {/* Strict Production Hard KYC Wall: un-dismissible full-screen gate for unverified users trying to access protected views */}

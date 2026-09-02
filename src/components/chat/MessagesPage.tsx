@@ -40,8 +40,29 @@ import { createBrowserClient } from '@supabase/ssr';
 import { moderateTextContent } from '../../lib/moderation';
 import { parseCallInvite, parseCallEvent, formatCallMessagePreview, sendCallInvite, declineCallSession, isCallSignalingContent, isCallInviteCurrentlyActive, subscribeToCallSignals } from '../../lib/callSignaling';
 
-export const formatMessagePreview = (content: string | undefined | null): string => {
-  return formatCallMessagePreview(content);
+export const MessagePreviewRenderer: React.FC<{ content: string | undefined | null; isMe: boolean }> = ({ content, isMe }) => {
+  if (!content) return <span className="italic text-emerald-600 dark:text-emerald-400">Start a Shariah conversation...</span>;
+  
+  const trimmed = content.trim();
+  const prefix = isMe ? 'You: ' : '';
+
+  if (trimmed === 'CALL_CONNECTED' || trimmed.startsWith('CALL_CONNECTED') || trimmed.includes('"CALL_CONNECTED"')) {
+    return <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400"><PhoneIncoming className="w-3.5 h-3.5" /> {prefix}Call Connected</span>;
+  }
+  if (trimmed === 'CALL_ENDED' || trimmed.startsWith('CALL_ENDED') || trimmed.includes('"CALL_ENDED"')) {
+    return <span className="flex items-center gap-1 font-medium"><Phone className="w-3.5 h-3.5" /> {prefix}Call Ended</span>;
+  }
+  if (trimmed === 'CALL_DECLINED' || trimmed.startsWith('CALL_DECLINED') || trimmed.includes('"CALL_DECLINED"')) {
+    return <span className="flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400"><PhoneOff className="w-3.5 h-3.5" /> {prefix}Call Declined</span>;
+  }
+  if (trimmed === 'CALL_MISSED' || trimmed.startsWith('CALL_MISSED') || trimmed.includes('"CALL_MISSED"')) {
+    return <span className="flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400"><PhoneMissed className="w-3.5 h-3.5" /> {prefix}Missed Call</span>;
+  }
+  if (trimmed === 'CALL_INVITE' || trimmed.startsWith('CALL_INVITE') || trimmed.includes('"CALL_INVITE"') || trimmed.includes('CALL_INVITE')) {
+    return <span className="flex items-center gap-1 font-medium"><PhoneCall className="w-3.5 h-3.5 animate-pulse text-emerald-500" /> {prefix}Call Invite</span>;
+  }
+
+  return <span>{prefix}{content}</span>;
 };
 
 const supabaseUrl =
@@ -1395,7 +1416,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           </div>
 
           {/* Conversations Items List */}
-          <div className="flex-1 overflow-y-auto divide-y divide-zinc-200/60 dark:divide-zinc-800/60 overscroll-contain">
+          <div className="flex-1 overflow-y-auto divide-y divide-zinc-200/60 dark:divide-zinc-800/60 overscroll-contain pb-24 md:pb-0">
             {filteredConversations.length === 0 ? (
               <div className="p-8 text-center text-zinc-500 dark:text-zinc-400 space-y-3">
                 <Users className="w-10 h-10 mx-auto text-zinc-400 dark:text-zinc-600" />
@@ -1473,17 +1494,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                               : 'text-zinc-500 dark:text-zinc-400'
                           }`}
                         >
-                          {lastMessage ? (
-                            lastMessage.sender_id === currentUserId ? (
-                              <span>You: {formatMessagePreview(lastMessage.content)}</span>
-                            ) : (
-                              formatMessagePreview(lastMessage.content)
-                            )
-                          ) : (
-                            <span className="italic text-emerald-600 dark:text-emerald-400">
-                              Start a Shariah conversation...
-                            </span>
-                          )}
+                          <MessagePreviewRenderer content={lastMessage?.content} isMe={lastMessage?.sender_id === currentUserId} />
                         </p>
 
                         {unreadCount > 0 && (
