@@ -344,28 +344,30 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
             daheejStore.syncConversationMessages(currentUserId, selectedUserId, fbData as ChatMessage[]);
             const unified = daheejStore.getMessages(currentUserId, selectedUserId);
             setActiveMessages((prev) => {
-              if (
-                prev.length === unified.length &&
-                prev[prev.length - 1]?.id === unified[unified.length - 1]?.id &&
-                prev[0]?.id === unified[0]?.id
-              ) {
-                return prev;
+              if (prev.length !== unified.length) return unified;
+              let isSame = true;
+              for (let i = 0; i < prev.length; i++) {
+                if (prev[i].id !== unified[i].id || prev[i].content !== unified[i].content) {
+                  isSame = false;
+                  break;
+                }
               }
-              return unified;
+              return isSame ? prev : unified;
             });
           }
         } else if (data) {
           daheejStore.syncConversationMessages(currentUserId, selectedUserId, data as ChatMessage[]);
           const unified = daheejStore.getMessages(currentUserId, selectedUserId);
           setActiveMessages((prev) => {
-            if (
-              prev.length === unified.length &&
-              prev[prev.length - 1]?.id === unified[unified.length - 1]?.id &&
-              prev[0]?.id === unified[0]?.id
-            ) {
-              return prev;
+            if (prev.length !== unified.length) return unified;
+            let isSame = true;
+            for (let i = 0; i < prev.length; i++) {
+              if (prev[i].id !== unified[i].id || prev[i].content !== unified[i].content) {
+                isSame = false;
+                break;
+              }
             }
-            return unified;
+            return isSame ? prev : unified;
           });
 
           // Remote mark as read in Supabase

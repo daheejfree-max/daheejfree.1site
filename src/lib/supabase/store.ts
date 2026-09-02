@@ -442,13 +442,15 @@ class DaheejFreeStore {
     const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
     const list: ChatMessage[] = raw ? JSON.parse(raw) : [];
 
-    return list.filter((m) => {
+    const filtered = list.filter((m) => {
       const mReceiver = m.receiver_id || m.recipient_id;
       return (
         (m.sender_id === userOne && mReceiver === userTwo) ||
         (m.sender_id === userTwo && mReceiver === userOne)
       );
     });
+    
+    return filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }
 
   public syncConversationMessages(userOne: string, userTwo: string, remoteMessages: ChatMessage[]): void {
@@ -478,7 +480,7 @@ class DaheejFreeStore {
     const pendingLocal = currentPair.filter((m) => {
       if (remoteIds.has(m.id)) return false;
       const ageMs = Date.now() - new Date(m.created_at).getTime();
-      return ageMs >= 0 && ageMs < 15000;
+      return ageMs >= -300000 && ageMs < 60000;
     });
 
     const unified = [...otherMessages, ...remoteMessages, ...pendingLocal];
