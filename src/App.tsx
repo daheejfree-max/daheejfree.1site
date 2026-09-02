@@ -902,7 +902,9 @@ export default function App() {
 
         {/* Tab 4.5: Active Call Room */}
         {currentTab === 'call' && (
-          <CallPage />
+          <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col h-[100dvh] w-full overflow-hidden">
+            <CallPage />
+          </div>
         )}
 
         {/* Tab 5: Anti-Dowry Registry Charter */}

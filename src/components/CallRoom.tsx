@@ -436,19 +436,28 @@ export default function CallRoom({
           const myId = myUserIdRef.current;
           for (const record of signals) {
             if (record.type === 'offer' && record.caller_id !== myId) {
-              handleSignalingDataRef.current({
+              if (record.payload?.type === 'CALL_INVITE') continue;
+              await handleSignalingDataRef.current({
                 type: 'offer',
                 sdp: record.payload?.sdp || record.payload,
                 payload: record.payload,
                 senderUserId: record.caller_id,
               });
             } else if (record.type === 'answer' && record.caller_id !== myId) {
-              handleSignalingDataRef.current({
+              await handleSignalingDataRef.current({
                 type: 'answer',
                 sdp: record.payload?.sdp || record.payload,
                 payload: record.payload,
                 senderUserId: record.caller_id,
               });
+            } else if (record.type === 'ice-candidate' || record.type === 'ice') {
+              if (record.caller_id !== myId && record.payload) {
+                await handleSignalingDataRef.current({
+                  type: 'ice-candidate',
+                  candidate: record.payload.candidate || record.payload,
+                  payload: record.payload,
+                });
+              }
             }
           }
         }
@@ -486,6 +495,7 @@ export default function CallRoom({
             handleHangupRef.current(undefined, false);
           } else if (record.type === 'offer') {
             if (record.caller_id !== myId && record.payload) {
+              if (record.payload?.type === 'CALL_INVITE') return;
               handleSignalingDataRef.current({
                 type: 'offer',
                 sdp: record.payload?.sdp || record.payload,
