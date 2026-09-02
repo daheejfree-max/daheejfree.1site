@@ -587,9 +587,7 @@ export default function App() {
   const pendingInboundCount = inboundRequests.filter((r) => r.status === 'pending').length;
 
   // Dedicated full-screen View for live ZegoCloud 1-on-1 calls
-  if (currentTab === 'call') {
-    return <CallPage />;
-  }
+  // (Moved inside the main router to preserve the unified layout)
 
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white dark:selection:text-zinc-950 transition-colors duration-200">
@@ -900,6 +898,11 @@ export default function App() {
         {/* Tab 4: WebRTC Calls Console */}
         {currentTab === 'calls' && (
           <WebRTCCallsRoutePage />
+        )}
+
+        {/* Tab 4.5: Active Call Room */}
+        {currentTab === 'call' && (
+          <CallPage />
         )}
 
         {/* Tab 5: Anti-Dowry Registry Charter */}

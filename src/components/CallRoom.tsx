@@ -1018,7 +1018,7 @@ export default function CallRoom({
   }
 
   return (
-    <div className="relative h-[100dvh] w-full bg-zinc-950 overflow-hidden font-sans text-white select-none">
+    <div className="relative h-full w-full bg-zinc-950 overflow-hidden font-sans text-white select-none">
       {/* Hidden audio element for remote audio stream delivery */}
       <audio ref={remoteAudioRef} autoPlay playsInline />
 

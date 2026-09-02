@@ -196,7 +196,7 @@ export default function CallPage({ params, roomID: propRoomID, type: propType, r
 
   if (isLoading) {
     return (
-      <div className="w-screen h-[100dvh] bg-zinc-950 flex flex-col items-center justify-center text-white space-y-4 px-4">
+      <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center text-white space-y-4 px-4">
         <div className="w-12 h-12 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         <h2 className="text-base font-semibold">Connecting to Secure Call Room...</h2>
         <p className="text-xs text-zinc-400">Verifying Shariah privacy and WebRTC encryption</p>
@@ -206,7 +206,7 @@ export default function CallPage({ params, roomID: propRoomID, type: propType, r
 
   if (errorMsg || !roomID) {
     return (
-      <div className="w-screen h-[100dvh] bg-zinc-950 flex flex-col items-center justify-center p-4 text-center pb-safe">
+      <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center p-4 text-center pb-safe">
         <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl max-w-md w-full space-y-5 shadow-2xl text-white">
           <div className="w-14 h-14 rounded-2xl bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 flex items-center justify-center mx-auto shadow-inner">
             <PhoneOff className="w-7 h-7" />
