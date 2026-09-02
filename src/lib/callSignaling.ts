@@ -350,8 +350,9 @@ export async function sendCallInvite({
       id: signalId,
       sender_id: currentUserId,
       receiver_id: partnerId,
+      recipient_id: partnerId,
       content: JSON.stringify(signalPayload),
-      read: false,
+      is_read: false,
     });
   } catch (msgErr) {
     console.warn('[Call Signaling] Chat message persistence notice:', msgErr);
@@ -400,8 +401,9 @@ export async function recordCallConnected({
       id: msgId,
       sender_id: currentUserId,
       receiver_id: partnerId,
+      recipient_id: partnerId,
       content: `CALL_CONNECTED:${JSON.stringify(payload)}`,
-      read: true,
+      is_read: true,
       created_at: payload.timestamp,
     });
   } catch (e) {
@@ -452,8 +454,9 @@ export async function recordCallEnded({
       id: msgId,
       sender_id: currentUserId,
       receiver_id: partnerId,
+      recipient_id: partnerId,
       content: `CALL_ENDED:${JSON.stringify(payload)}`,
-      read: true,
+      is_read: true,
       created_at: payload.timestamp,
     });
   } catch (e) {

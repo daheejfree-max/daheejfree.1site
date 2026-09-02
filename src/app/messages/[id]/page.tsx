@@ -194,15 +194,23 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
         .insert({
           sender_id: currentUserId,
           receiver_id: partnerId,
+          recipient_id: partnerId,
           content: text,
-          read: false,
+          is_read: false,
         })
         .select()
         .single();
 
       if (!error && data) {
+        const normalized: ChatMessage = {
+          ...(data as any),
+          receiver_id: (data as any).receiver_id || (data as any).recipient_id,
+          recipient_id: (data as any).recipient_id || (data as any).receiver_id,
+          read: (data as any).read ?? (data as any).is_read ?? false,
+          is_read: (data as any).is_read ?? (data as any).read ?? false,
+        };
         setMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? (data as ChatMessage) : m))
+          prev.map((m) => (m.id === tempId ? normalized : m))
         );
       }
     } catch (err) {

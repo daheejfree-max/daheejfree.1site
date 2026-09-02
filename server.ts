@@ -34,7 +34,7 @@ function getGeminiClient(): GoogleGenAI | null {
 }
 
 // Body parsing middleware (supporting high-resolution identity documents and biometric webcam frames)
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '50mb', verify: (req: any, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Universal /api Header & Cache Control Middleware
@@ -764,71 +764,168 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
 // 4. DIDIT.ME KYC WEBHOOK & STATUS SYNC
 // Automatically updates user kyc_status to 'verified' upon approval
 // ==============================================================================
-app.post(['/api/kyc/webhook', '/api/webhooks/didit'], async (req, res) => {
+app.post(['/api/kyc/webhook', '/api/webhooks/didit'], async (req: any, res) => {
   try {
-    const payload = req.body || {};
-    const sessionId = payload.session_id || payload.id;
-    const profileId = payload.vendor_data || payload.profile_id || payload.user_id || payload.metadata?.profileId;
-    const decision = (payload.status || payload.decision || payload.event || '').toLowerCase();
-
-    // Optional HMAC signature verification if DIDIT_WEBHOOK_SECRET is set
     const webhookSecret = process.env.DIDIT_WEBHOOK_SECRET;
-    const signature = req.headers['x-signature'] || req.headers['X-Signature'];
-    if (webhookSecret && signature && typeof signature === 'string') {
-      try {
+    
+    // 1. Signature Verification
+    if (webhookSecret) {
+      const timestampHeader = req.headers['x-timestamp'];
+      const signatureV2 = req.headers['x-signature-v2'];
+      const signatureV1 = req.headers['x-signature'];
+      const signatureSimple = req.headers['x-signature-simple'];
+
+      // Validate timestamp is fresh (within 5 minutes)
+      if (timestampHeader) {
+        const timestamp = parseInt(timestampHeader as string, 10);
+        const now = Math.floor(Date.now() / 1000);
+        if (Math.abs(now - timestamp) > 300) {
+          console.warn('[Didit Webhook] Stale timestamp:', timestampHeader);
+          return res.status(400).json({ error: 'Stale timestamp' });
+        }
+      }
+
+      let isValid = false;
+      
+      const rawBody = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
+
+      // Verify X-Signature (Raw Bytes)
+      if (!isValid && signatureV1) {
         const expectedSig = crypto
           .createHmac('sha256', webhookSecret)
-          .update(JSON.stringify(req.body))
+          .update(rawBody)
           .digest('hex');
-        if (signature !== expectedSig) {
-          console.warn('[Didit Webhook] Signature mismatch warning');
+        if (signatureV1.length === expectedSig.length) {
+          isValid = crypto.timingSafeEqual(Buffer.from(signatureV1 as string), Buffer.from(expectedSig));
         }
-      } catch (sigErr) {
-        console.warn('[Didit Webhook] Signature verification check error:', sigErr);
+      }
+
+      // Verify X-Signature-V2 (If raw body happens to be canonical)
+      if (!isValid && signatureV2) {
+        const expectedSig = crypto
+          .createHmac('sha256', webhookSecret)
+          .update(rawBody)
+          .digest('hex');
+        if (signatureV2.length === expectedSig.length) {
+          isValid = crypto.timingSafeEqual(Buffer.from(signatureV2 as string), Buffer.from(expectedSig));
+        }
+      }
+      
+      // Fallback to X-Signature-Simple
+      if (!isValid && signatureSimple && timestampHeader) {
+        const payload = req.body || {};
+        const sessionId = payload.session_id || payload.id || '';
+        const status = payload.status || '';
+        const webhookType = payload.webhook_type || '';
+        
+        const dataToSign = `${timestampHeader}:${sessionId}:${status}:${webhookType}`;
+        const expectedSig = crypto
+          .createHmac('sha256', webhookSecret)
+          .update(dataToSign)
+          .digest('hex');
+          
+        if (signatureSimple.length === expectedSig.length) {
+          isValid = crypto.timingSafeEqual(Buffer.from(signatureSimple as string), Buffer.from(expectedSig));
+        }
+      }
+
+      if (!isValid && (signatureV1 || signatureV2 || signatureSimple)) {
+        console.warn('[Didit Webhook] Signature mismatch. Raw body:', rawBody);
+        return res.status(401).json({ error: 'Invalid signature' });
+      } else if (!isValid) {
+         console.warn('[Didit Webhook] No signature headers found');
+         return res.status(401).json({ error: 'Missing signature headers' });
       }
     }
 
-    const isVerified =
-      decision === 'approved' ||
-      decision === 'verified' ||
-      decision === 'completed' ||
-      decision === 'success' ||
-      decision.includes('approved') ||
-      decision.includes('verified');
+    // Return 2xx ASAP
+    res.status(200).json({ received: true });
 
-    const kycStatus = isVerified ? 'verified' : (decision === 'rejected' || decision === 'declined' ? 'unverified' : 'pending');
+    // Process asynchronously
+    (async () => {
+      try {
+        const payload = req.body || {};
+        const webhookType = payload.webhook_type;
+        const status = payload.status || payload.decision || payload.event || '';
+        const profileId = payload.vendor_data || payload.profile_id || payload.user_id || payload.metadata?.profileId;
+        const sessionId = payload.session_id || payload.id;
 
-    console.info(`[Didit Webhook] Session: ${sessionId}, Profile: ${profileId}, Decision: ${decision} -> kyc_status: ${kycStatus}`);
+        console.info(`[Didit Webhook Async] Type: ${webhookType}, Status: ${status}, Profile: ${profileId}`);
 
-    if (profileId) {
-      const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+        if (!profileId) return;
 
-      if (supabaseUrl && serviceRoleKey) {
+        const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !serviceRoleKey) return;
+
         const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+        
+        let kycStatus = 'pending';
+        let isVerified = false;
+
+        switch (status) {
+          case 'Approved':
+          case 'approved':
+          case 'verified':
+            kycStatus = 'verified';
+            isVerified = true;
+            break;
+          case 'Declined':
+          case 'declined':
+          case 'rejected':
+            kycStatus = 'declined';
+            break;
+          case 'In Review':
+          case 'in_review':
+            kycStatus = 'pending_review';
+            break;
+          case 'In Progress':
+          case 'in_progress':
+            kycStatus = 'in_progress';
+            break;
+          case 'Resubmitted':
+          case 'resubmitted':
+            kycStatus = 'resubmitted';
+            break;
+          case 'Abandoned':
+          case 'abandoned':
+            kycStatus = 'abandoned';
+            break;
+          case 'Expired':
+          case 'KYC Expired':
+          case 'expired':
+            kycStatus = 'expired';
+            break;
+          default:
+            kycStatus = status.toLowerCase() || 'pending';
+        }
+
         const { error: updateError } = await supabaseAdmin
           .from('profiles')
           .update({
             kyc_status: kycStatus,
             kyc_verified: isVerified,
-            is_verified: isVerified,
+            ...(isVerified ? { is_verified: true } : {}),
             kyc_session_id: sessionId,
             updated_at: new Date().toISOString(),
           })
           .eq('id', profileId);
 
         if (updateError) {
-          console.error('[Didit Webhook] Profile update error:', updateError);
+          console.error('[Didit Webhook Async] Profile update error:', updateError);
         } else {
-          console.info(`[Didit Webhook] Successfully updated profile ${profileId} KYC status to ${kycStatus}`);
+          console.info(`[Didit Webhook Async] Updated profile ${profileId} -> ${kycStatus}`);
         }
+      } catch (asyncErr) {
+        console.error('[Didit Webhook Async] Error processing:', asyncErr);
       }
-    }
-
-    return res.status(200).json({ received: true, kycStatus, profileId });
+    })();
   } catch (err) {
     console.error('[Didit Webhook Exception]:', err);
-    return res.status(200).json({ received: false, error: (err as Error)?.message });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
   }
 });
 

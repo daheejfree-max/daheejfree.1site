@@ -204,6 +204,7 @@ export interface ChatMessage {
   receiver_id?: string;
   content: string;
   read?: boolean;
+  is_read?: boolean;
   is_nsfw?: boolean;
   is_dowry_demand?: boolean;
   moderation_flagged?: boolean;

@@ -458,6 +458,15 @@ class DaheejFreeStore {
     const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
     const list: ChatMessage[] = raw ? JSON.parse(raw) : [];
 
+    // Normalize remote messages
+    const normalizedRemote = (remoteMessages || []).map((m: any) => ({
+      ...m,
+      receiver_id: m.receiver_id || m.recipient_id,
+      recipient_id: m.recipient_id || m.receiver_id,
+      read: m.read ?? m.is_read ?? false,
+      is_read: m.is_read ?? m.read ?? false,
+    }));
+
     // Keep all messages belonging to other user pairs
     const otherMessages = list.filter((m) => {
       const mReceiver = m.receiver_id || m.recipient_id;
@@ -468,7 +477,7 @@ class DaheejFreeStore {
     });
 
     // Merge remote messages with any very recent local-only messages (< 15 seconds old)
-    const remoteIds = new Set(remoteMessages.map((m) => m.id));
+    const remoteIds = new Set(normalizedRemote.map((m) => m.id));
     const currentPair = list.filter((m) => {
       const mReceiver = m.receiver_id || m.recipient_id;
       return (
@@ -483,7 +492,7 @@ class DaheejFreeStore {
       return ageMs >= -300000 && ageMs < 60000;
     });
 
-    const unified = [...otherMessages, ...remoteMessages, ...pendingLocal];
+    const unified = [...otherMessages, ...normalizedRemote, ...pendingLocal];
     localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(unified));
   }
 
