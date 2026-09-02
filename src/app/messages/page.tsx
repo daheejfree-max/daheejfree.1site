@@ -746,9 +746,9 @@ export default function RealtimeMessagesPage({
   }, [messages.length, activeChat?.id, scrollToBottom]);
 
   return (
-    <div className="w-full h-[100dvh] overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3">
+    <div className="w-full h-full min-h-0 flex-1 overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3">
       {/* Top Banner: Islamic Matrimonial Messaging Charter (Compact on Mobile, hidden when in active mobile chat to give 100% viewport to conversation) */}
-      <div className={`shrink-0 mb-2 sm:mb-3 bg-gradient-to-r from-emerald-900/90 via-teal-950/90 to-zinc-900 border border-emerald-500/30 rounded-none sm:rounded-2xl p-3 sm:p-4 text-white ${activeChat ? 'hidden sm:flex' : 'flex'} flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg`}>
+      <div className={`shrink-0 mb-0 sm:mb-3 bg-gradient-to-r from-emerald-900/90 via-teal-950/90 to-zinc-900 border border-emerald-500/30 rounded-none sm:rounded-2xl p-2.5 sm:p-4 text-white ${activeChat ? 'hidden sm:flex' : 'flex'} flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 shadow-lg`}>
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0">
             <Shield className="w-5 h-5 text-emerald-400" />
@@ -1537,7 +1537,7 @@ export default function RealtimeMessagesPage({
               )}
 
               {/* Message Input Bar (Pinned securely to bottom with safe area padding) */}
-              <div className="shrink-0 p-2.5 sm:p-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 pb-safe space-y-2 z-10">
+              <div className="shrink-0 sticky bottom-0 z-20 p-2.5 sm:p-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 pb-safe space-y-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.35)]">
                 {/* Starters Accordion Button */}
                 <div className="flex items-center justify-between px-1">
                   <button

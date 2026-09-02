@@ -63,6 +63,7 @@ interface MessagesPageProps {
   onOpenPricing: () => void;
   onViewProfile?: (profile: ProfileSecureView) => void;
   onNavigateMatches?: () => void;
+  onMobileChatStateChange?: (isActive: boolean) => void;
 }
 
 const ISLAMIC_STARTERS = [
@@ -81,6 +82,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   onOpenPricing,
   onViewProfile,
   onNavigateMatches,
+  onMobileChatStateChange,
 }) => {
   // STABLE SUPABASE CLIENT: Initialized safely using useState to prevent recreate on render and keep WebSocket alive
   const [supabase] = useState(() =>
@@ -106,6 +108,11 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [isInitiatingCall, setIsInitiatingCall] = useState(false);
   const [showStarters, setShowStarters] = useState(false);
+
+  // Sync mobile chat state with parent
+  useEffect(() => {
+    onMobileChatStateChange?.(!isMobileListOpen);
+  }, [isMobileListOpen, onMobileChatStateChange]);
 
   // Incoming Call Popup State
   const [incomingCallPopup, setIncomingCallPopup] = useState<{
@@ -889,9 +896,9 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   const canCall = viewerTier === 'platinum' || viewerTier === 'diamond';
 
   return (
-    <div className="w-full h-[100dvh] overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3">
+    <div className="w-full h-full min-h-0 flex-1 overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3">
       {/* Top Banner: Islamic Matrimonial Messaging Charter (Compact on mobile, hidden during active chat on mobile) */}
-      <div className={`shrink-0 mb-2 sm:mb-3 bg-gradient-to-r from-emerald-900/90 via-teal-950/90 to-zinc-900 border border-emerald-500/30 rounded-none sm:rounded-2xl p-3 sm:p-4 text-white ${!isMobileListOpen ? 'hidden md:flex' : 'flex'} flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg`}>
+      <div className={`shrink-0 mb-0 sm:mb-3 bg-gradient-to-r from-emerald-900/90 via-teal-950/90 to-zinc-900 border border-emerald-500/30 rounded-none sm:rounded-2xl p-2.5 sm:p-4 text-white ${!isMobileListOpen ? 'hidden md:flex' : 'flex'} flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 shadow-lg`}>
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0">
             <Shield className="w-5 h-5 text-emerald-400" />
@@ -926,12 +933,12 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       </div>
 
       {/* Main Split-Pane Layout */}
-      <div className="flex-1 flex flex-col md:flex-row bg-white dark:bg-zinc-900 border-0 sm:border border-zinc-200 dark:border-zinc-800 rounded-none sm:rounded-3xl overflow-hidden shadow-xl min-h-0 h-full transition-colors">
+      <div className="flex-1 flex flex-col md:flex-row bg-white dark:bg-zinc-900 border-0 sm:border border-zinc-200 dark:border-zinc-800 rounded-none sm:rounded-3xl overflow-hidden shadow-xl min-h-0 h-full transition-colors relative">
         {/* ========================================================================= */}
         {/* SIDEBAR: CONVERSATION LIST (Responsive Drawer on Mobile) */}
         {/* ========================================================================= */}
         <div
-          className={`w-full md:w-80 lg:w-96 border-r border-zinc-200 dark:border-zinc-800 flex flex-col bg-zinc-50 dark:bg-zinc-950 transition-colors h-full min-h-0 ${
+          className={`w-full md:w-80 lg:w-96 border-r border-zinc-200 dark:border-zinc-800 flex flex-col bg-zinc-50 dark:bg-zinc-950 transition-colors h-full min-h-0 pb-20 md:pb-0 ${
             !isMobileListOpen ? 'hidden md:flex' : 'flex'
           }`}
         >
@@ -1677,10 +1684,10 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                 </div>
               )}
 
-              {/* Bottom Input Area (Pinned to bottom with pb-safe) */}
-              <div className="shrink-0 p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 transition-colors pb-safe z-10">
+              {/* Bottom Input Area (Sticky to bottom with pb-safe and shadow) */}
+              <div className="shrink-0 sticky bottom-0 z-20 p-2 sm:p-3 bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 transition-colors pb-safe shadow-[0_-4px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.35)]">
                 {showStarters && (
-                  <div className="mb-2 p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl space-y-1.5 shadow-md max-h-36 overflow-y-auto">
+                  <div className="mb-2 p-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl space-y-1.5 shadow-md max-h-36 overflow-y-auto">
                     <p className="text-[10px] font-bold text-zinc-400 px-2 uppercase tracking-wider">
                       Quick Islamic Starters:
                     </p>
@@ -1694,7 +1701,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                             setShowStarters(false);
                             inputRef.current?.focus();
                           }}
-                          className="min-h-[36px] p-2 text-left rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 text-[11px] text-zinc-700 dark:text-zinc-300 truncate cursor-pointer"
+                          className="min-h-[36px] p-2 text-left rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 active:bg-zinc-300 text-[11px] text-zinc-800 dark:text-zinc-200 truncate cursor-pointer"
                         >
                           "{s}"
                         </button>
@@ -1707,7 +1714,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowStarters(!showStarters)}
-                    className="min-w-[44px] min-h-[44px] p-2.5 rounded-2xl bg-zinc-200/70 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:text-emerald-500 active:bg-zinc-300 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                    className="min-w-[44px] min-h-[44px] p-2.5 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:text-emerald-500 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors flex items-center justify-center cursor-pointer shrink-0"
                     title="Insert Islamic Greeting"
                     aria-label="Insert Islamic Greeting"
                   >
@@ -1723,7 +1730,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                       if (moderationWarning) setModerationWarning(null);
                     }}
                     placeholder={`Message ${selectedPartner.full_name} respectfully...`}
-                    className="flex-1 min-h-[44px] bg-white dark:bg-zinc-900 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 px-4 py-2.5 rounded-2xl border border-zinc-300 dark:border-zinc-800 focus:outline-none focus:border-emerald-500 transition-colors shadow-inner"
+                    className="flex-1 min-h-[44px] bg-zinc-50 dark:bg-zinc-900 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 px-4 py-2.5 rounded-2xl border border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors shadow-inner"
                   />
 
                   <button

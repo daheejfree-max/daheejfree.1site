@@ -54,6 +54,7 @@ interface NavbarProps {
   unreadMessagesCount?: number;
   pendingRequestsCount?: number;
   acceptedMatchesCount?: number;
+  hideMobileNav?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -71,6 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   unreadMessagesCount = 0,
   pendingRequestsCount = 0,
   acceptedMatchesCount = 0,
+  hideMobileNav = false,
 }) => {
   const router = useRouter();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -1076,7 +1078,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     </header>
 
     {/* 4. Mobile Bottom Sticky Navigation Tab Bar (Screens < 768px) - Positioned safely outside header */}
-    {currentProfile && (
+    {currentProfile && !hideMobileNav && currentTab !== 'call' && (
       <nav
         aria-label="Mobile Bottom Navigation"
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-200/80 dark:border-zinc-800/80 pb-safe shadow-[0_-4px_24px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.4)] transition-colors"

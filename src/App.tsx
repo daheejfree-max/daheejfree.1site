@@ -148,6 +148,9 @@ export default function App() {
     return null;
   });
 
+  // Track if mobile 1-on-1 chat is actively open to hide mobile bottom bar for 100% writing visibility
+  const [isMobileChatActive, setIsMobileChatActive] = useState<boolean>(Boolean(selectedChatUserId));
+
   // Keep browser history and URL pathname in sync with currentTab without destroying path parameters
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -580,7 +583,12 @@ export default function App() {
       {/* Top Navigation */}
       <Navbar
         currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        setCurrentTab={(tab) => {
+          if (tab !== 'messages') {
+            setIsMobileChatActive(false);
+          }
+          setCurrentTab(tab);
+        }}
         currentProfile={currentProfile}
         tier={tier}
         allProfiles={allProfiles}
@@ -593,6 +601,7 @@ export default function App() {
         unreadMessagesCount={unreadMessagesCount}
         pendingRequestsCount={pendingRequestsCount}
         acceptedMatchesCount={acceptedMatchesCount}
+        hideMobileNav={currentTab === 'call' || (currentTab === 'messages' && isMobileChatActive)}
       />
 
       {/* Strict Production Hard KYC Wall: un-dismissible full-screen gate for unverified users trying to access protected views */}
@@ -656,9 +665,9 @@ export default function App() {
       <main
         className={
           currentTab === 'messages'
-            ? 'flex-1 max-w-7xl w-full mx-auto px-1 sm:px-3 py-1 flex flex-col min-h-0 h-[calc(100dvh-4.5rem)] overflow-hidden'
+            ? 'flex-1 max-w-7xl w-full mx-auto px-0 sm:px-3 py-0 sm:py-1 flex flex-col min-h-0 h-[calc(100dvh-4rem)] md:h-[calc(100dvh-4.5rem)] overflow-hidden'
             : currentTab === 'call'
-            ? 'flex-1 w-full flex flex-col min-h-0 h-[calc(100dvh-4.5rem)] overflow-hidden p-0'
+            ? 'flex-1 w-full flex flex-col min-h-0 h-[calc(100dvh-4rem)] md:h-[calc(100dvh-4.5rem)] overflow-hidden p-0'
             : 'flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-24 md:pb-8'
         }
       >
@@ -855,6 +864,7 @@ export default function App() {
               setActiveConsentProfile(profile);
             }}
             onNavigateMatches={() => setCurrentTab('matches')}
+            onMobileChatStateChange={(isActive) => setIsMobileChatActive(isActive)}
           />
         )}
 
