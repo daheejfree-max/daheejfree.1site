@@ -588,12 +588,10 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
         return;
       }
 
-      // If initial conversation switch and no active messages, pre-populate from local store
+      // If initial conversation switch, pre-populate from local store (or clear if empty)
       if (isInitialSwitch) {
         const localMsgs = daheejStore.getMessages(currentUserId, selectedUserId);
-        if (localMsgs.length > 0) {
-          setActiveMessages(localMsgs);
-        }
+        setActiveMessages(localMsgs);
       }
 
       // Mark as read in store
