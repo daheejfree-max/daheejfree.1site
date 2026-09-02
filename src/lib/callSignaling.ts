@@ -412,6 +412,77 @@ export async function recordCallConnected({
 }
 
 /**
+ * Record a Call Declined event in chat
+ */
+export async function recordCallDeclined({
+  currentUserId,
+  partnerId,
+  roomID,
+  callType = 'video',
+}: {
+  currentUserId: string;
+  partnerId: string;
+  roomID: string;
+  callType?: 'video' | 'voice' | 'audio';
+}): Promise<void> {
+  if (!currentUserId || !partnerId) return;
+
+  const payload = {
+    type: 'CALL_DECLINED',
+    room_id: roomID,
+    call_type: callType,
+    timestamp: new Date().toISOString(),
+  };
+
+  const msgId = `dec_${Date.now()}`;
+  const chatMsg: ChatMessage = {
+    id: msgId,
+    sender_id: currentUserId,
+    receiver_id: partnerId,
+    recipient_id: partnerId,
+    content: `CALL_DECLINED:${JSON.stringify(payload)}`,
+    read: true,
+    created_at: payload.timestamp,
+  };
+
+  try {
+    if (roomID) {
+      daheejStore.updateCallInviteStatus(roomID, `CALL_DECLINED:${JSON.stringify(payload)}`);
+      try {
+        await supabase
+          .from('messages')
+          .update({ content: 'CALL_DECLINED' })
+          .ilike('content', `%${roomID}%`);
+      } catch (e) {}
+    }
+    daheejStore.addMessage(chatMsg);
+    await supabase.from('messages').insert({
+      id: msgId,
+      sender_id: currentUserId,
+      receiver_id: partnerId,
+      recipient_id: partnerId,
+      content: `CALL_DECLINED:${JSON.stringify(payload)}`,
+      is_read: true,
+      created_at: payload.timestamp,
+    });
+  } catch (e) {
+    console.warn('[Call Signaling] recordCallDeclined notice:', e);
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const list = JSON.parse(sessionStorage.getItem('declined_call_rooms') || '[]');
+      if (roomID && !list.includes(roomID)) {
+        list.push(roomID);
+        sessionStorage.setItem('declined_call_rooms', JSON.stringify(list));
+      }
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('call:cancelled', { detail: { roomId: roomID } }));
+    window.dispatchEvent(new CustomEvent('call:declined', { detail: { roomId: roomID } }));
+  }
+}
+
+/**
  * Record a Call Ended event with duration in chat
  */
 export async function recordCallEnded({
@@ -449,6 +520,15 @@ export async function recordCallEnded({
   };
 
   try {
+    if (roomID) {
+      daheejStore.updateCallInviteStatus(roomID, `CALL_ENDED:${JSON.stringify(payload)}`);
+      try {
+        await supabase
+          .from('messages')
+          .update({ content: 'CALL_ENDED' })
+          .ilike('content', `%${roomID}%`);
+      } catch (e) {}
+    }
     daheejStore.addMessage(chatMsg);
     await supabase.from('messages').insert({
       id: msgId,
@@ -461,6 +541,18 @@ export async function recordCallEnded({
     });
   } catch (e) {
     console.warn('[Call Signaling] recordCallEnded notice:', e);
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const list = JSON.parse(sessionStorage.getItem('ended_call_rooms') || '[]');
+      if (roomID && !list.includes(roomID)) {
+        list.push(roomID);
+        sessionStorage.setItem('ended_call_rooms', JSON.stringify(list));
+      }
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('call:cancelled', { detail: { roomId: roomID } }));
+    window.dispatchEvent(new CustomEvent('call:ended', { detail: { roomId: roomID } }));
   }
 }
 
@@ -503,6 +595,15 @@ export async function recordCallMissed({
   };
 
   try {
+    if (roomID) {
+      daheejStore.updateCallInviteStatus(roomID, `CALL_MISSED:${JSON.stringify(payload)}`);
+      try {
+        await supabase
+          .from('messages')
+          .update({ content: 'CALL_MISSED' })
+          .ilike('content', `%${roomID}%`);
+      } catch (e) {}
+    }
     daheejStore.addMessage(chatMsg);
     await supabase.from('messages').insert({
       id: msgId,
@@ -515,6 +616,18 @@ export async function recordCallMissed({
     });
   } catch (e) {
     console.warn('[Call Signaling] recordCallMissed notice:', e);
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const list = JSON.parse(sessionStorage.getItem('ended_call_rooms') || '[]');
+      if (roomID && !list.includes(roomID)) {
+        list.push(roomID);
+        sessionStorage.setItem('ended_call_rooms', JSON.stringify(list));
+      }
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('call:cancelled', { detail: { roomId: roomID } }));
+    window.dispatchEvent(new CustomEvent('call:missed', { detail: { roomId: roomID } }));
   }
 }
 
@@ -532,10 +645,15 @@ export function isCallInviteCurrentlyActive(
   if (
     trimmed === 'CALL_DECLINED' ||
     trimmed.startsWith('CALL_DECLINED') ||
+    trimmed.includes('CALL_DECLINED') ||
     trimmed === 'CALL_ENDED' ||
     trimmed.startsWith('CALL_ENDED') ||
+    trimmed.includes('CALL_ENDED') ||
     trimmed === 'CALL_MISSED' ||
-    trimmed.startsWith('CALL_MISSED')
+    trimmed.startsWith('CALL_MISSED') ||
+    trimmed.includes('CALL_MISSED') ||
+    trimmed === 'CALL_CONNECTED' ||
+    trimmed.startsWith('CALL_CONNECTED')
   ) {
     return false;
   }
@@ -543,39 +661,60 @@ export function isCallInviteCurrentlyActive(
   const invite = parseCallInvite(msg.content);
   if (!invite) return false;
 
-  // 1. Time expiration: A call invite is only actively ringing for at most 45 seconds
+  const targetRoomId = invite.room_id;
+
+  // 1. In-memory and sessionStorage check for ended or declined calls
+  if (typeof window !== 'undefined' && targetRoomId) {
+    try {
+      const endedRooms = JSON.parse(sessionStorage.getItem('ended_call_rooms') || '[]');
+      const declinedRooms = JSON.parse(sessionStorage.getItem('declined_call_rooms') || '[]');
+      if (endedRooms.includes(targetRoomId) || declinedRooms.includes(targetRoomId)) {
+        return false;
+      }
+    } catch (e) {}
+  }
+
+  // 2. Check local store calls list
+  try {
+    const localCalls = daheejStore.getCalls();
+    const match = localCalls.find((c: any) => c.room_id === targetRoomId || c.id === targetRoomId);
+    if (match && ['ended', 'completed', 'cancelled', 'declined', 'missed', 'rejected'].includes(match.status)) {
+      return false;
+    }
+  } catch (e) {}
+
+  // 3. Time expiration: A call invite is only actively ringing for at most 30 seconds
   const createdAtTime = new Date(msg.created_at || Date.now()).getTime();
-  if (isNaN(createdAtTime) || Date.now() - createdAtTime > 45000) {
+  if (isNaN(createdAtTime) || Date.now() - createdAtTime > 30000) {
     return false;
   }
 
-  // 2. Check if there are subsequent termination events (CALL_ENDED, CALL_DECLINED, CALL_MISSED, CALL_CONNECTED)
+  // 4. Check if there are subsequent termination events (CALL_ENDED, CALL_DECLINED, CALL_MISSED, CALL_CONNECTED)
   // for this room or later in the chat thread
-  const targetRoomId = invite.room_id;
   for (const other of allMessages) {
     if (other.id === msg.id) continue;
-    const otherTime = new Date(other.created_at || 0).getTime();
+    const otherContent = other.content || '';
     
-    // If an event occurred after this invite or explicitly references this room
-    const event = parseCallEvent(other.content);
-    if (event) {
-      const matchesRoom = Boolean(event.room_id && targetRoomId && event.room_id === targetRoomId);
-      const isAfterOrNear = otherTime >= createdAtTime - 2000;
-      
-      if (matchesRoom || isAfterOrNear) {
-        if (
-          event.type === 'CALL_ENDED' ||
-          event.type === 'CALL_DECLINED' ||
-          event.type === 'CALL_MISSED' ||
-          event.type === 'CALL_CONNECTED' ||
-          other.content?.includes('CALL_ENDED') ||
-          other.content?.includes('CALL_DECLINED') ||
-          other.content?.includes('CALL_MISSED') ||
-          other.content?.includes('CALL_CONNECTED')
-        ) {
-          return false;
-        }
-      }
+    // Check if this other message is a termination event
+    const isTerm =
+      otherContent.includes('CALL_ENDED') ||
+      otherContent.includes('CALL_DECLINED') ||
+      otherContent.includes('CALL_MISSED') ||
+      otherContent.includes('CALL_CONNECTED') ||
+      otherContent.includes('call-ended') ||
+      otherContent.includes('reject-call');
+
+    if (!isTerm) continue;
+
+    // If it mentions the exact room ID, it definitively terminates this call
+    if (targetRoomId && otherContent.includes(targetRoomId)) {
+      return false;
+    }
+
+    // Or if it occurred after or near this invite
+    const otherTime = new Date(other.created_at || 0).getTime();
+    if (otherTime >= createdAtTime - 2000) {
+      return false;
     }
   }
 
@@ -583,9 +722,15 @@ export function isCallInviteCurrentlyActive(
 }
 
 /**
- * End a call session in public.call_signals
+ * End a call session in public.call_signals & sync messages / store
  */
-export async function endCallSession(roomID?: string, signalId?: string): Promise<void> {
+export async function endCallSession(
+  roomID?: string,
+  signalId?: string,
+  currentUserId?: string,
+  partnerId?: string,
+  durationSeconds = 0
+): Promise<void> {
   if (!roomID && !signalId) return;
 
   try {
@@ -600,16 +745,79 @@ export async function endCallSession(roomID?: string, signalId?: string): Promis
         .from('call_signals')
         .update({ type: 'call-ended' })
         .eq('room_id', roomID);
+      daheejStore.updateCallInviteStatus(roomID, `CALL_ENDED:{"room_id":"${roomID}","duration":${durationSeconds}}`);
+      try {
+        await supabase
+          .from('messages')
+          .update({ content: 'CALL_ENDED' })
+          .ilike('content', `%${roomID}%`);
+      } catch (e) {}
     }
   } catch (err) {
     console.warn('[Call Signaling] endCallSession notice:', err);
+  }
+
+  if (currentUserId && partnerId && roomID) {
+    await recordCallEnded({
+      currentUserId,
+      partnerId,
+      roomID,
+      durationSeconds,
+    });
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const list = JSON.parse(sessionStorage.getItem('ended_call_rooms') || '[]');
+      if (roomID && !list.includes(roomID)) {
+        list.push(roomID);
+        sessionStorage.setItem('ended_call_rooms', JSON.stringify(list));
+      }
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('call:cancelled', { detail: { roomId: roomID, signalId } }));
+    window.dispatchEvent(new CustomEvent('call:ended', { detail: { roomId: roomID, signalId } }));
+  }
+}
+
+/**
+ * Explicitly send a call cancellation signal across Supabase and local event buses
+ */
+export async function sendCallCancellation(roomId?: string, callerId?: string, partnerId?: string): Promise<void> {
+  if (roomId) {
+    daheejStore.updateCallInviteStatus(roomId, 'CALL_ENDED');
+    try {
+      await supabase
+        .from('call_signals')
+        .update({ type: 'cancel-call' })
+        .eq('room_id', roomId);
+      await supabase
+        .from('messages')
+        .update({ content: 'CALL_ENDED' })
+        .ilike('content', `%${roomId}%`);
+    } catch (e) {}
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const list = JSON.parse(sessionStorage.getItem('ended_call_rooms') || '[]');
+      if (roomId && !list.includes(roomId)) {
+        list.push(roomId);
+        sessionStorage.setItem('ended_call_rooms', JSON.stringify(list));
+      }
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('call:cancelled', { detail: { roomId } }));
+    window.dispatchEvent(new CustomEvent('call:ended', { detail: { roomId } }));
   }
 }
 
 /**
  * Mark a call signal as missed or cancelled
  */
-export async function markCallAsMissed(roomID?: string, signalId?: string): Promise<void> {
+export async function markCallAsMissed(
+  roomID?: string,
+  signalId?: string,
+  currentUserId?: string,
+  partnerId?: string
+): Promise<void> {
   if (!roomID && !signalId) return;
 
   try {
@@ -624,16 +832,49 @@ export async function markCallAsMissed(roomID?: string, signalId?: string): Prom
         .from('call_signals')
         .update({ type: 'reject-call' })
         .eq('room_id', roomID);
+      daheejStore.updateCallInviteStatus(roomID, `CALL_MISSED:{"room_id":"${roomID}"}`);
+      try {
+        await supabase
+          .from('messages')
+          .update({ content: 'CALL_MISSED' })
+          .ilike('content', `%${roomID}%`);
+      } catch (e) {}
     }
   } catch (err) {
     console.warn('[Call Signaling] markCallAsMissed notice:', err);
+  }
+
+  if (currentUserId && partnerId && roomID) {
+    await recordCallMissed({
+      currentUserId,
+      partnerId,
+      roomID,
+      reason: 'unanswered',
+    });
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const list = JSON.parse(sessionStorage.getItem('ended_call_rooms') || '[]');
+      if (roomID && !list.includes(roomID)) {
+        list.push(roomID);
+        sessionStorage.setItem('ended_call_rooms', JSON.stringify(list));
+      }
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('call:cancelled', { detail: { roomId: roomID, signalId } }));
+    window.dispatchEvent(new CustomEvent('call:missed', { detail: { roomId: roomID, signalId } }));
   }
 }
 
 /**
  * Decline an incoming call signal
  */
-export async function declineCallSession(signalId?: string, roomID?: string): Promise<void> {
+export async function declineCallSession(
+  signalId?: string,
+  roomID?: string,
+  currentUserId?: string,
+  partnerId?: string
+): Promise<void> {
   try {
     if (signalId) {
       await supabase
@@ -646,9 +887,36 @@ export async function declineCallSession(signalId?: string, roomID?: string): Pr
         .from('call_signals')
         .update({ type: 'reject-call' })
         .eq('room_id', roomID);
+      daheejStore.updateCallInviteStatus(roomID, 'CALL_DECLINED');
+      try {
+        await supabase
+          .from('messages')
+          .update({ content: 'CALL_DECLINED' })
+          .ilike('content', `%${roomID}%`);
+      } catch (e) {}
     }
   } catch (err) {
     console.warn('[Call Signaling] declineCallSession notice:', err);
+  }
+
+  if (currentUserId && partnerId && roomID) {
+    await recordCallDeclined({
+      currentUserId,
+      partnerId,
+      roomID,
+    });
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const list = JSON.parse(sessionStorage.getItem('declined_call_rooms') || '[]');
+      if (roomID && !list.includes(roomID)) {
+        list.push(roomID);
+        sessionStorage.setItem('declined_call_rooms', JSON.stringify(list));
+      }
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('call:cancelled', { detail: { roomId: roomID, signalId } }));
+    window.dispatchEvent(new CustomEvent('call:declined', { detail: { roomId: roomID, signalId } }));
   }
 }
 

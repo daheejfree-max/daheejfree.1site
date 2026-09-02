@@ -38,7 +38,7 @@ import { Profile, ProfileSecureView, SubscriptionTier, ChatMessage } from '../..
 import { daheejStore } from '../../lib/supabase/store';
 import { createBrowserClient } from '@supabase/ssr';
 import { moderateTextContent } from '../../lib/moderation';
-import { parseCallInvite, parseCallEvent, formatCallMessagePreview, sendCallInvite, declineCallSession, isCallSignalingContent, isCallInviteCurrentlyActive } from '../../lib/callSignaling';
+import { parseCallInvite, parseCallEvent, formatCallMessagePreview, sendCallInvite, declineCallSession, isCallSignalingContent, isCallInviteCurrentlyActive, subscribeToCallSignals } from '../../lib/callSignaling';
 
 export const formatMessagePreview = (content: string | undefined | null): string => {
   return formatCallMessagePreview(content);
@@ -125,6 +125,17 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopRingtone = useCallback(() => {
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      } catch (e) {}
+      audioRef.current = null;
+    }
+  }, []);
 
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -135,13 +146,71 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
   const playRingtone = useCallback(() => {
     try {
+      stopRingtone();
       const audio = new Audio('https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg');
       audio.volume = 0.5;
+      audioRef.current = audio;
       audio.play().catch((e) => console.info('Audio play blocked by browser interaction rules:', e));
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [stopRingtone]);
+
+  // Periodic ticker to automatically expire ringing cards and popups smoothly after 35s
+  const [, setTicker] = useState<number>(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTicker((prev) => prev + 1);
+      setIncomingCallPopup((prev) => {
+        if (!prev) return null;
+        if (Date.now() - prev.timestamp > 35000) {
+          stopRingtone();
+          return null;
+        }
+        return prev;
+      });
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+      stopRingtone();
+    };
+  }, [stopRingtone]);
+
+  // Global window call termination listener for cross-tab and cross-component signaling
+  useEffect(() => {
+    const handleCallDismiss = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      stopRingtone();
+      setIncomingCallPopup((prev) => {
+        if (!prev) return null;
+        if (!detail?.roomId || prev.room_id === detail.roomId) {
+          return null;
+        }
+        return prev;
+      });
+      if (detail?.roomId) {
+        setActiveMessages((prev) =>
+          prev.map((m) =>
+            m.content?.includes(detail.roomId)
+              ? { ...m, content: 'CALL_ENDED' }
+              : m
+          )
+        );
+      }
+    };
+
+    window.addEventListener('call:cancelled', handleCallDismiss);
+    window.addEventListener('call:ended', handleCallDismiss);
+    window.addEventListener('call:declined', handleCallDismiss);
+    window.addEventListener('call:missed', handleCallDismiss);
+
+    return () => {
+      window.removeEventListener('call:cancelled', handleCallDismiss);
+      window.removeEventListener('call:ended', handleCallDismiss);
+      window.removeEventListener('call:declined', handleCallDismiss);
+      window.removeEventListener('call:missed', handleCallDismiss);
+    };
+  }, [stopRingtone]);
 
   const requestNotificationPermission = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -451,17 +520,47 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           } catch (updateErr) {
             // Ignore if RLS or column difference
           }
+          // Check for active incoming call in loaded unified messages
+          const activeInviteMsg = unified.find(
+            (m) => m.sender_id === selectedUserId && isCallInviteCurrentlyActive(m, unified)
+          );
+          if (activeInviteMsg) {
+            const invite = parseCallInvite(activeInviteMsg.content);
+            if (invite) {
+              setIncomingCallPopup((prev) => {
+                if (prev && prev.room_id === invite.room_id) return prev;
+                playRingtone();
+                return {
+                  room_id: invite.room_id,
+                  callType: invite.callType,
+                  caller_name: selectedPartner?.full_name || 'Matched Partner',
+                  sender_id: selectedUserId,
+                  timestamp: new Date(activeInviteMsg.created_at || Date.now()).getTime(),
+                };
+              });
+            }
+          } else {
+            setIncomingCallPopup((prev) => {
+              if (prev && prev.sender_id === selectedUserId) {
+                stopRingtone();
+                return null;
+              }
+              return prev;
+            });
+          }
         }
       } catch (err) {
         console.warn('[MessagesPage] Supabase remote sync fallback:', err);
       }
     },
-    [currentUserId, selectedUserId, supabase]
+    [currentUserId, selectedUserId, supabase, playRingtone, stopRingtone, selectedPartner]
   );
 
   useEffect(() => {
+    stopRingtone();
+    setIncomingCallPopup(null);
     loadConversationMessages(true);
-  }, [loadConversationMessages]);
+  }, [loadConversationMessages, stopRingtone]);
 
   // 3. Supabase Real-Time WebSocket Channel for Live Messages
   useEffect(() => {
@@ -497,9 +596,32 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
           if (!isForMe) return;
 
+          // Check if this is a call termination event (Call cut, ended, missed, or declined)
+          const callEvent = parseCallEvent(newMsg.content);
+          const isTermEvent =
+            callEvent?.type === 'CALL_ENDED' ||
+            callEvent?.type === 'CALL_DECLINED' ||
+            callEvent?.type === 'CALL_MISSED' ||
+            callEvent?.type === 'CALL_CONNECTED' ||
+            newMsg.content?.includes('CALL_ENDED') ||
+            newMsg.content?.includes('CALL_DECLINED') ||
+            newMsg.content?.includes('CALL_MISSED') ||
+            newMsg.content?.includes('CALL_CONNECTED');
+
+          if (isTermEvent) {
+            stopRingtone();
+            setIncomingCallPopup((prev) => {
+              if (!prev) return null;
+              if (!callEvent?.room_id || prev.room_id === callEvent.room_id || prev.sender_id === newMsg.sender_id) {
+                return null;
+              }
+              return prev;
+            });
+          }
+
           // Check if this is an incoming call invite from the partner
           const invite = parseCallInvite(newMsg.content);
-          if (invite && newMsg.sender_id === selectedUserId) {
+          if (invite && newMsg.sender_id === selectedUserId && !isTermEvent && isCallInviteCurrentlyActive(newMsg, activeMessages)) {
             setIncomingCallPopup({
               room_id: invite.room_id,
               callType: invite.callType,
@@ -526,7 +648,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                 }
               );
             }
-          } else if (newMsg.sender_id === selectedUserId && !invite) {
+          } else if (newMsg.sender_id === selectedUserId && !invite && !isTermEvent) {
             // Native browser push notification when tab/document is in background (document.hidden)
             if (
               typeof window !== 'undefined' &&
@@ -607,6 +729,20 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
             is_read: Boolean(rawMsg.is_read ?? rawMsg.read ?? false),
           };
 
+          // If this update signals call end or decline, dismiss call popup
+          if (
+            updatedMsg.content === 'CALL_ENDED' ||
+            updatedMsg.content === 'CALL_DECLINED' ||
+            updatedMsg.content === 'CALL_MISSED' ||
+            updatedMsg.content === 'CALL_CONNECTED' ||
+            updatedMsg.content?.includes('CALL_ENDED') ||
+            updatedMsg.content?.includes('CALL_DECLINED') ||
+            updatedMsg.content?.includes('CALL_MISSED')
+          ) {
+            stopRingtone();
+            setIncomingCallPopup(null);
+          }
+
           setActiveMessages((prev) =>
             prev.map((m) => (m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m))
           );
@@ -621,9 +757,31 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     const unsubscribeStore = daheejStore.subscribeToMessages((msg) => {
       const mReceiver = msg.receiver_id || (msg as any as any).recipient_id;
 
+      // Check if this store message is a call termination event
+      const callEvt = parseCallEvent(msg.content);
+      const isTermMsg =
+        callEvt?.type === 'CALL_ENDED' ||
+        callEvt?.type === 'CALL_DECLINED' ||
+        callEvt?.type === 'CALL_MISSED' ||
+        callEvt?.type === 'CALL_CONNECTED' ||
+        msg.content?.includes('CALL_ENDED') ||
+        msg.content?.includes('CALL_DECLINED') ||
+        msg.content?.includes('CALL_MISSED');
+
+      if (isTermMsg) {
+        stopRingtone();
+        setIncomingCallPopup((prev) => {
+          if (!prev) return null;
+          if (!callEvt?.room_id || prev.room_id === callEvt.room_id || prev.sender_id === msg.sender_id) {
+            return null;
+          }
+          return prev;
+        });
+      }
+
       // Check local incoming call invite
       const invite = parseCallInvite(msg.content);
-      if (invite && msg.sender_id === selectedUserId) {
+      if (invite && msg.sender_id === selectedUserId && !isTermMsg && isCallInviteCurrentlyActive(msg, activeMessages)) {
         setIncomingCallPopup({
           room_id: invite.room_id,
           callType: invite.callType,
@@ -631,6 +789,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           sender_id: msg.sender_id,
           timestamp: Date.now(),
         });
+        playRingtone();
       }
 
       if (
@@ -655,7 +814,34 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       refreshAllMessages();
     });
 
-    // 4. Background polling sync (without wiping or resetting active conversation)
+    // 4. Supabase Call Signals subscription for instant call cancellation/hangup detection
+    const unsubCallSignals = subscribeToCallSignals(
+      currentUserId,
+      (inviteData) => {
+        if (!selectedUserId || inviteData.caller_id === selectedUserId) {
+          setIncomingCallPopup({
+            room_id: inviteData.room_id,
+            callType: inviteData.callType === 'video' ? 'video' : 'voice',
+            caller_name: inviteData.caller_name || selectedPartner?.full_name || 'Matched Partner',
+            sender_id: inviteData.caller_id || '',
+            timestamp: Date.now(),
+          });
+          playRingtone();
+        }
+      },
+      (cancelledRoomId) => {
+        stopRingtone();
+        setIncomingCallPopup((prev) => {
+          if (!prev) return null;
+          if (!cancelledRoomId || prev.room_id === cancelledRoomId) {
+            return null;
+          }
+          return prev;
+        });
+      }
+    );
+
+    // 5. Background polling sync (without wiping or resetting active conversation)
     const pollInterval = setInterval(() => {
       if (selectedUserId) {
         loadConversationMessages(false);
@@ -665,7 +851,9 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     return () => {
       supabase.removeChannel(channel);
       unsubscribeStore();
+      unsubCallSignals();
       clearInterval(pollInterval);
+      stopRingtone();
     };
   }, [currentUserId, selectedUserId, refreshAllMessages, loadConversationMessages, selectedPartner, supabase]);
 
@@ -872,19 +1060,31 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   // Handle declining an incoming call
   const handleDeclineCall = async (messageId: string, roomId: string) => {
     try {
+      stopRingtone();
+      setIncomingCallPopup(null);
+
       // 1. Update optimistic UI state immediately
       setActiveMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, content: 'CALL_DECLINED' } : m))
+        prev.map((m) =>
+          m.id === messageId || (roomId && m.content?.includes(roomId))
+            ? { ...m, content: 'CALL_DECLINED' }
+            : m
+        )
       );
 
-      // 2. Perform database update and local store synchronization
-      await declineCallSession(messageId, roomId);
+      // 2. Perform database update, signaling, and local store synchronization
+      await declineCallSession(messageId, roomId, currentUserId, selectedUserId);
 
       // 3. Direct Supabase update ensuring database sync
-      await supabase
-        .from('messages')
-        .update({ content: 'CALL_DECLINED' })
-        .eq('id', messageId);
+      if (messageId) {
+        await supabase
+          .from('messages')
+          .update({ content: 'CALL_DECLINED' })
+          .eq('id', messageId);
+      }
+      if (roomId) {
+        daheejStore.updateCallInviteStatus(roomId, 'CALL_DECLINED');
+      }
 
       refreshAllMessages();
     } catch (error) {
@@ -1246,7 +1446,9 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                     <button
                       id="accept-incoming-call-popup-btn"
                       onClick={() => {
-                        const callUrl = `/call/${incomingCallPopup.room_id}?callType=${incomingCallPopup.callType}&role=receiver`;
+                        stopRingtone();
+                        const pId = incomingCallPopup.sender_id || selectedUserId || '';
+                        const callUrl = `/call/${incomingCallPopup.room_id}?callType=${incomingCallPopup.callType}&role=receiver&partnerId=${pId}`;
                         setIncomingCallPopup(null);
                         if (typeof window !== 'undefined') {
                           window.history.pushState({ tab: 'call' }, '', callUrl);
@@ -1262,10 +1464,11 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                       id="decline-incoming-call-popup-btn"
                       onClick={async () => {
                         const targetRoomId = incomingCallPopup.room_id;
+                        stopRingtone();
                         setIncomingCallPopup(null);
                         if (targetRoomId) {
-                          await declineCallSession(undefined, targetRoomId);
-                          refreshAllMessages();
+                          const targetMsgId = activeMessages.find((m) => m.content?.includes(targetRoomId))?.id || '';
+                          await handleDeclineCall(targetMsgId, targetRoomId);
                         }
                       }}
                       className="min-w-[44px] min-h-[44px] p-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer flex items-center justify-center"
@@ -1457,8 +1660,9 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                     // 2. Touch-Optimized Active Ringing Call Card
                     if (callInvite && isStillActive) {
                       const isVideo = callInvite.callType === 'video';
-                      const callerCallUrl = `/call/${callInvite.room_id}?callType=${callInvite.callType}&role=caller`;
-                      const receiverCallUrl = `/call/${callInvite.room_id}?callType=${callInvite.callType}&role=receiver`;
+                      const pId = isMe ? (selectedUserId || '') : (msg.sender_id || selectedUserId || '');
+                      const callerCallUrl = `/call/${callInvite.room_id}?callType=${callInvite.callType}&role=caller&partnerId=${pId}`;
+                      const receiverCallUrl = `/call/${callInvite.room_id}?callType=${callInvite.callType}&role=receiver&partnerId=${pId}`;
 
                       return (
                         <div
@@ -1499,24 +1703,37 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                             {/* Responsive Action Buttons with 44px minimum touch target */}
                             <div className="mt-3 pt-2.5 border-t border-emerald-400/20 flex items-center gap-2">
                               {isMe ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (typeof window !== 'undefined') {
-                                      window.history.pushState({ tab: 'call' }, '', callerCallUrl);
-                                      window.dispatchEvent(new CustomEvent('app:navigate', { detail: { path: callerCallUrl, tab: 'call' } }));
-                                    }
-                                  }}
-                                  className="w-full min-h-[44px] py-2 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer active:scale-95 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-emerald-950"
-                                >
-                                  <Video className="w-4 h-4" />
-                                  <span>Enter Call Room</span>
-                                </button>
+                                <div className="w-full flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (typeof window !== 'undefined') {
+                                        window.history.pushState({ tab: 'call' }, '', callerCallUrl);
+                                        window.dispatchEvent(new CustomEvent('app:navigate', { detail: { path: callerCallUrl, tab: 'call' } }));
+                                      }
+                                    }}
+                                    className="flex-1 min-h-[44px] py-2 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer active:scale-95 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-emerald-950"
+                                  >
+                                    <Video className="w-4 h-4" />
+                                    <span>Enter Call Room</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeclineCall(msg.id, callInvite.room_id)}
+                                    className="min-h-[44px] px-3.5 py-2 rounded-xl font-bold text-xs bg-rose-500/20 border border-rose-400/40 text-rose-200 hover:bg-rose-600 hover:text-white active:bg-rose-700 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                                    title="Cancel Call"
+                                  >
+                                    <PhoneOff className="w-4 h-4" />
+                                    <span>Cancel</span>
+                                  </button>
+                                </div>
                               ) : (
                                 <>
                                   <button
                                     type="button"
                                     onClick={() => {
+                                      stopRingtone();
+                                      setIncomingCallPopup(null);
                                       if (typeof window !== 'undefined') {
                                         window.history.pushState({ tab: 'call' }, '', receiverCallUrl);
                                         window.dispatchEvent(new CustomEvent('app:navigate', { detail: { path: receiverCallUrl, tab: 'call' } }));

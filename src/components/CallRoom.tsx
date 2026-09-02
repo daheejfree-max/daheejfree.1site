@@ -14,6 +14,7 @@ import {
   recordCallMissed,
   recordCallEnded,
   recordCallConnected,
+  sendCallCancellation,
 } from '../lib/callSignaling';
 import {
   Mic,
@@ -39,6 +40,7 @@ interface CallRoomProps {
   userName?: string;
   partnerAvatar?: string | null;
   role?: 'caller' | 'receiver';
+  partnerId?: string;
 }
 
 type ConnectionPhase =
@@ -67,6 +69,7 @@ export default function CallRoom({
   userName = 'Matched Partner',
   partnerAvatar = null,
   role: propRole,
+  partnerId: propPartnerId,
 }: CallRoomProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -136,13 +139,17 @@ export default function CallRoom({
 
   // Partner ID detection & resolution
   const queryPartnerId = searchParams ? (searchParams.get('partnerId') || searchParams.get('partner_id')) : null;
-  const partnerIdRef = useRef<string>(queryPartnerId || '');
-  if (queryPartnerId && !partnerIdRef.current) {
-    partnerIdRef.current = queryPartnerId;
+  const partnerIdRef = useRef<string>(queryPartnerId || propPartnerId || '');
+  if ((queryPartnerId || propPartnerId) && !partnerIdRef.current) {
+    partnerIdRef.current = queryPartnerId || propPartnerId || '';
   }
 
   const resolvePartnerId = useCallback((): string => {
     if (partnerIdRef.current) return partnerIdRef.current;
+    if (propPartnerId) {
+      partnerIdRef.current = propPartnerId;
+      return propPartnerId;
+    }
     try {
       const calls = daheejStore.getCalls();
       const activeCall = calls.find(
@@ -163,14 +170,14 @@ export default function CallRoom({
     const clean = activeRoomIdRef.current.replace(/^room_/, '');
     const parts = clean.split('_');
     if (parts.length >= 2) {
-      const candidate = parts.find((p) => p !== myUserIdRef.current && p.length > 5);
+      const candidate = parts.find((p) => p !== myUserIdRef.current && p.length > 5 && isNaN(Number(p)));
       if (candidate) {
         partnerIdRef.current = candidate;
         return candidate;
       }
     }
     return '';
-  }, []);
+  }, [propPartnerId]);
 
   // Handler references to prevent stale callbacks
   const handleSignalingDataRef = useRef<(payload: any) => Promise<void>>(async () => {});
@@ -309,27 +316,55 @@ export default function CallRoom({
         dbChannelRef.current = null;
       }
 
-      // 4. Update call signal status in DB
+      // 4. Update call signal status in DB & Local Store
+      const targetRoomId = activeRoomIdRef.current;
+      const targetPartnerId = resolvePartnerId();
+      const myUid = myUserIdRef.current;
+
+      if (targetRoomId) {
+        daheejStore.updateCallInviteStatus(targetRoomId, 'CALL_ENDED');
+        try {
+          const list = JSON.parse(sessionStorage.getItem('ended_call_rooms') || '[]');
+          if (!list.includes(targetRoomId)) {
+            list.push(targetRoomId);
+            sessionStorage.setItem('ended_call_rooms', JSON.stringify(list));
+          }
+        } catch (e) {}
+      }
+
       try {
         await supabase
           .from('call_signals')
           .update({ type: 'call-ended' })
-          .eq('room_id', activeRoomIdRef.current);
+          .eq('room_id', targetRoomId);
       } catch (dbErr) {
         console.warn('[CallRoom] DB signal hangup notice:', dbErr);
       }
 
+      try {
+        if (targetRoomId) {
+          await supabase
+            .from('messages')
+            .update({ content: 'CALL_ENDED' })
+            .ilike('content', `%${targetRoomId}%`);
+        }
+      } catch (dbMsgErr) {
+        console.warn('[CallRoom] DB message hangup notice:', dbMsgErr);
+      }
+
+      if (targetRoomId) {
+        sendCallCancellation(targetRoomId, myUid, targetPartnerId).catch(() => {});
+      }
+
       // 5. Persist Call Event Status in Chat History (Ended or Missed)
       try {
-        const targetPartnerId = resolvePartnerId();
         const curDuration = durationRef.current;
-        const myUid = myUserIdRef.current;
         if (myUid && targetPartnerId) {
           if (curDuration > 0 || isConnectedRef.current) {
             await recordCallEnded({
               currentUserId: myUid,
               partnerId: targetPartnerId,
-              roomID: activeRoomIdRef.current,
+              roomID: targetRoomId,
               durationSeconds: curDuration,
               callType: isVideoRef.current ? 'video' : 'voice',
             });
@@ -337,7 +372,7 @@ export default function CallRoom({
             await recordCallMissed({
               currentUserId: myUid,
               partnerId: targetPartnerId,
-              roomID: activeRoomIdRef.current,
+              roomID: targetRoomId,
               callType: isVideoRef.current ? 'video' : 'voice',
               reason: 'cancelled',
             });
@@ -345,6 +380,12 @@ export default function CallRoom({
         }
       } catch (evtErr) {
         console.warn('[CallRoom] Call history record notice:', evtErr);
+      }
+
+      // Dispatch global window events to immediately clear any lingering incoming call banners
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('call:ended', { detail: { roomId: targetRoomId } }));
+        window.dispatchEvent(new CustomEvent('call:cancelled', { detail: { roomId: targetRoomId } }));
       }
 
       // 6. Clean navigation routing

@@ -41,7 +41,7 @@ import { useWebRTC } from '../../hooks/useWebRTC';
 import { daheejStore } from '../../lib/supabase/store';
 import { moderateTextContent } from '../../lib/moderation';
 import { Profile, ChatMessage } from '../../types';
-import { parseCallInvite, parseCallEvent, formatCallMessagePreview, sendCallInvite, declineCallSession, isCallSignalingContent, isCallInviteCurrentlyActive, CallInviteData } from '../../lib/callSignaling';
+import { parseCallInvite, parseCallEvent, formatCallMessagePreview, sendCallInvite, declineCallSession, isCallSignalingContent, isCallInviteCurrentlyActive, subscribeToCallSignals, CallInviteData } from '../../lib/callSignaling';
 import { getDisplayName } from '../../lib/utils';
 
 export const formatMessagePreview = (content: string | undefined | null): string => {
@@ -150,15 +150,76 @@ export default function RealtimeMessagesPage({
     return 'default';
   });
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopRingtone = useCallback(() => {
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      } catch (e) {}
+      audioRef.current = null;
+    }
+  }, []);
+
   const playRingtone = useCallback(() => {
     try {
+      stopRingtone();
       const audio = new Audio('https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg');
       audio.volume = 0.5;
+      audioRef.current = audio;
       audio.play().catch((e) => console.info('Audio play blocked by browser interaction rules:', e));
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [stopRingtone]);
+
+  // Periodic ticker to automatically expire ringing cards and popups smoothly after 35s
+  const [, setTicker] = useState<number>(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTicker((prev) => prev + 1);
+      setIncomingCallPopup((prev) => {
+        if (!prev) return null;
+        if (Date.now() - prev.timestamp > 35000) {
+          stopRingtone();
+          return null;
+        }
+        return prev;
+      });
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+      stopRingtone();
+    };
+  }, [stopRingtone]);
+
+  // Global window call termination listener for cross-tab and cross-component signaling
+  useEffect(() => {
+    const handleCallDismiss = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      stopRingtone();
+      setIncomingCallPopup((prev) => {
+        if (!prev) return null;
+        if (!detail?.roomId || prev.room_id === detail.roomId) {
+          return null;
+        }
+        return prev;
+      });
+    };
+
+    window.addEventListener('call:cancelled', handleCallDismiss);
+    window.addEventListener('call:ended', handleCallDismiss);
+    window.addEventListener('call:declined', handleCallDismiss);
+    window.addEventListener('call:missed', handleCallDismiss);
+
+    return () => {
+      window.removeEventListener('call:cancelled', handleCallDismiss);
+      window.removeEventListener('call:ended', handleCallDismiss);
+      window.removeEventListener('call:declined', handleCallDismiss);
+      window.removeEventListener('call:missed', handleCallDismiss);
+    };
+  }, [stopRingtone]);
 
   const requestNotificationPermission = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -426,9 +487,32 @@ export default function RealtimeMessagesPage({
             (msgSender === partnerId && msgReceiver === currentUserId);
 
           if (isBelongingToCurrentChat) {
+            // Check if this is a call termination event (Call cut, ended, missed, or declined)
+            const callEvent = parseCallEvent(newMsg.content);
+            const isTermEvent =
+              callEvent?.type === 'CALL_ENDED' ||
+              callEvent?.type === 'CALL_DECLINED' ||
+              callEvent?.type === 'CALL_MISSED' ||
+              callEvent?.type === 'CALL_CONNECTED' ||
+              newMsg.content?.includes('CALL_ENDED') ||
+              newMsg.content?.includes('CALL_DECLINED') ||
+              newMsg.content?.includes('CALL_MISSED') ||
+              newMsg.content?.includes('CALL_CONNECTED');
+
+            if (isTermEvent) {
+              stopRingtone();
+              setIncomingCallPopup((prev) => {
+                if (!prev) return null;
+                if (!callEvent?.room_id || prev.room_id === callEvent.room_id || prev.sender_id === newMsg.sender_id) {
+                  return null;
+                }
+                return prev;
+              });
+            }
+
             // Check for Call Signaling
             const invite = parseCallInvite(newMsg.content);
-            if (invite && msgSender === partnerId) {
+            if (invite && msgSender === partnerId && !isTermEvent) {
               setIncomingCallPopup({
                 room_id: invite.room_id,
                 callType: invite.callType,
@@ -455,7 +539,7 @@ export default function RealtimeMessagesPage({
                   }
                 );
               }
-            } else if (msgSender === partnerId && !invite) {
+            } else if (msgSender === partnerId && !invite && !isTermEvent) {
               // Native browser push notification for new message when tab is in background
               if (
                 typeof window !== 'undefined' &&
@@ -528,6 +612,19 @@ export default function RealtimeMessagesPage({
             is_read: Boolean(rawUpdated.is_read ?? rawUpdated.read ?? false),
           };
 
+          if (
+            updatedMsg.content === 'CALL_ENDED' ||
+            updatedMsg.content === 'CALL_DECLINED' ||
+            updatedMsg.content === 'CALL_MISSED' ||
+            updatedMsg.content === 'CALL_CONNECTED' ||
+            updatedMsg.content?.includes('CALL_ENDED') ||
+            updatedMsg.content?.includes('CALL_DECLINED') ||
+            updatedMsg.content?.includes('CALL_MISSED')
+          ) {
+            stopRingtone();
+            setIncomingCallPopup(null);
+          }
+
           const msgSender = updatedMsg.sender_id;
           const msgReceiver = updatedMsg.receiver_id;
 
@@ -553,8 +650,29 @@ export default function RealtimeMessagesPage({
         ((msg.sender_id === partnerId && mReceiver === currentUserId) ||
           (msg.sender_id === currentUserId && mReceiver === partnerId))
       ) {
+        const callEvt = parseCallEvent(msg.content);
+        const isTermMsg =
+          callEvt?.type === 'CALL_ENDED' ||
+          callEvt?.type === 'CALL_DECLINED' ||
+          callEvt?.type === 'CALL_MISSED' ||
+          callEvt?.type === 'CALL_CONNECTED' ||
+          msg.content?.includes('CALL_ENDED') ||
+          msg.content?.includes('CALL_DECLINED') ||
+          msg.content?.includes('CALL_MISSED');
+
+        if (isTermMsg) {
+          stopRingtone();
+          setIncomingCallPopup((prev) => {
+            if (!prev) return null;
+            if (!callEvt?.room_id || prev.room_id === callEvt.room_id || prev.sender_id === msg.sender_id) {
+              return null;
+            }
+            return prev;
+          });
+        }
+
         const invite = parseCallInvite(msg.content);
-        if (invite && msg.sender_id === partnerId) {
+        if (invite && msg.sender_id === partnerId && !isTermMsg) {
           setIncomingCallPopup({
             room_id: invite.room_id,
             callType: invite.callType,
@@ -562,6 +680,7 @@ export default function RealtimeMessagesPage({
             sender_id: msg.sender_id,
             timestamp: Date.now(),
           });
+          playRingtone();
         }
 
         setMessages((prev) => {
@@ -581,6 +700,35 @@ export default function RealtimeMessagesPage({
       }
     });
 
+    // Call signals listener for instant cancellation
+    const unsubCallSignals = subscribeToCallSignals(
+      currentUserId,
+      (inviteData) => {
+        if (!isMounted) return;
+        if (!partnerId || inviteData.caller_id === partnerId) {
+          setIncomingCallPopup({
+            room_id: inviteData.room_id,
+            callType: inviteData.callType === 'video' ? 'video' : 'voice',
+            caller_name: inviteData.caller_name || activeChat?.full_name || 'Matched Partner',
+            sender_id: inviteData.caller_id || '',
+            timestamp: Date.now(),
+          });
+          playRingtone();
+        }
+      },
+      (cancelledRoomId) => {
+        if (!isMounted) return;
+        stopRingtone();
+        setIncomingCallPopup((prev) => {
+          if (!prev) return null;
+          if (!cancelledRoomId || prev.room_id === cancelledRoomId) {
+            return null;
+          }
+          return prev;
+        });
+      }
+    );
+
     // Continuous 2-second heartbeat polling so messages & calls update without reload
     const pollInterval = setInterval(() => {
       if (activeChat?.id) {
@@ -592,7 +740,9 @@ export default function RealtimeMessagesPage({
       isMounted = false;
       supabase.removeChannel(channel);
       unsubLocal();
+      unsubCallSignals();
       clearInterval(pollInterval);
+      stopRingtone();
     };
   }, [currentUserId, activeChat?.id, supabase, scrollToBottom, fetchMessages]);
 
@@ -634,19 +784,31 @@ export default function RealtimeMessagesPage({
   // Handle declining an incoming call
   const handleDeclineCall = async (messageId: string, roomId: string) => {
     try {
+      stopRingtone();
+      setIncomingCallPopup(null);
+
       // 1. Update optimistic UI state immediately
       setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, content: 'CALL_DECLINED' } : m))
+        prev.map((m) =>
+          m.id === messageId || (roomId && m.content?.includes(roomId))
+            ? { ...m, content: 'CALL_DECLINED' }
+            : m
+        )
       );
 
-      // 2. Perform database update and local store synchronization
-      await declineCallSession(messageId, roomId);
+      // 2. Perform database update, signaling, and local store synchronization
+      await declineCallSession(messageId, roomId, currentUserId, activeChat?.id);
 
       // 3. Direct Supabase update ensuring database sync
-      await supabase
-        .from('messages')
-        .update({ content: 'CALL_DECLINED' })
-        .eq('id', messageId);
+      if (messageId) {
+        await supabase
+          .from('messages')
+          .update({ content: 'CALL_DECLINED' })
+          .eq('id', messageId);
+      }
+      if (roomId) {
+        daheejStore.updateCallInviteStatus(roomId, 'CALL_DECLINED');
+      }
     } catch (error) {
       console.error('Failed to decline call:', error);
     }
@@ -1069,10 +1231,12 @@ export default function RealtimeMessagesPage({
                     <button
                       id="accept-incoming-call-popup-btn"
                       onClick={() => {
-                        const callUrl = `/call/${incomingCallPopup.room_id}?callType=${incomingCallPopup.callType}&role=receiver`;
+                        stopRingtone();
                         setIncomingCallPopup(null);
+                        const callUrl = `/call/${incomingCallPopup.room_id}?callType=${incomingCallPopup.callType}&role=receiver`;
                         if (typeof window !== 'undefined') {
-                          window.open(callUrl, '_blank');
+                          window.history.pushState({ tab: 'call' }, '', callUrl);
+                          window.dispatchEvent(new CustomEvent('app:navigate', { detail: { path: callUrl, tab: 'call' } }));
                         }
                       }}
                       className="min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-emerald-950 font-bold text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95"
@@ -1084,13 +1248,11 @@ export default function RealtimeMessagesPage({
                       id="decline-incoming-call-popup-btn"
                       onClick={async () => {
                         const targetRoomId = incomingCallPopup.room_id;
+                        stopRingtone();
                         setIncomingCallPopup(null);
                         if (targetRoomId) {
-                          await declineCallSession(undefined, targetRoomId);
-                          await supabase
-                            .from('messages')
-                            .update({ content: 'CALL_DECLINED' })
-                            .match({ content: 'CALL_INVITE', room_id: targetRoomId });
+                          const targetMsgId = messages.find((m) => m.content?.includes(targetRoomId))?.id || '';
+                          await handleDeclineCall(targetMsgId, targetRoomId);
                         }
                       }}
                       className="min-w-[44px] min-h-[44px] p-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer flex items-center justify-center"
@@ -1356,6 +1518,8 @@ export default function RealtimeMessagesPage({
                                   <button
                                     type="button"
                                     onClick={() => {
+                                      stopRingtone();
+                                      setIncomingCallPopup(null);
                                       if (typeof window !== 'undefined') {
                                         window.history.pushState({ tab: 'call' }, '', receiverCallUrl);
                                         window.dispatchEvent(new CustomEvent('app:navigate', { detail: { path: receiverCallUrl, tab: 'call' } }));

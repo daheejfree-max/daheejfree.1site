@@ -222,10 +222,40 @@ export const GlobalCallPopup: React.FC = () => {
       )
       .subscribe();
 
+    // Window custom events for instant cross-component call dismissal
+    const onWindowCallDismiss = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      handleCallDismiss(detail?.roomId, detail?.signalId);
+    };
+
+    window.addEventListener('call:cancelled', onWindowCallDismiss);
+    window.addEventListener('call:ended', onWindowCallDismiss);
+    window.addEventListener('call:declined', onWindowCallDismiss);
+    window.addEventListener('call:missed', onWindowCallDismiss);
+
+    // Also listen to local store messages for call events
+    const unsubStore = daheejStore.subscribeToMessages((msg) => {
+      if (
+        msg.content === 'CALL_ENDED' ||
+        msg.content === 'CALL_DECLINED' ||
+        msg.content === 'CALL_MISSED' ||
+        msg.content?.includes('CALL_ENDED') ||
+        msg.content?.includes('CALL_DECLINED') ||
+        msg.content?.includes('CALL_MISSED')
+      ) {
+        handleCallDismiss();
+      }
+    });
+
     return () => {
       isMounted = false;
       stopRingtone();
       unsubscribe();
+      unsubStore();
+      window.removeEventListener('call:cancelled', onWindowCallDismiss);
+      window.removeEventListener('call:ended', onWindowCallDismiss);
+      window.removeEventListener('call:declined', onWindowCallDismiss);
+      window.removeEventListener('call:missed', onWindowCallDismiss);
       supabase.removeChannel(updateChannel);
     };
   }, [currentUser, startRingtone, stopRingtone]);
@@ -288,7 +318,8 @@ export const GlobalCallPopup: React.FC = () => {
     }
 
     // Launch Call UI
-    const callUrl = `/call/${targetRoomId}?callType=${callType}&role=receiver`;
+    const partnerParam = incomingCall.caller_id ? `&partnerId=${incomingCall.caller_id}` : '';
+    const callUrl = `/call/${targetRoomId}?callType=${callType}&role=receiver${partnerParam}`;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('app:navigate', {

@@ -22,6 +22,7 @@ export default function CallPage({ params, roomID: propRoomID, type: propType, r
   const [roomID, setRoomID] = useState<string>(propRoomID || '');
   const [callType, setCallType] = useState<'video' | 'voice' | 'audio'>(propType || 'video');
   const [role, setRole] = useState<'caller' | 'receiver'>(propRole || 'caller');
+  const [partnerId, setPartnerId] = useState<string>('');
   const [partnerName, setPartnerName] = useState<string>('Matrimonial Candidate');
   const [partnerAvatar, setPartnerAvatar] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -189,6 +190,7 @@ export default function CallPage({ params, roomID: propRoomID, type: propType, r
           setRoomID(resolvedRoom);
           setCallType(resolvedType);
           setRole(resolvedRole);
+          setPartnerId(resolvedPartnerId || '');
           setPartnerName(resolvedPartnerName);
           setPartnerAvatar(resolvedPartnerAvatar);
         }
@@ -280,6 +282,7 @@ export default function CallPage({ params, roomID: propRoomID, type: propType, r
       userName={partnerName}
       partnerAvatar={partnerAvatar}
       role={role}
+      partnerId={partnerId}
     />
   );
 }
