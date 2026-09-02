@@ -663,6 +663,22 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
             });
           }
         }
+
+        // Force local store to mark newly fetched messages as read
+        daheejStore.markMessagesAsRead(currentUserId, selectedUserId);
+        const latestUnified = daheejStore.getMessages(currentUserId, selectedUserId);
+        setActiveMessages((prev) => {
+          if (prev.length !== latestUnified.length) return latestUnified;
+          let isSame = true;
+          for (let i = 0; i < prev.length; i++) {
+            if (prev[i].id !== latestUnified[i].id || prev[i].read !== latestUnified[i].read) {
+              isSame = false;
+              break;
+            }
+          }
+          return isSame ? prev : latestUnified;
+        });
+
       } catch (err) {
         console.warn('[MessagesPage] Supabase remote sync fallback:', err);
       }
@@ -673,8 +689,10 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   useEffect(() => {
     stopRingtone();
     setIncomingCallPopup(null);
-    loadConversationMessages(true);
-  }, [loadConversationMessages, stopRingtone]);
+    loadConversationMessages(true).then(() => {
+      refreshAllMessages();
+    });
+  }, [loadConversationMessages, stopRingtone, refreshAllMessages]);
 
   // 3. Supabase Real-Time WebSocket Channel for Live Messages
   useEffect(() => {
