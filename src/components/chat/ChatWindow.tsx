@@ -633,8 +633,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   className="min-w-[44px] min-h-[44px] p-2.5 px-3 rounded-full sm:rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 active:bg-zinc-300 dark:active:bg-zinc-600 text-zinc-700 dark:text-zinc-200 transition-colors shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
                   title="Start 1-on-1 Voice Call (Disables Camera, Opens Zego Audio Room)"
                 >
-                  <Phone className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span className="hidden sm:inline text-xs font-semibold">Voice</span>
+                  <Phone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="hidden sm:inline-block whitespace-nowrap text-xs font-semibold">Voice</span>
                 </button>
                 <button
                   id="chatwindow-video-call-btn"
@@ -643,7 +643,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   className="min-w-[44px] min-h-[44px] p-2.5 px-3.5 rounded-full sm:rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition-colors shadow-sm flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer disabled:opacity-50"
                   title="Start 1-on-1 Video Call (Enables Camera & Mic, Opens Zego Video Room)"
                 >
-                  <Video className="w-4 h-4" />
+                  <Video className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:inline">Video</span>
                 </button>
               </>
@@ -887,7 +887,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             }}
                             className="w-full min-h-[44px] py-2 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer active:scale-95 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-emerald-950"
                           >
-                            <Video className="w-4 h-4" />
+                            <Video className="w-4 h-4 shrink-0" />
                             <span>Enter Call Room</span>
                           </button>
                         ) : (

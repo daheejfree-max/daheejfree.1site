@@ -1498,21 +1498,21 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                         id="messages-page-voice-call-btn"
                         disabled={isInitiatingCall}
                         onClick={() => handleInitiateCall('voice')}
-                        className="w-9 h-9 sm:min-w-[44px] sm:min-h-[44px] sm:px-3 rounded-full sm:rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 active:bg-zinc-300 dark:active:bg-zinc-600 text-zinc-700 dark:text-zinc-200 transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-1.5 text-xs font-semibold disabled:opacity-50"
+                        className="w-10 h-10 sm:w-auto sm:h-auto sm:min-w-[44px] sm:min-h-[44px] sm:px-3.5 rounded-full sm:rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 active:bg-zinc-300 dark:active:bg-zinc-600 text-zinc-700 dark:text-zinc-200 transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-2 text-xs font-semibold disabled:opacity-50"
                         title="Start 1-on-1 Voice Call (Disables Camera, Opens Zego Audio Room)"
                       >
-                        <Phone className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                        <span className="hidden sm:inline">Voice</span>
+                        <Phone className="w-4 h-4 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span className="hidden sm:inline-block whitespace-nowrap">Voice</span>
                       </button>
                       <button
                         id="messages-page-video-call-btn"
                         disabled={isInitiatingCall}
                         onClick={() => handleInitiateCall('video')}
-                        className="w-9 h-9 sm:min-w-[44px] sm:min-h-[44px] sm:px-3.5 rounded-full sm:rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition-colors shadow-sm flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer disabled:opacity-50"
+                        className="w-10 h-10 sm:w-auto sm:h-auto sm:min-w-[44px] sm:min-h-[44px] sm:px-3.5 rounded-full sm:rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition-colors shadow-sm flex items-center justify-center gap-2 text-xs font-bold cursor-pointer disabled:opacity-50"
                         title="Start 1-on-1 Video Call (Enables Camera & Mic, Opens Zego Video Room)"
                       >
-                        <Video className="w-4 h-4" />
-                        <span className="hidden sm:inline">Video Call</span>
+                        <Video className="w-4 h-4 shrink-0" />
+                        <span className="hidden sm:inline-block whitespace-nowrap">Video Call</span>
                       </button>
                     </>
                   ) : (
@@ -1741,13 +1741,13 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                         <div key={msg.id} className="w-full flex justify-center my-2.5 px-2">
                           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-100/90 dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/60 shadow-xs text-xs">
                             <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                              isCallMissed || isCallDeclined
+                              isCallMissed || isCallDeclined || (callInvite && !isStillActive && !isCallDeclined && !isCallEnded && !isCallConnected)
                                 ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400'
                                 : isCallConnected
                                 ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400'
                                 : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                             }`}>
-                              {isCallMissed ? (
+                              {isCallMissed || (callInvite && !isStillActive && !isCallDeclined && !isCallEnded && !isCallConnected) ? (
                                 <PhoneMissed className="w-3 h-3" />
                               ) : isCallDeclined ? (
                                 <PhoneOff className="w-3 h-3" />
@@ -1762,7 +1762,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
                             <div className="flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300 font-medium">
                               <span>
-                                {isCallMissed
+                                {isCallMissed || (callInvite && !isStillActive && !isCallDeclined && !isCallEnded && !isCallConnected)
                                   ? (isMe ? 'Unanswered Call' : 'Missed Call')
                                   : isCallDeclined
                                   ? 'Call Declined'
