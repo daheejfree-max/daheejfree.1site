@@ -85,18 +85,18 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
         });
 
         // Launch Didit.me verification window
-        window.open(data.sessionUrl, '_blank', 'noopener,noreferrer');
+        window.location.href = data.sessionUrl;
         setStatusMessage(
-          'Didit verification opened in a new tab. Complete your verification and click "Check Verification Status" below.'
+          'Redirecting to Didit Identity Gateway...'
         );
+      } else if (data?.notConfigured) {
+         setError('Didit API Key is not configured. Please add DIDIT_API_KEY to your environment variables.');
       } else {
-        // If Didit server key is not configured, open the built-in Government ID upload modal directly
-        setIsGovtIdModalOpen(true);
+        setError('Failed to initiate Didit session. Please try again later.');
       }
     } catch (err: any) {
       console.error('[HardKYCGate] Didit session initialization error:', err);
-      // Fallback seamlessly to direct Government ID document modal without broken alert
-      setIsGovtIdModalOpen(true);
+      setError(err.message || 'Unable to connect to Didit. Please check your network or API keys.');
     } finally {
       setIsStartingDidit(false);
     }
@@ -246,43 +246,20 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
 
         {/* Primary Action Controls */}
         <div className="space-y-3 pt-2">
-          {/* 1. Live Webcam Biometric Selfie Check */}
-          <button
-            id="btn-hard-gate-selfie"
-            type="button"
-            onClick={() => setIsSelfieModalOpen(true)}
-            className="w-full py-3.5 px-4 rounded-2xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-          >
-            <Camera className="w-4 h-4" />
-            <span>Start Live Webcam Biometric Check</span>
-            <ArrowRight className="w-4 h-4 opacity-80" />
-          </button>
-
-          {/* 2. Official Government ID Verification */}
-          <button
-            id="btn-hard-gate-govt-id"
-            type="button"
-            onClick={() => setIsGovtIdModalOpen(true)}
-            className="w-full py-3 px-4 rounded-2xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-          >
-            <FileCheck className="w-4 h-4 text-emerald-400" />
-            <span>Upload Government ID (Passport / National ID)</span>
-          </button>
-
-          {/* 3. Optional: Didit.me Gateway Trigger */}
+          {/* Didit.me Gateway Trigger */}
           <button
             id="btn-hard-gate-didit"
             type="button"
             onClick={handleStartDiditSession}
             disabled={isStartingDidit}
-            className="w-full py-2.5 px-4 rounded-2xl text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            className="w-full py-4 px-4 rounded-2xl text-sm sm:text-base font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 shadow-xl shadow-emerald-900/30 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-50"
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-zinc-400" />
-            <span>{isStartingDidit ? 'Connecting to Didit Gateway...' : 'Or Verify with Didit.me Identity Gateway'}</span>
-            <ExternalLink className="w-3 h-3 opacity-60" />
+            <ShieldCheck className="w-5 h-5 text-white" />
+            <span>{isStartingDidit ? 'Connecting to Didit Identity Gateway...' : 'Verify Identity with Didit.me'}</span>
+            <ExternalLink className="w-4 h-4 opacity-80" />
           </button>
 
-          {/* 4. Status Poll & Sign Out row */}
+          {/* Status Poll & Sign Out row */}
           <div className="flex items-center justify-between gap-3 pt-2 border-t border-zinc-800/80">
             <button
               id="btn-hard-gate-refresh"

@@ -215,14 +215,16 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
           kyc_status: 'pending',
         });
 
-        // Open Didit verification in new tab
-        window.open(sessionUrl, '_blank', 'noopener,noreferrer');
+        // Open Didit verification in same tab to prevent popup blockers
+        window.location.href = sessionUrl;
+      } else if (data?.notConfigured) {
+         setDiditError('Didit API Key is not configured. Please add DIDIT_API_KEY to your environment variables.');
       } else {
-        setIsGovtIdModalOpen(true);
+        setDiditError('Failed to initiate Didit session. Please try again later.');
       }
     } catch (err: any) {
       console.error('Didit KYC error:', err);
-      setIsGovtIdModalOpen(true);
+      setDiditError(err.message || 'Unable to connect to Didit. Please check your network or API keys.');
     } finally {
       setIsStartingDidit(false);
     }
@@ -394,44 +396,22 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
             )}
 
             <div className="flex flex-wrap items-center gap-3 pt-2">
-              {/* Biometric Webcam Selfie Verification */}
-              <button
-                id="btn-open-selfie-verify"
-                type="button"
-                onClick={() => setIsSelfieModalOpen(true)}
-                className="px-5 py-3 rounded-2xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all hover:scale-[1.02] cursor-pointer"
-              >
-                <Camera className="w-4 h-4" />
-                <span>Live Webcam Selfie Verification</span>
-              </button>
-
-              {/* Upload Government ID Verification */}
-              <button
-                id="btn-open-govt-id-verify"
-                type="button"
-                onClick={() => setIsGovtIdModalOpen(true)}
-                className="px-5 py-3 rounded-2xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 flex items-center gap-2 transition-all cursor-pointer"
-              >
-                <FileCheck className="w-4 h-4 text-emerald-400" />
-                <span>Upload Government ID</span>
-              </button>
-
               <button
                 id="btn-didit-verify"
                 onClick={handleStartDiditKYC}
                 disabled={isStartingDidit}
-                className="px-4 py-3 rounded-2xl text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                className="px-6 py-3.5 rounded-2xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all hover:scale-[1.02] cursor-pointer disabled:opacity-50"
               >
                 {isStartingDidit ? (
                   <>
-                    <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    Connecting to Didit...
+                    <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    Connecting to Didit Identity Gateway...
                   </>
                 ) : (
                   <>
-                    <Shield className="w-3.5 h-3.5 text-zinc-400" />
-                    Didit.me Gateway
-                    <ExternalLink className="w-3 h-3 opacity-60" />
+                    <Shield className="w-5 h-5 text-white" />
+                    Verify Identity via Didit.me
+                    <ExternalLink className="w-4 h-4 opacity-80" />
                   </>
                 )}
               </button>
