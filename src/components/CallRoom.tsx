@@ -136,6 +136,7 @@ export default function CallRoom({
   durationRef.current = duration;
   const isConnectedRef = useRef<boolean>(false);
   isConnectedRef.current = connectionState === 'connected' || phase === 'Connected';
+  const hasRecordedConnectedRef = useRef<boolean>(false);
 
   // Partner ID detection & resolution
   const queryPartnerId = searchParams ? (searchParams.get('partnerId') || searchParams.get('partner_id')) : null;
@@ -828,10 +829,11 @@ export default function CallRoom({
               }, 1000);
             }
 
-            // Persist Call Connected in Chat
+            // Persist Call Connected in Chat (At most once per room session)
             const targetPartnerId = resolvePartnerId();
             const myUid = myUserIdRef.current;
-            if (myUid && targetPartnerId) {
+            if (myUid && targetPartnerId && !hasRecordedConnectedRef.current) {
+              hasRecordedConnectedRef.current = true;
               recordCallConnected({
                 currentUserId: myUid,
                 partnerId: targetPartnerId,

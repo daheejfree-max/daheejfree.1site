@@ -109,10 +109,124 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   const [isInitiatingCall, setIsInitiatingCall] = useState(false);
   const [showStarters, setShowStarters] = useState(false);
 
+  // Reactively select conversation when initialSelectedUserId changes
+  useEffect(() => {
+    if (initialSelectedUserId) {
+      setSelectedUserId(initialSelectedUserId);
+      setIsMobileListOpen(false);
+    }
+  }, [initialSelectedUserId]);
+
   // Sync mobile chat state with parent
   useEffect(() => {
-    onMobileChatStateChange?.(!isMobileListOpen);
-  }, [isMobileListOpen, onMobileChatStateChange]);
+    onMobileChatStateChange?.(!isMobileListOpen && Boolean(selectedUserId));
+  }, [isMobileListOpen, selectedUserId, onMobileChatStateChange]);
+
+  const [isAntiDowryBannerDismissed, setIsAntiDowryBannerDismissed] = useState(false);
+
+  // Deduplicate and consolidate call event messages so each call session renders at most one status pill
+  const processedMessages = useMemo(() => {
+    if (!activeMessages || activeMessages.length === 0) return [];
+
+    // 1. Identify all rooms and their authoritative status & duration
+    const roomStatusMap = new Map<string, {
+      finalType: 'CALL_ENDED' | 'CALL_CONNECTED' | 'CALL_DECLINED' | 'CALL_MISSED';
+      duration: number;
+      callType: 'video' | 'voice';
+      authoritativeMsgId: string;
+      hasInvite: boolean;
+    }>();
+
+    const msgRoomMap = new Map<string, string>();
+
+    for (const msg of activeMessages) {
+      const invite = parseCallInvite(msg.content);
+      const evt = parseCallEvent(msg.content);
+      const roomId = invite?.room_id || evt?.room_id;
+
+      if (roomId) {
+        msgRoomMap.set(msg.id, roomId);
+        const existing = roomStatusMap.get(roomId);
+        const hasInvite = Boolean(invite) || Boolean(existing?.hasInvite);
+
+        if (evt && evt.type !== 'CALL_INVITE') {
+          // Priority rank: CALL_ENDED (4) > CALL_CONNECTED (3) > CALL_DECLINED (2) > CALL_MISSED (1)
+          const rank = (t: string) =>
+            t === 'CALL_ENDED' ? 4 : t === 'CALL_CONNECTED' ? 3 : t === 'CALL_DECLINED' ? 2 : 1;
+          const currentRank = existing ? rank(existing.finalType) : 0;
+          const newRank = rank(evt.type);
+
+          if (!existing || newRank >= currentRank) {
+            roomStatusMap.set(roomId, {
+              finalType: evt.type,
+              duration: evt.duration || existing?.duration || 0,
+              callType: evt.callType || existing?.callType || invite?.callType || 'video',
+              authoritativeMsgId: msg.id,
+              hasInvite,
+            });
+          }
+        } else if (!existing) {
+          roomStatusMap.set(roomId, {
+            finalType: 'CALL_MISSED',
+            duration: 0,
+            callType: invite?.callType || 'video',
+            authoritativeMsgId: msg.id,
+            hasInvite: true,
+          });
+        }
+      }
+    }
+
+    // 2. Filter messages:
+    // - For rooms with an authoritative call event message, suppress duplicate signaling messages and suppress inactive CALL_INVITE pills
+    // - For messages without a roomId, suppress consecutive duplicate call status messages
+    const result: ChatMessage[] = [];
+    let lastPillType = '';
+
+    for (const msg of activeMessages) {
+      const roomId = msgRoomMap.get(msg.id);
+      const invite = parseCallInvite(msg.content);
+      const evt = parseCallEvent(msg.content);
+
+      if (roomId) {
+        const roomInfo = roomStatusMap.get(roomId);
+        if (roomInfo) {
+          // If this is an invite message:
+          if (invite) {
+            const isStillActive = isCallInviteCurrentlyActive(msg, activeMessages);
+            if (isStillActive) {
+              result.push(msg);
+              lastPillType = '';
+              continue;
+            }
+            // Inactive invite: if there is an authoritative event message for this room, do not render inactive invite as a duplicate pill
+            if (roomInfo.authoritativeMsgId !== msg.id) {
+              continue;
+            }
+          }
+
+          // If this is a call event message (CALL_CONNECTED, CALL_DECLINED, etc.):
+          if (evt && evt.type !== 'CALL_INVITE') {
+            // Only render the authoritative event for this room
+            if (roomInfo.authoritativeMsgId !== msg.id) {
+              continue;
+            }
+          }
+        }
+      } else if (evt && evt.type !== 'CALL_INVITE') {
+        if (evt.type === lastPillType) {
+          continue;
+        }
+        lastPillType = evt.type;
+      } else {
+        lastPillType = '';
+      }
+
+      result.push(msg);
+    }
+
+    return result;
+  }, [activeMessages]);
 
   // Incoming Call Popup State
   const [incomingCallPopup, setIncomingCallPopup] = useState<{
@@ -1316,68 +1430,75 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           {selectedPartner ? (
             <>
               {/* Chat Window Top Bar Header (Min 44x44px Touch Targets) */}
-              <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-zinc-50/90 dark:bg-zinc-950/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between transition-colors z-10 shrink-0">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="px-3 sm:px-4 py-2 sm:py-3 bg-zinc-50/90 dark:bg-zinc-950/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2 transition-colors z-10 shrink-0">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                   {/* Mobile Back Button */}
                   <button
                     onClick={() => setIsMobileListOpen(true)}
-                    className="min-w-[44px] min-h-[44px] p-2.5 rounded-full md:hidden bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 active:bg-zinc-200 dark:active:bg-zinc-700 flex items-center justify-center cursor-pointer shrink-0"
+                    className="min-w-[40px] min-h-[40px] sm:min-w-[44px] sm:min-h-[44px] p-2 rounded-full md:hidden bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 active:bg-zinc-200 dark:active:bg-zinc-700 flex items-center justify-center cursor-pointer shrink-0"
                     title="Back to conversation list"
                     aria-label="Back to conversation list"
                   >
-                    <ChevronLeft className="w-6 h-6" />
+                    <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
                   </button>
 
-                  {/* Partner Avatar & Identity */}
-                  <div className="relative shrink-0">
-                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl overflow-hidden bg-zinc-200 dark:bg-zinc-800 border border-emerald-400/40 flex items-center justify-center shadow-sm">
-                      {(!selectedPartner.photo_privacy || selectedPartner.is_photo_unlocked || daheejStore.hasAcceptedPhotoConsent(currentUserId, selectedPartner.id)) && selectedPartner.avatar_url ? (
-                        <img
-                          src={selectedPartner.avatar_url}
-                          alt={selectedPartner.full_name}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-emerald-800 to-teal-900 flex items-center justify-center text-emerald-200">
-                          <Shield className="w-5 h-5" />
-                        </div>
-                      )}
+                  {/* Partner Avatar & Identity - Clickable to view profile */}
+                  <div
+                    onClick={() => onViewProfile && onViewProfile(selectedPartner)}
+                    className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 cursor-pointer group"
+                    title="View candidate profile"
+                  >
+                    <div className="relative shrink-0">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl overflow-hidden bg-zinc-200 dark:bg-zinc-800 border border-emerald-400/40 flex items-center justify-center shadow-sm group-hover:border-emerald-500 transition-colors">
+                        {(!selectedPartner.photo_privacy || selectedPartner.is_photo_unlocked || daheejStore.hasAcceptedPhotoConsent(currentUserId, selectedPartner.id)) && selectedPartner.avatar_url ? (
+                          <img
+                            src={selectedPartner.avatar_url}
+                            alt={selectedPartner.full_name}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-emerald-800 to-teal-900 flex items-center justify-center text-emerald-200">
+                            <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
+                          </div>
+                        )}
+                      </div>
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-zinc-950" />
                     </div>
-                    <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-zinc-950" />
-                  </div>
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-white truncate">
-                        {selectedPartner.full_name}
-                      </h3>
-                      {selectedPartner.kyc_status === 'verified' && (
-                        <span
-                          title="Identity cryptographically verified via the Didit protocol to ensure authenticity and prevent fake profiles."
-                          className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-blue-50 dark:bg-blue-950/80 text-blue-800 dark:text-blue-400 border border-blue-200 dark:border-blue-700/60 shrink-0 cursor-help"
-                        >
-                          ✓ Didit Verified
-                        </span>
-                      )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap sm:flex-nowrap">
+                        <h3 className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-white truncate max-w-[130px] sm:max-w-[200px] md:max-w-none">
+                          {selectedPartner.full_name}
+                        </h3>
+                        {selectedPartner.kyc_status === 'verified' && (
+                          <span
+                            title="Identity cryptographically verified via Didit protocol"
+                            className="inline-flex items-center gap-0.5 px-1 sm:px-1.5 py-0.2 rounded-full text-[8px] sm:text-[9px] font-bold bg-blue-50 dark:bg-blue-950/80 text-blue-800 dark:text-blue-400 border border-blue-200 dark:border-blue-700/60 shrink-0"
+                          >
+                            <Check className="w-2.5 h-2.5 text-blue-600 dark:text-blue-400" />
+                            <span className="hidden sm:inline">Didit Verified</span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] sm:text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center gap-1 truncate">
+                        <span className="truncate">{selectedPartner.profession || 'Verified Candidate'}</span>
+                        <span>•</span>
+                        <span className="truncate">{selectedPartner.location}</span>
+                      </p>
                     </div>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 truncate">
-                      <span className="truncate">{selectedPartner.profession || 'Verified Candidate'}</span>
-                      <span>•</span>
-                      <span className="truncate">{selectedPartner.location}</span>
-                    </p>
                   </div>
                 </div>
 
                 {/* Top Action Controls: Voice/Video Call (44x44px touch targets) */}
-                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                   {canCall ? (
                     <>
                       <button
                         id="messages-page-voice-call-btn"
                         disabled={isInitiatingCall}
                         onClick={() => handleInitiateCall('voice')}
-                        className="min-w-[44px] min-h-[44px] p-2.5 px-3 rounded-full sm:rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 active:bg-zinc-300 dark:active:bg-zinc-600 text-zinc-700 dark:text-zinc-200 transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-1.5 text-xs font-semibold disabled:opacity-50"
+                        className="w-9 h-9 sm:min-w-[44px] sm:min-h-[44px] sm:px-3 rounded-full sm:rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 active:bg-zinc-300 dark:active:bg-zinc-600 text-zinc-700 dark:text-zinc-200 transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-1.5 text-xs font-semibold disabled:opacity-50"
                         title="Start 1-on-1 Voice Call (Disables Camera, Opens Zego Audio Room)"
                       >
                         <Phone className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -1387,7 +1508,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                         id="messages-page-video-call-btn"
                         disabled={isInitiatingCall}
                         onClick={() => handleInitiateCall('video')}
-                        className="min-w-[44px] min-h-[44px] p-2.5 px-3.5 rounded-full sm:rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition-colors shadow-sm flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer disabled:opacity-50"
+                        className="w-9 h-9 sm:min-w-[44px] sm:min-h-[44px] sm:px-3.5 rounded-full sm:rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition-colors shadow-sm flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer disabled:opacity-50"
                         title="Start 1-on-1 Video Call (Enables Camera & Mic, Opens Zego Video Room)"
                       >
                         <Video className="w-4 h-4" />
@@ -1397,7 +1518,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                   ) : (
                     <button
                       onClick={onOpenPricing}
-                      className="min-h-[44px] px-3 py-1.5 rounded-xl bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-500/40 text-amber-800 dark:text-amber-300 text-[11px] font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-transform"
+                      className="min-h-[36px] sm:min-h-[44px] px-2.5 sm:px-3 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-500/40 text-amber-800 dark:text-amber-300 text-[11px] font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-transform"
                       title="Upgrade to Platinum or Diamond to make voice & video calls"
                     >
                       <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
@@ -1408,7 +1529,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                   {onViewProfile && (
                     <button
                       onClick={() => onViewProfile(selectedPartner)}
-                      className="min-w-[44px] min-h-[44px] p-2.5 rounded-full sm:rounded-xl text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 transition-colors text-xs font-semibold flex items-center justify-center gap-1"
+                      className="hidden sm:flex min-w-[44px] min-h-[44px] p-2.5 rounded-full sm:rounded-xl text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 transition-colors text-xs font-semibold items-center justify-center gap-1"
                       title="View Candidate Full Profile"
                     >
                       <Eye className="w-4 h-4" />
@@ -1420,29 +1541,29 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
               {/* Top Floating Incoming Call Popup / Notification Banner */}
               {incomingCallPopup && (
-                <div className="mx-3 sm:mx-4 mt-2 sm:mt-3 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-900 to-teal-900 border-2 border-emerald-400 text-white shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 shrink-0 z-20">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="relative w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shrink-0">
+                <div className="mx-2 sm:mx-4 mt-2 sm:mt-3 p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-emerald-900 to-teal-900 border-2 border-emerald-400 text-white shadow-2xl flex items-center justify-between gap-2.5 sm:gap-3 animate-in fade-in slide-in-from-top-2 shrink-0 z-20">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                    <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shrink-0">
                       <span className="absolute -inset-1 rounded-xl bg-emerald-400 opacity-75 animate-ping" />
                       {incomingCallPopup.callType === 'video' ? (
-                        <Video className="w-5 h-5 relative z-10" />
+                        <Video className="w-4 h-4 sm:w-5 sm:h-5 relative z-10" />
                       ) : (
-                        <PhoneCall className="w-5 h-5 relative z-10" />
+                        <PhoneCall className="w-4 h-4 sm:w-5 sm:h-5 relative z-10" />
                       )}
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-emerald-400 text-emerald-950 uppercase tracking-wider">
-                          Incoming {incomingCallPopup.callType === 'video' ? 'Video' : 'Voice'} Call
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-emerald-400 text-emerald-950 uppercase tracking-wider shrink-0">
+                          {incomingCallPopup.callType === 'video' ? 'Video' : 'Voice'} Call
                         </span>
                       </div>
                       <p className="text-xs font-semibold text-emerald-100 mt-0.5 truncate">
-                        {incomingCallPopup.caller_name || selectedPartner.full_name} is calling you...
+                        {incomingCallPopup.caller_name || selectedPartner.full_name} is calling...
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     <button
                       id="accept-incoming-call-popup-btn"
                       onClick={() => {
@@ -1455,9 +1576,9 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                           window.dispatchEvent(new CustomEvent('app:navigate', { detail: { path: callUrl, tab: 'call' } }));
                         }
                       }}
-                      className="min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-emerald-950 font-bold text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95"
+                      className="min-h-[38px] sm:min-h-[44px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-emerald-950 font-bold text-xs flex items-center gap-1 sm:gap-1.5 transition-all shadow-md cursor-pointer active:scale-95"
                     >
-                      <PhoneIncoming className="w-4 h-4" />
+                      <PhoneIncoming className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       <span>Accept</span>
                     </button>
                     <button
@@ -1471,11 +1592,11 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                           await handleDeclineCall(targetMsgId, targetRoomId);
                         }
                       }}
-                      className="min-w-[44px] min-h-[44px] p-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer flex items-center justify-center"
+                      className="w-9 h-9 sm:min-w-[44px] sm:min-h-[44px] p-2 sm:p-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer flex items-center justify-center shrink-0"
                       title="Dismiss & Decline"
                       aria-label="Dismiss and decline call"
                     >
-                      <X className="w-5 h-5" />
+                      <X className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                   </div>
                 </div>
@@ -1509,20 +1630,32 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                 </div>
               )}
 
-              {/* Shariah Verification Pill Sub-Header */}
-              <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border-b border-emerald-100 dark:border-emerald-900/40 px-3 sm:px-4 py-1.5 text-[10px] sm:text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-1.5 truncate">
-                  <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="truncate">
-                    <strong>Anti-Dowry Protected:</strong> Demanding dowry, cash, or luxury gifts is strictly forbidden.
-                  </span>
+              {/* Shariah Verification Pill Sub-Header (Dismissible to maximize screen space) */}
+              {!isAntiDowryBannerDismissed && (
+                <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border-b border-emerald-100 dark:border-emerald-900/40 px-3 sm:px-4 py-1.5 text-[10px] sm:text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="truncate">
+                      <strong>Anti-Dowry Protected:</strong> Demanding dowry, cash, or luxury gifts is strictly forbidden.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    {selectedPartner.wali_name && (
+                      <span className="text-[10px] text-zinc-500 dark:text-zinc-400 hidden sm:inline">
+                        Guardian: {selectedPartner.wali_name} ({selectedPartner.wali_relation || 'Wali'})
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsAntiDowryBannerDismissed(true)}
+                      className="p-0.5 rounded text-emerald-700/60 dark:text-emerald-400/60 hover:text-emerald-900 dark:hover:text-emerald-200 cursor-pointer"
+                      title="Dismiss banner"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                {selectedPartner.wali_name && (
-                  <span className="text-[10px] text-zinc-500 dark:text-zinc-400 hidden sm:inline shrink-0 ml-2">
-                    Guardian: {selectedPartner.wali_name} ({selectedPartner.wali_relation || 'Wali'})
-                  </span>
-                )}
-              </div>
+              )}
 
               {/* Message Feed Area (flex-1 with isolated container-level scrolling) */}
               <div 
@@ -1560,7 +1693,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                     </div>
                   </div>
                 ) : (
-                  (activeMessages || []).map((msg) => {
+                  (processedMessages || []).map((msg) => {
                     const isMe = msg.sender_id === currentUserId;
                     const eventData = parseCallEvent(msg.content);
                     const isCallDeclined =
@@ -1598,7 +1731,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
                     // 1. Sleek Compact Call Log Pill for completed/ended/declined/missed/expired calls
                     if (isCallDeclined || isCallMissed || isCallEnded || isCallConnected || (callInvite && !isStillActive)) {
-                      const isVideo = callInvite?.callType === 'video' || eventData?.type === 'CALL_ENDED';
+                      const isVideo = callInvite?.callType === 'video' || eventData?.callType === 'video' || (!callInvite && !eventData);
                       const durationSec = eventData?.duration || 0;
                       const formattedDuration = durationSec > 0
                         ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`

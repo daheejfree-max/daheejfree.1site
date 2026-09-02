@@ -377,6 +377,18 @@ export async function recordCallConnected({
 }): Promise<void> {
   if (!currentUserId || !partnerId) return;
 
+  // Deduplication: only record connected once per room
+  if (typeof window !== 'undefined' && roomID) {
+    try {
+      const connectedRooms: string[] = JSON.parse(sessionStorage.getItem('connected_call_rooms') || '[]');
+      if (connectedRooms.includes(roomID)) {
+        return;
+      }
+      connectedRooms.push(roomID);
+      sessionStorage.setItem('connected_call_rooms', JSON.stringify(connectedRooms));
+    } catch (e) {}
+  }
+
   const payload = {
     type: 'CALL_CONNECTED',
     room_id: roomID,
@@ -426,6 +438,20 @@ export async function recordCallDeclined({
   callType?: 'video' | 'voice' | 'audio';
 }): Promise<void> {
   if (!currentUserId || !partnerId) return;
+
+  // If this room has already connected or already ended, do not record as declined
+  if (typeof window !== 'undefined' && roomID) {
+    try {
+      const connectedRooms: string[] = JSON.parse(sessionStorage.getItem('connected_call_rooms') || '[]');
+      const endedRooms: string[] = JSON.parse(sessionStorage.getItem('ended_call_rooms') || '[]');
+      const declinedRooms: string[] = JSON.parse(sessionStorage.getItem('declined_call_rooms') || '[]');
+      if (connectedRooms.includes(roomID) || endedRooms.includes(roomID) || declinedRooms.includes(roomID)) {
+        return;
+      }
+      declinedRooms.push(roomID);
+      sessionStorage.setItem('declined_call_rooms', JSON.stringify(declinedRooms));
+    } catch (e) {}
+  }
 
   const payload = {
     type: 'CALL_DECLINED',
@@ -716,6 +742,20 @@ export function isCallInviteCurrentlyActive(
     if (otherTime >= createdAtTime - 2000) {
       return false;
     }
+  }
+
+  // 5. Check if there is ANY newer CALL_INVITE from the caller in the conversation.
+  // An older call invite is immediately superseded if a subsequent invite was dispatched.
+  const hasNewerInvite = allMessages.some((m) => {
+    if (m.id === msg.id) return false;
+    const mInvite = parseCallInvite(m.content);
+    if (!mInvite) return false;
+    const mTime = new Date(m.created_at || 0).getTime();
+    return mTime > createdAtTime;
+  });
+
+  if (hasNewerInvite) {
+    return false;
   }
 
   return true;
