@@ -208,10 +208,13 @@ export const SelfieVerificationModal: React.FC<SelfieVerificationModalProps> = (
 
       const verificationRecordUrl = data?.verificationRecordUrl || capturedImage;
 
-      // Update local store profile with selfie verification status
+      // Update local store profile with selfie and KYC verification status
       daheejStore.updateProfile(userId, {
         selfie_verified: true,
         selfie_verification_url: verificationRecordUrl,
+        kyc_status: 'verified',
+        kyc_verified: true,
+        is_verified: true,
       });
 
       setStep('success');

@@ -609,7 +609,11 @@ export default function App() {
       />
 
       {/* Strict Production Hard KYC Wall: un-dismissible full-screen gate for unverified users trying to access protected views */}
-      {currentProfile && currentProfile.kyc_status !== 'verified' && ['matches', 'requests', 'my-matches', 'accepted', 'messages', 'calls', 'call', 'consent'].includes(currentTab) && (
+      {currentProfile && 
+        currentProfile.kyc_status !== 'verified' && 
+        !currentProfile.selfie_verified && 
+        !currentProfile.is_verified && 
+        ['matches', 'requests', 'my-matches', 'accepted', 'messages', 'calls', 'call', 'consent'].includes(currentTab) && (
         <HardKYCGate
           currentProfile={currentProfile}
           onRefreshProfile={refreshState}
@@ -619,13 +623,17 @@ export default function App() {
       )}
 
       {/* Persistent KYC Status Alert on non-restricted views (e.g., profile settings) */}
-      {currentProfile && currentProfile.kyc_status !== 'verified' && currentTab === 'profile' && (
+      {currentProfile && 
+        currentProfile.kyc_status !== 'verified' && 
+        !currentProfile.selfie_verified && 
+        !currentProfile.is_verified && 
+        currentTab === 'profile' && (
         <div id="unverified-kyc-banner" className="bg-amber-500/15 border-b border-amber-500/30 text-amber-900 dark:text-amber-200 px-4 py-2.5 sm:py-3 shadow-xs">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5">
             <div className="flex items-center gap-2.5 text-xs sm:text-sm font-medium">
               <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 animate-pulse" />
               <span>
-                <strong>Action Required:</strong> Your profile is pending Didit.me Identity Verification. Complete verification below to unlock all platform features.
+                <strong>Action Required:</strong> Your profile is pending Identity Verification. Complete your Government ID or Live Biometric verification to unlock all platform features.
               </span>
             </div>
             <div className="flex items-center gap-2">

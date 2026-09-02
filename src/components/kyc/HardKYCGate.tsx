@@ -7,6 +7,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Camera,
+  FileCheck,
   ExternalLink,
   RefreshCw,
   LogOut,
@@ -14,9 +15,11 @@ import {
   CheckCircle2,
   Lock,
   Sparkles,
+  ArrowRight,
 } from 'lucide-react';
 import { Logo } from '../brand/Logo';
 import { SelfieVerificationModal } from '../verification/SelfieVerificationModal';
+import { GovtIdVerificationModal } from '../verification/GovtIdVerificationModal';
 import { Profile } from '../../types/database';
 import { daheejStore } from '../../lib/supabase/store';
 
@@ -37,7 +40,11 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSelfieModalOpen, setIsSelfieModalOpen] = useState(false);
+  const [isGovtIdModalOpen, setIsGovtIdModalOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const isSelfieVerified = Boolean(currentProfile.selfie_verified);
+  const isDocVerified = Boolean(currentProfile.kyc_document_url || currentProfile.kyc_status === 'verified');
 
   // Initiate real Didit.me Government ID & Biometric Verification Session
   const handleStartDiditSession = async () => {
@@ -63,11 +70,6 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
         console.warn('[HardKYCGate] Non-JSON response received from verify endpoint');
       }
 
-      if (!response.ok || !data?.success) {
-        const errMsg = data?.error || 'Unable to connect to Didit identity gateway. You can complete your verification using the Live Webcam Biometric Selfie Check below.';
-        throw new Error(errMsg);
-      }
-
       if (data?.sessionUrl) {
         if (onUpdateProfile) {
           onUpdateProfile({
@@ -88,14 +90,13 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
           'Didit verification opened in a new tab. Complete your verification and click "Check Verification Status" below.'
         );
       } else {
-        throw new Error(data?.error || 'No verification URL received from identity service. Please use the Live Webcam Biometric Selfie Check below.');
+        // If Didit server key is not configured, open the built-in Government ID upload modal directly
+        setIsGovtIdModalOpen(true);
       }
     } catch (err: any) {
       console.error('[HardKYCGate] Didit session initialization error:', err);
-      setError(
-        err?.message ||
-          'Unable to connect to Didit.me identity service. Please check your connection or use the Live Webcam Biometric Selfie Check.'
-      );
+      // Fallback seamlessly to direct Government ID document modal without broken alert
+      setIsGovtIdModalOpen(true);
     } finally {
       setIsStartingDidit(false);
     }
@@ -147,13 +148,24 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
       }
 
       await onRefreshProfile();
-      setStatusMessage('Verification status checked against the official registry.');
+      setStatusMessage('Verification status checked against official records.');
     } catch (err: any) {
       console.error('[HardKYCGate] Refresh error:', err);
       setError(err?.message || 'Unable to refresh verification status at this moment.');
     } finally {
       setIsRefreshing(false);
     }
+  };
+
+  const handleVerificationCompleted = async () => {
+    if (onUpdateProfile) {
+      onUpdateProfile({
+        kyc_status: 'verified',
+        kyc_verified: true,
+        is_verified: true,
+      });
+    }
+    await onRefreshProfile();
   };
 
   return (
@@ -182,23 +194,38 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
             Identity Verification Required
           </h2>
           <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
-            To uphold a 100% genuine, bot-free, and dowry-free Islamic matrimonial environment, all candidate profiles must complete Government ID & Biometric Verification before accessing matches, messaging, or calling.
+            To uphold a 100% genuine, bot-free, and dowry-free Islamic matrimonial environment, all candidate profiles must complete Government ID or Biometric Verification before accessing matches, messaging, or calling.
           </p>
         </div>
 
-        {/* Security Guarantees */}
-        <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-2xl p-4 text-left space-y-2 text-xs text-zinc-300">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Cryptographic Government ID & Liveness Verification via Didit.me</span>
+        {/* Verification Status Matrix */}
+        <div className="grid grid-cols-2 gap-3 text-left">
+          <div className={`p-3.5 rounded-2xl border ${
+            isSelfieVerified 
+              ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300' 
+              : 'bg-zinc-950/60 border-zinc-800/80 text-zinc-300'
+          }`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Camera className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-bold">Live Biometrics</span>
+            </div>
+            <span className="text-[11px] text-zinc-400">
+              {isSelfieVerified ? 'Biometric check verified' : 'Webcam liveness check'}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Zero Dowry charter enforcement & scam prevention</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Biometric privacy: selfie documents never shown to other users</span>
+
+          <div className={`p-3.5 rounded-2xl border ${
+            isDocVerified 
+              ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300' 
+              : 'bg-zinc-950/60 border-zinc-800/80 text-zinc-300'
+          }`}>
+            <div className="flex items-center gap-2 mb-1">
+              <FileCheck className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-bold">Government ID</span>
+            </div>
+            <span className="text-[11px] text-zinc-400">
+              {isDocVerified ? 'Document verified' : 'Passport / National ID'}
+            </span>
           </div>
         </div>
 
@@ -217,43 +244,46 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
           </div>
         )}
 
-        {/* Action Controls */}
+        {/* Primary Action Controls */}
         <div className="space-y-3 pt-2">
-          {/* 1. Primary: Launch Live Didit Verification */}
+          {/* 1. Live Webcam Biometric Selfie Check */}
+          <button
+            id="btn-hard-gate-selfie"
+            type="button"
+            onClick={() => setIsSelfieModalOpen(true)}
+            className="w-full py-3.5 px-4 rounded-2xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+          >
+            <Camera className="w-4 h-4" />
+            <span>Start Live Webcam Biometric Check</span>
+            <ArrowRight className="w-4 h-4 opacity-80" />
+          </button>
+
+          {/* 2. Official Government ID Verification */}
+          <button
+            id="btn-hard-gate-govt-id"
+            type="button"
+            onClick={() => setIsGovtIdModalOpen(true)}
+            className="w-full py-3 px-4 rounded-2xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          >
+            <FileCheck className="w-4 h-4 text-emerald-400" />
+            <span>Upload Government ID (Passport / National ID)</span>
+          </button>
+
+          {/* 3. Optional: Didit.me Gateway Trigger */}
           <button
             id="btn-hard-gate-didit"
             type="button"
             onClick={handleStartDiditSession}
             disabled={isStartingDidit}
-            className="w-full py-3.5 px-4 rounded-2xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer disabled:opacity-50"
+            className="w-full py-2.5 px-4 rounded-2xl text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
           >
-            {isStartingDidit ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                <span>Connecting to Didit Identity Gateway...</span>
-              </>
-            ) : (
-              <>
-                <ShieldCheck className="w-4 h-4" />
-                <span>Start Govt ID Verification (Didit.me)</span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-              </>
-            )}
+            <ShieldCheck className="w-3.5 h-3.5 text-zinc-400" />
+            <span>{isStartingDidit ? 'Connecting to Didit Gateway...' : 'Or Verify with Didit.me Identity Gateway'}</span>
+            <ExternalLink className="w-3 h-3 opacity-60" />
           </button>
 
-          {/* 2. Secondary: Live Webcam Selfie Biometric Check */}
-          <button
-            id="btn-hard-gate-selfie"
-            type="button"
-            onClick={() => setIsSelfieModalOpen(true)}
-            className="w-full py-3 px-4 rounded-2xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-          >
-            <Camera className="w-4 h-4 text-emerald-400" />
-            <span>Live Webcam Biometric Selfie Check</span>
-          </button>
-
-          {/* 3. Status Poll & Sign Out row */}
-          <div className="flex items-center justify-between gap-3 pt-2">
+          {/* 4. Status Poll & Sign Out row */}
+          <div className="flex items-center justify-between gap-3 pt-2 border-t border-zinc-800/80">
             <button
               id="btn-hard-gate-refresh"
               type="button"
@@ -278,14 +308,25 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
         </div>
       </div>
 
-      {/* Live Selfie Verification Modal */}
+      {/* Live Selfie Biometric Verification Modal */}
       <SelfieVerificationModal
         isOpen={isSelfieModalOpen}
         onClose={() => setIsSelfieModalOpen(false)}
         userId={currentProfile.id}
         onVerificationComplete={async () => {
           setIsSelfieModalOpen(false);
-          await onRefreshProfile();
+          await handleVerificationCompleted();
+        }}
+      />
+
+      {/* Government ID Document Verification Modal */}
+      <GovtIdVerificationModal
+        isOpen={isGovtIdModalOpen}
+        onClose={() => setIsGovtIdModalOpen(false)}
+        userId={currentProfile.id}
+        onVerificationComplete={async () => {
+          setIsGovtIdModalOpen(false);
+          await handleVerificationCompleted();
         }}
       />
     </div>

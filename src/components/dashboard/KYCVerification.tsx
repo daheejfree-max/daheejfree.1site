@@ -34,6 +34,7 @@ import { Profile, SubscriptionTier } from '../../types';
 import { supabase } from '../../lib/supabase/client';
 import { daheejStore } from '../../lib/supabase/store';
 import { SelfieVerificationModal } from '../verification/SelfieVerificationModal';
+import { GovtIdVerificationModal } from '../verification/GovtIdVerificationModal';
 import { AIBioAssistantModal } from '../ai/AIBioAssistantModal';
 import { LanguageSelector } from '../common/LanguageSelector';
 import { compressImageFile } from '../../lib/imageCompressor';
@@ -78,6 +79,7 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
 
   // Modals
   const [isSelfieModalOpen, setIsSelfieModalOpen] = useState(false);
+  const [isGovtIdModalOpen, setIsGovtIdModalOpen] = useState(false);
   const [isAIBioModalOpen, setIsAIBioModalOpen] = useState(false);
 
   // Account Deletion States
@@ -216,11 +218,11 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
         // Open Didit verification in new tab
         window.open(sessionUrl, '_blank', 'noopener,noreferrer');
       } else {
-        throw new Error('No session URL returned from identity verification service.');
+        setIsGovtIdModalOpen(true);
       }
     } catch (err: any) {
       console.error('Didit KYC error:', err);
-      setDiditError(err.message || 'Could not connect to Didit.me verification service.');
+      setIsGovtIdModalOpen(true);
     } finally {
       setIsStartingDidit(false);
     }
@@ -403,22 +405,33 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
                 <span>Live Webcam Selfie Verification</span>
               </button>
 
+              {/* Upload Government ID Verification */}
+              <button
+                id="btn-open-govt-id-verify"
+                type="button"
+                onClick={() => setIsGovtIdModalOpen(true)}
+                className="px-5 py-3 rounded-2xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <FileCheck className="w-4 h-4 text-emerald-400" />
+                <span>Upload Government ID</span>
+              </button>
+
               <button
                 id="btn-didit-verify"
                 onClick={handleStartDiditKYC}
                 disabled={isStartingDidit}
-                className="px-5 py-3 rounded-2xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-white flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                className="px-4 py-3 rounded-2xl text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isStartingDidit ? (
                   <>
                     <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    Connecting to Didit.me...
+                    Connecting to Didit...
                   </>
                 ) : (
                   <>
-                    <Shield className="w-4 h-4 text-emerald-400" />
-                    Govt ID Verification (Didit.me)
-                    <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                    <Shield className="w-3.5 h-3.5 text-zinc-400" />
+                    Didit.me Gateway
+                    <ExternalLink className="w-3 h-3 opacity-60" />
                   </>
                 )}
               </button>
@@ -911,10 +924,29 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
           onUpdateProfile({
             selfie_verified: true,
             kyc_status: 'verified',
+            is_verified: true,
           });
           daheejStore.updateProfile(profile.id, {
             selfie_verified: true,
             kyc_status: 'verified',
+            is_verified: true,
+          });
+        }}
+      />
+
+      {/* Modal: Government ID Document Verification */}
+      <GovtIdVerificationModal
+        isOpen={isGovtIdModalOpen}
+        onClose={() => setIsGovtIdModalOpen(false)}
+        userId={profile.id}
+        onVerificationComplete={() => {
+          onUpdateProfile({
+            kyc_status: 'verified',
+            is_verified: true,
+          });
+          daheejStore.updateProfile(profile.id, {
+            kyc_status: 'verified',
+            is_verified: true,
           });
         }}
       />
