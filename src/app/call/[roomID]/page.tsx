@@ -89,6 +89,23 @@ export default function CallPage({ params, roomID: propRoomID, type: propType, r
           }
         }
 
+        // 1.5 Fetch actual call_type from database to prevent camera on voice calls if URL was stripped
+        if (resolvedRoom) {
+          try {
+            const { data: signal } = await supabase
+              .from('call_signals')
+              .select('payload')
+              .eq('room_id', resolvedRoom)
+              .limit(1)
+              .single();
+            if (signal?.payload?.call_type) {
+              resolvedType = (signal.payload.call_type === 'voice' || signal.payload.call_type === 'audio') ? 'voice' : 'video';
+            }
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+
         // 2. Resolve Authenticated User ID
         const { data: sessionData } = await supabase.auth.getSession();
         let currentAuthUser = sessionData?.session?.user;
