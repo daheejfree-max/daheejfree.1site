@@ -506,7 +506,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl h-[100dvh] sm:h-[85vh] sm:max-h-[680px] bg-white dark:bg-zinc-950 border-0 sm:border border-zinc-200 dark:border-zinc-800 rounded-none sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col justify-between transition-colors">
+      <div className="relative w-full max-w-2xl h-[100dvh] sm:h-[85vh] sm:max-h-[680px] bg-white dark:bg-zinc-950 border-0 sm:border border-zinc-200 dark:border-zinc-800 rounded-none sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col transition-colors">
         {/* Top Header */}
         <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between transition-colors shrink-0 z-10">
           <div className="flex items-center gap-3 min-w-0">

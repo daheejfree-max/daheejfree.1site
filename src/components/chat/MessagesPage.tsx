@@ -1684,8 +1684,8 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                 </div>
               )}
 
-              {/* Bottom Input Area (Sticky to bottom with pb-safe and shadow) */}
-              <div className="shrink-0 sticky bottom-0 z-20 p-2 sm:p-3 bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 transition-colors pb-safe shadow-[0_-4px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.35)]">
+              {/* Bottom Input Area (Flex-docked to bottom with pb-safe and shadow) */}
+              <div className="shrink-0 p-2.5 sm:p-3 bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 transition-colors pb-safe z-30 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.35)]">
                 {showStarters && (
                   <div className="mb-2 p-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl space-y-1.5 shadow-md max-h-36 overflow-y-auto">
                     <p className="text-[10px] font-bold text-zinc-400 px-2 uppercase tracking-wider">

@@ -264,7 +264,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-800 transition-colors shadow-sm">
+      <header className="shrink-0 sticky top-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-800 transition-colors shadow-sm">
       {/* 1. Solemn Islamic Anti-Dowry Pledge Banner */}
       <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 dark:from-emerald-900 dark:via-teal-900 dark:to-emerald-950 px-4 py-1.5 text-center text-xs text-white dark:text-emerald-100 flex items-center justify-center gap-2 border-b border-emerald-600/40 dark:border-emerald-700/40 shadow-inner">
         <Shield className="w-3.5 h-3.5 text-emerald-300 dark:text-emerald-400 flex-shrink-0" />
