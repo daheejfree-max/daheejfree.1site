@@ -11,6 +11,11 @@ import { createBrowserClient } from '@supabase/ssr';
 import { daheejStore } from '../lib/supabase/store';
 import { acquireMediaWithFallback } from '../lib/webrtcMediaFallback';
 import {
+  recordCallMissed,
+  recordCallEnded,
+  recordCallConnected,
+} from '../lib/callSignaling';
+import {
   Mic,
   MicOff,
   Video as VideoIcon,
@@ -95,6 +100,7 @@ export default function CallRoom({
   const [isSpeakerMuted, setIsSpeakerMuted] = useState<boolean>(false);
   const [duration, setDuration] = useState<number>(0);
   const [isHangingUp, setIsHangingUp] = useState<boolean>(false);
+  const [ringingSecondsLeft, setRingingSecondsLeft] = useState<number>(35);
 
   // References
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -111,6 +117,7 @@ export default function CallRoom({
   const isTerminatedRef = useRef<boolean>(false);
   const hasOfferedRef = useRef<boolean>(false);
   const ringingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const ringingCountdownRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -121,6 +128,48 @@ export default function CallRoom({
   isVideoRef.current = isVideo;
   const activeRoomIdRef = useRef<string>(activeRoomId);
   activeRoomIdRef.current = activeRoomId;
+  const durationRef = useRef<number>(0);
+  durationRef.current = duration;
+  const isConnectedRef = useRef<boolean>(false);
+  isConnectedRef.current = connectionState === 'connected' || phase === 'Connected';
+
+  // Partner ID detection & resolution
+  const queryPartnerId = searchParams ? (searchParams.get('partnerId') || searchParams.get('partner_id')) : null;
+  const partnerIdRef = useRef<string>(queryPartnerId || '');
+  if (queryPartnerId && !partnerIdRef.current) {
+    partnerIdRef.current = queryPartnerId;
+  }
+
+  const resolvePartnerId = useCallback((): string => {
+    if (partnerIdRef.current) return partnerIdRef.current;
+    try {
+      const calls = daheejStore.getCalls();
+      const activeCall = calls.find(
+        (c) => (c as any).room_id === activeRoomIdRef.current || c.id === activeRoomIdRef.current
+      );
+      if (activeCall) {
+        const pId =
+          activeCall.caller_id === myUserIdRef.current
+            ? activeCall.callee_id || activeCall.recipient_id
+            : activeCall.caller_id;
+        if (pId) {
+          partnerIdRef.current = pId;
+          return pId;
+        }
+      }
+    } catch (e) {}
+
+    const clean = activeRoomIdRef.current.replace(/^room_/, '');
+    const parts = clean.split('_');
+    if (parts.length >= 2) {
+      const candidate = parts.find((p) => p !== myUserIdRef.current && p.length > 5);
+      if (candidate) {
+        partnerIdRef.current = candidate;
+        return candidate;
+      }
+    }
+    return '';
+  }, []);
 
   // Handler references to prevent stale callbacks
   const handleSignalingDataRef = useRef<(payload: any) => Promise<void>>(async () => {});
@@ -269,7 +318,35 @@ export default function CallRoom({
         console.warn('[CallRoom] DB signal hangup notice:', dbErr);
       }
 
-      // 5. Clean navigation routing
+      // 5. Persist Call Event Status in Chat History (Ended or Missed)
+      try {
+        const targetPartnerId = resolvePartnerId();
+        const curDuration = durationRef.current;
+        const myUid = myUserIdRef.current;
+        if (myUid && targetPartnerId) {
+          if (curDuration > 0 || isConnectedRef.current) {
+            await recordCallEnded({
+              currentUserId: myUid,
+              partnerId: targetPartnerId,
+              roomID: activeRoomIdRef.current,
+              durationSeconds: curDuration,
+              callType: isVideoRef.current ? 'video' : 'voice',
+            });
+          } else if (isCallerRef.current) {
+            await recordCallMissed({
+              currentUserId: myUid,
+              partnerId: targetPartnerId,
+              roomID: activeRoomIdRef.current,
+              callType: isVideoRef.current ? 'video' : 'voice',
+              reason: 'cancelled',
+            });
+          }
+        }
+      } catch (evtErr) {
+        console.warn('[CallRoom] Call history record notice:', evtErr);
+      }
+
+      // 6. Clean navigation routing
       if (typeof window !== 'undefined') {
         if (window.opener && !window.opener.closed) {
           window.close();
@@ -282,7 +359,7 @@ export default function CallRoom({
         }
       }
     },
-    [router, supabase]
+    [router, supabase, resolvePartnerId]
   );
   handleHangupRef.current = handleHangup;
 
@@ -679,10 +756,26 @@ export default function CallRoom({
               clearTimeout(ringingTimeoutRef.current);
               ringingTimeoutRef.current = null;
             }
+            if (ringingCountdownRef.current) {
+              clearInterval(ringingCountdownRef.current);
+              ringingCountdownRef.current = null;
+            }
             if (!timerRef.current) {
               timerRef.current = setInterval(() => {
                 setDuration((prev) => prev + 1);
               }, 1000);
+            }
+
+            // Persist Call Connected in Chat
+            const targetPartnerId = resolvePartnerId();
+            const myUid = myUserIdRef.current;
+            if (myUid && targetPartnerId) {
+              recordCallConnected({
+                currentUserId: myUid,
+                partnerId: targetPartnerId,
+                roomID: activeRoomIdRef.current,
+                callType: isVideoRef.current ? 'video' : 'voice',
+              });
             }
           } else if (state === 'failed' || state === 'disconnected') {
             // Attempt ICE restart if caller
@@ -702,6 +795,10 @@ export default function CallRoom({
               clearTimeout(ringingTimeoutRef.current);
               ringingTimeoutRef.current = null;
             }
+            if (ringingCountdownRef.current) {
+              clearInterval(ringingCountdownRef.current);
+              ringingCountdownRef.current = null;
+            }
             if (!timerRef.current) {
               timerRef.current = setInterval(() => {
                 setDuration((prev) => prev + 1);
@@ -710,13 +807,44 @@ export default function CallRoom({
           }
         };
 
-        // 60-Second Ringing Timeout for Callers
+        // 35-Second Ringing Timeout for Callers (Auto-Disconnects if Unanswered)
         if (callerMode) {
-          ringingTimeoutRef.current = setTimeout(() => {
+          setRingingSecondsLeft(35);
+          ringingCountdownRef.current = setInterval(() => {
+            setRingingSecondsLeft((prev) => {
+              if (prev <= 1) {
+                if (ringingCountdownRef.current) {
+                  clearInterval(ringingCountdownRef.current);
+                  ringingCountdownRef.current = null;
+                }
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+
+          ringingTimeoutRef.current = setTimeout(async () => {
             if (isMounted && pcRef.current?.connectionState !== 'connected') {
-              handleHangupRef.current(undefined, true);
+              const targetPartnerId = resolvePartnerId();
+              const myUid = myUserIdRef.current;
+
+              if (myUid && targetPartnerId) {
+                await recordCallMissed({
+                  currentUserId: myUid,
+                  partnerId: targetPartnerId,
+                  roomID: activeRoomIdRef.current,
+                  callType: isVideoRef.current ? 'video' : 'voice',
+                  reason: 'unanswered',
+                });
+              }
+
+              setGeneralError("User isn't available at the moment. Call disconnected.");
+
+              setTimeout(() => {
+                handleHangupRef.current(undefined, true);
+              }, 1600);
             }
-          }, 60000);
+          }, 35000);
         }
 
         // 3. Signaling Message Dispatcher
@@ -880,6 +1008,7 @@ export default function CallRoom({
     return () => {
       isMounted = false;
       if (ringingTimeoutRef.current) clearTimeout(ringingTimeoutRef.current);
+      if (ringingCountdownRef.current) clearInterval(ringingCountdownRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
 
       if (localStreamRef.current) {
@@ -1089,15 +1218,22 @@ export default function CallRoom({
           </div>
 
           <h3 className="text-xl font-bold text-white mb-1">{userName}</h3>
-          <p className="text-xs text-zinc-400 max-w-xs mb-6 leading-relaxed">
+          <p className="text-xs text-zinc-400 max-w-xs mb-4 leading-relaxed">
             {isCaller
-              ? 'Ringing partner with 100% Halal P2P Shariah encryption. Please wait for them to connect.'
+              ? 'Ringing partner with 100% Halal P2P Shariah encryption. Will disconnect if unanswered.'
               : 'Connecting encrypted audio & video stream with partner.'}
           </p>
 
-          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-medium shadow-sm">
-            <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-            <span>{phase}</span>
+          <div className="flex flex-col items-center gap-2">
+            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-medium shadow-sm">
+              <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+              <span>{phase}</span>
+            </div>
+            {isCaller && ringingSecondsLeft > 0 && (
+              <span className="text-[11px] text-zinc-400 font-medium animate-pulse">
+                Auto-disconnects in {ringingSecondsLeft}s if unavailable
+              </span>
+            )}
           </div>
         </div>
       )}

@@ -249,7 +249,7 @@ export function formatCallMessagePreview(content: string | undefined | null): st
     return '🚫 Call Declined';
   }
   if (trimmed === 'CALL_MISSED' || trimmed.startsWith('CALL_MISSED') || trimmed.includes('"CALL_MISSED"')) {
-    return '❌ Missed Call';
+    return '❌ Missed Call (User unavailable)';
   }
   if (trimmed === 'CALL_INVITE' || trimmed.startsWith('CALL_INVITE') || trimmed.includes('"CALL_INVITE"') || trimmed.includes('CALL_INVITE')) {
     return '📞 Call Invite';
@@ -461,6 +461,60 @@ export async function recordCallEnded({
     });
   } catch (e) {
     console.warn('[Call Signaling] recordCallEnded notice:', e);
+  }
+}
+
+/**
+ * Record a Missed / Unanswered Call event in chat when not picked up
+ */
+export async function recordCallMissed({
+  currentUserId,
+  partnerId,
+  roomID,
+  callType = 'video',
+  reason = 'unanswered',
+}: {
+  currentUserId: string;
+  partnerId: string;
+  roomID: string;
+  callType?: 'video' | 'voice' | 'audio';
+  reason?: string;
+}): Promise<void> {
+  if (!currentUserId || !partnerId) return;
+
+  const payload = {
+    type: 'CALL_MISSED',
+    room_id: roomID,
+    call_type: callType,
+    reason: reason || 'unanswered',
+    message: "User isn't available at the moment",
+    timestamp: new Date().toISOString(),
+  };
+
+  const msgId = `missed_${Date.now()}`;
+  const chatMsg: ChatMessage = {
+    id: msgId,
+    sender_id: currentUserId,
+    receiver_id: partnerId,
+    recipient_id: partnerId,
+    content: `CALL_MISSED:${JSON.stringify(payload)}`,
+    read: true,
+    created_at: payload.timestamp,
+  };
+
+  try {
+    daheejStore.addMessage(chatMsg);
+    await supabase.from('messages').insert({
+      id: msgId,
+      sender_id: currentUserId,
+      receiver_id: partnerId,
+      recipient_id: partnerId,
+      content: `CALL_MISSED:${JSON.stringify(payload)}`,
+      is_read: true,
+      created_at: payload.timestamp,
+    });
+  } catch (e) {
+    console.warn('[Call Signaling] recordCallMissed notice:', e);
   }
 }
 

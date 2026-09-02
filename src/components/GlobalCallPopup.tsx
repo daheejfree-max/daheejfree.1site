@@ -24,6 +24,7 @@ export const GlobalCallPopup: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const synthIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const callTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Stop audio ringing completely
   const stopRingtone = useCallback(() => {
@@ -172,6 +173,12 @@ export const GlobalCallPopup: React.FC = () => {
       startRingtone();
     });
 
+    // Auto-dismiss and decline if not answered within 35 seconds
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
+    }
+
     // Also listen for call_signals to dismiss if ended/declined/missed
     const updateChannel = supabase
       .channel(`call_signals_updates_${currentUserId}`)
@@ -202,6 +209,34 @@ export const GlobalCallPopup: React.FC = () => {
       supabase.removeChannel(updateChannel);
     };
   }, [currentUser, startRingtone, stopRingtone]);
+
+  // 3. Auto-dismiss & decline incoming call if unanswered within 35 seconds
+  useEffect(() => {
+    if (incomingCall) {
+      if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = setTimeout(async () => {
+        console.info('[GlobalCallPopup] Incoming call timed out (unanswered after 35s)');
+        stopRingtone();
+        const signalId = incomingCall.id;
+        const targetRoomId = incomingCall.room_id;
+        setIncomingCall(null);
+        setCallerProfile(null);
+        await declineCallSession(signalId, targetRoomId);
+      }, 35000);
+    } else {
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
+      }
+    }
+
+    return () => {
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
+      }
+    };
+  }, [incomingCall, stopRingtone]);
 
   // Handle Accept Action
   const handleAccept = async (e?: React.MouseEvent) => {
