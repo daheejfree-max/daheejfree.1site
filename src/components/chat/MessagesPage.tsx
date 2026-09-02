@@ -38,23 +38,10 @@ import { Profile, ProfileSecureView, SubscriptionTier, ChatMessage } from '../..
 import { daheejStore } from '../../lib/supabase/store';
 import { createBrowserClient } from '@supabase/ssr';
 import { moderateTextContent } from '../../lib/moderation';
-import { parseCallInvite, sendCallInvite, declineCallSession, isCallSignalingContent } from '../../lib/callSignaling';
+import { parseCallInvite, parseCallEvent, formatCallMessagePreview, sendCallInvite, declineCallSession, isCallSignalingContent } from '../../lib/callSignaling';
 
 export const formatMessagePreview = (content: string | undefined | null): string => {
-  if (!content) return 'Start a Shariah conversation...';
-  if (content === 'CALL_DECLINED' || content.includes('"CALL_DECLINED"') || content.includes('CALL_DECLINED')) {
-    return '🚫 Call Declined';
-  }
-  if (content === 'CALL_MISSED' || content.includes('"CALL_MISSED"') || content.includes('CALL_MISSED')) {
-    return '❌ Missed Call';
-  }
-  if (content === 'CALL_ENDED' || content.includes('"CALL_ENDED"') || content.includes('CALL_ENDED')) {
-    return '📞 Call Ended';
-  }
-  if (content === 'CALL_INVITE' || content.includes('"CALL_INVITE"') || content.includes('CALL_INVITE')) {
-    return '📞 Call Invite';
-  }
-  return content;
+  return formatCallMessagePreview(content);
 };
 
 const supabaseUrl =
@@ -526,11 +513,20 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       refreshAllMessages();
     });
 
+    // 4. Continuous 2-second heartbeat polling so chat messages & calls ALWAYS update without page refresh
+    const pollInterval = setInterval(() => {
+      if (selectedUserId) {
+        loadConversationMessages();
+      }
+      refreshAllMessages();
+    }, 2000);
+
     return () => {
       supabase.removeChannel(channel);
       unsubscribeStore();
+      clearInterval(pollInterval);
     };
-  }, [currentUserId, selectedUserId, refreshAllMessages, supabase]);
+  }, [currentUserId, selectedUserId, refreshAllMessages, loadConversationMessages, supabase]);
 
   // Handle Call Initiation (Sender Side) with Call Signaling & URL param
   const handleInitiateCall = async (callType: 'video' | 'voice') => {
@@ -1222,24 +1218,36 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                 ) : (
                   (activeMessages || []).map((msg) => {
                     const isMe = msg.sender_id === currentUserId;
+                    const eventData = parseCallEvent(msg.content);
                     const isCallDeclined =
+                      eventData?.type === 'CALL_DECLINED' ||
                       msg.content === 'CALL_DECLINED' ||
                       msg.content?.startsWith('CALL_DECLINED') ||
                       msg.content?.includes('CALL_DECLINED') ||
                       msg.content?.includes('"CALL_DECLINED"');
                     const isCallMissed =
                       !isCallDeclined &&
-                      (msg.content === 'CALL_MISSED' ||
+                      (eventData?.type === 'CALL_MISSED' ||
+                        msg.content === 'CALL_MISSED' ||
                         msg.content?.startsWith('CALL_MISSED') ||
                         msg.content?.includes('CALL_MISSED') ||
                         msg.content?.includes('"CALL_MISSED"'));
                     const isCallEnded =
                       !isCallDeclined &&
                       !isCallMissed &&
-                      (msg.content === 'CALL_ENDED' ||
+                      (eventData?.type === 'CALL_ENDED' ||
+                        msg.content === 'CALL_ENDED' ||
                         msg.content?.startsWith('CALL_ENDED') ||
                         msg.content?.includes('CALL_ENDED'));
-                    const callInvite = (!isCallDeclined && !isCallEnded && !isCallMissed) ? parseCallInvite(msg.content) : null;
+                    const isCallConnected =
+                      !isCallDeclined &&
+                      !isCallMissed &&
+                      !isCallEnded &&
+                      (eventData?.type === 'CALL_CONNECTED' ||
+                        msg.content === 'CALL_CONNECTED' ||
+                        msg.content?.startsWith('CALL_CONNECTED') ||
+                        msg.content?.includes('CALL_CONNECTED'));
+                    const callInvite = (!isCallDeclined && !isCallEnded && !isCallMissed && !isCallConnected) ? parseCallInvite(msg.content) : null;
 
                     // If message is a CALL_DECLINED state
                     if (isCallDeclined) {
@@ -1315,7 +1323,48 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                               </div>
                             </div>
                             <div className="mt-2.5 pt-2 border-t border-red-500/20 text-[10px] text-red-500/70 dark:text-red-400/70 flex items-center justify-between">
-                              <span>Ringing Timeout (60s)</span>
+                              <span>Ringing Timeout</span>
+                              <span>{formatMessageTime(msg.created_at)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // If message is a CALL_CONNECTED state
+                    if (isCallConnected) {
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-2 w-full`}
+                        >
+                          <div
+                            className={`w-full max-w-[90%] sm:max-w-md p-3.5 rounded-2xl border transition-all ${
+                              isMe
+                                ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-200 shadow-sm'
+                                : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-300 shadow-sm'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-500 shrink-0">
+                                <PhoneCall className="w-5 h-5 animate-pulse" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-xs sm:text-sm text-emerald-700 dark:text-emerald-300">
+                                    Call Connected
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                                    Active / Verified
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-emerald-600/90 dark:text-emerald-300/90 truncate mt-0.5 font-medium">
+                                  Encrypted 1-on-1 Shariah Call established
+                                </p>
+                              </div>
+                            </div>
+                            <div className="mt-2.5 pt-2 border-t border-emerald-500/20 text-[10px] text-emerald-500/70 dark:text-emerald-400/70 flex items-center justify-between">
+                              <span>Peer Connected</span>
                               <span>{formatMessageTime(msg.created_at)}</span>
                             </div>
                           </div>
@@ -1325,6 +1374,11 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
                     // If message is a CALL_ENDED state
                     if (isCallEnded) {
+                      const durationSec = eventData?.duration || 0;
+                      const formattedDuration = durationSec > 0
+                        ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`
+                        : '';
+
                       return (
                         <div
                           key={msg.id}
@@ -1347,7 +1401,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                                     Call Ended
                                   </span>
                                   <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-zinc-200 dark:bg-zinc-800 text-zinc-500">
-                                    Session Finished
+                                    {formattedDuration ? `Duration ${formattedDuration}` : 'Session Finished'}
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-zinc-400 truncate mt-0.5">
