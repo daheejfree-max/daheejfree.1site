@@ -393,25 +393,6 @@ export default function App() {
     }
   }, [currentUserId, currentProfile, currentTab, isLoading]);
 
-  // WebRTC Voice/Video call engine
-  const {
-    activeCall,
-    incomingCall,
-    callStatus,
-    partnerProfile,
-    localStream,
-    remoteStream,
-    mediaError,
-    isAudioMuted,
-    isVideoOff,
-    callDuration,
-    startCall,
-    acceptCall,
-    declineCall,
-    endCall,
-    toggleAudio,
-    toggleVideo,
-  } = useWebRTC(currentUserId);
 
   // 2-Way Photo Privacy & Consent engine
   const {
@@ -867,7 +848,7 @@ export default function App() {
             viewerTier={tier}
             allProfiles={allProfiles}
             initialSelectedUserId={selectedChatUserId}
-            onStartCall={startCall}
+            onStartCall={handleStartCall}
             onOpenPricing={() => setIsPricingOpen(true)}
             onViewProfile={(profile) => {
               // Can inspect candidate details
@@ -994,24 +975,7 @@ export default function App() {
         onRejectConsent={(reqId) => rejectRequest(reqId)}
       />
 
-      {/* WebRTC Video / Voice Modal Overlay */}
-      <CallModal
-        activeCall={activeCall}
-        incomingCall={incomingCall}
-        callStatus={callStatus}
-        partnerProfile={partnerProfile}
-        localStream={localStream}
-        remoteStream={remoteStream}
-        mediaError={mediaError}
-        isAudioMuted={isAudioMuted}
-        isVideoOff={isVideoOff}
-        callDuration={callDuration}
-        onAccept={acceptCall}
-        onDecline={declineCall}
-        onEndCall={endCall}
-        onToggleAudio={toggleAudio}
-        onToggleVideo={toggleVideo}
-      />
+      {/* WebRTC Video / Voice Modal Overlay Removed in favor of Dedicated Call Room */}
 
       {/* Direct Wali Contact Modal (Diamond Exclusive) */}
       <WaliContactModal
@@ -1029,7 +993,7 @@ export default function App() {
           onClose={() => setActiveChatProfile(null)}
           onStartCall={(targetId, type) => {
             setActiveChatProfile(null);
-            startCall(targetId, type === 'audio' ? 'voice' : 'video');
+            handleStartCall(targetId, type === 'audio' ? 'voice' : 'video');
           }}
           onOpenPricing={() => setIsPricingOpen(true)}
         />

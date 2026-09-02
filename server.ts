@@ -635,6 +635,9 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
           } else {
             return res.status(200).json({ success: false, error: 'No published workflows found in your Didit account. Please log in to the Didit Console, create a verification workflow, publish it, and ensure your API key is correct.' });
           }
+        } else {
+          const errTxt = await workflowsResponse.text();
+          return res.status(200).json({ success: false, error: `Didit API Error during workflow discovery: ${workflowsResponse.status} ${errTxt.slice(0, 200)}` });
         }
       } catch (err) {
         console.warn('[Didit KYC] Failed to auto-discover workflow:', err);
@@ -717,7 +720,7 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
     if (!sessionUrl) {
       return res.status(200).json({
         success: false,
-        error: sessionData?.error || sessionData?.message || 'Unable to initialize Didit verification session. Please verify directly with Government ID upload or Live Biometric Selfie.',
+        error: sessionData?.error || sessionData?.message || sessionData?.detail || JSON.stringify(sessionData) || 'Unable to initialize Didit verification session. Please verify directly with Government ID upload or Live Biometric Selfie.',
         details: sessionData,
       });
     }
