@@ -49,20 +49,18 @@ export async function POST(request: Request): Promise<Response> {
     try {
       const v3Payload: Record<string, any> = {
         vendor_data: targetProfileId,
-        callback: `${appUrl}/api/kyc/webhook`,
-        redirect_url: callbackUrl,
+        callback: callbackUrl,
         metadata: { profileId: targetProfileId },
       };
       if (diditWorkflowId) {
-        v3Payload.workflow_id = diditWorkflowId;
+        v3Payload.workflow_id = diditWorkflowId.trim();
       }
 
       const v3Res = await fetch('https://verification.didit.me/v3/session/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': diditApiKey,
-          Authorization: `Bearer ${diditApiKey}`,
+          'x-api-key': diditApiKey.trim(),
         },
         body: JSON.stringify(v3Payload),
       });
@@ -70,10 +68,10 @@ export async function POST(request: Request): Promise<Response> {
       const v3Text = await v3Res.text();
       try {
         const parsed = JSON.parse(v3Text);
-        if (v3Res.ok && (parsed.url || parsed.session_url)) {
+        if (v3Res.ok && (parsed.url || parsed.session_url || parsed.verification_url)) {
           diditData = parsed;
           sessionId = parsed.session_id || parsed.id;
-          sessionUrl = parsed.url || parsed.session_url;
+          sessionUrl = parsed.url || parsed.session_url || parsed.verification_url;
         }
       } catch {
         console.warn('[Didit Session Route] v3 non-JSON, trying v1 fallback...');
@@ -89,13 +87,13 @@ export async function POST(request: Request): Promise<Response> {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${diditApiKey}`,
-            ...(diditClientId ? { 'X-Client-Id': diditClientId } : {}),
+            Authorization: `Bearer ${diditApiKey.trim()}`,
+            'x-api-key': diditApiKey.trim(),
+            ...(diditClientId ? { 'X-Client-Id': diditClientId.trim() } : {}),
           },
           body: JSON.stringify({
             vendor_data: targetProfileId,
-            callback: `${appUrl}/api/kyc/webhook`,
-            redirect_url: callbackUrl,
+            callback: callbackUrl,
             features: features || 'ID,OCR,LIVENESS',
           }),
         });
@@ -104,7 +102,7 @@ export async function POST(request: Request): Promise<Response> {
         try {
           diditData = JSON.parse(v1Text);
           sessionId = diditData?.session_id || diditData?.id;
-          sessionUrl = diditData?.url || diditData?.session_url;
+          sessionUrl = diditData?.url || diditData?.session_url || diditData?.verification_url;
         } catch {
           console.warn('[Didit Session Route] v1 non-JSON response');
         }

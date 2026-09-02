@@ -517,10 +517,10 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
       });
     }
 
-    const diditApiKey = process.env.DIDIT_API_KEY;
-    const diditClientId = process.env.DIDIT_CLIENT_ID;
-    let diditWorkflowId = process.env.DIDIT_WORKFLOW_ID || process.env.DIDIT_WORKFLOW;
-    const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || (req.headers.origin as string) || 'https://daheejfree.site';
+    const diditApiKey = (process.env.DIDIT_API_KEY || '').trim();
+    const diditClientId = (process.env.DIDIT_CLIENT_ID || '').trim();
+    let diditWorkflowId = (process.env.DIDIT_WORKFLOW_ID || process.env.DIDIT_WORKFLOW || '').trim();
+    const appUrl = (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || (req.headers.origin as string) || 'https://daheejfree.site').replace(/\/$/, '');
     const callbackUrl = returnUrl || `${appUrl}/profile?kyc_callback=true`;
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -540,18 +540,16 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
 
       let decisionData: any = null;
       try {
-        // Try Didit v3 decision endpoint first
+        // Try Didit v3 decision endpoint with strict x-api-key header
         let decisionResponse = await fetch(`https://verification.didit.me/v3/session/${sessionIdQuery}/decision/`, {
           method: 'GET',
           headers: {
             'x-api-key': diditApiKey,
-            Authorization: `Bearer ${diditApiKey}`,
-            ...(diditClientId ? { 'X-Client-Id': diditClientId } : {}),
           },
         });
 
         if (!decisionResponse.ok) {
-          // Fallback to apx host
+          // Fallback to apx host with Bearer token
           decisionResponse = await fetch(`https://apx.didit.me/v1/session/${sessionIdQuery}/decision/`, {
             method: 'GET',
             headers: {
@@ -614,42 +612,48 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
     let sessionData: any = null;
     let sessionUrl: string | null = null;
     let sessionId: string | null = null;
+    let lastErrorDetails: any = null;
 
-    // Auto-discover workflow if not provided
+    // Step 1: Auto-discover workflow if not provided
     if (!diditWorkflowId && diditApiKey) {
       try {
         const workflowsResponse = await fetch('https://verification.didit.me/v3/workflows/', {
+          method: 'GET',
           headers: {
             'x-api-key': diditApiKey,
-            Authorization: `Bearer ${diditApiKey}`,
           },
         });
         if (workflowsResponse.ok) {
           const workflowsData = await workflowsResponse.json();
-          if (workflowsData?.results && workflowsData.results.length > 0) {
-            const defaultWf = workflowsData.results.find((w: any) => w.is_default && w.status === 'published') 
-                           || workflowsData.results.find((w: any) => w.status === 'published')
-                           || workflowsData.results[0];
-            diditWorkflowId = defaultWf.workflow_id || defaultWf.uuid;
+          const list: any[] = Array.isArray(workflowsData)
+            ? workflowsData
+            : Array.isArray(workflowsData?.results)
+            ? workflowsData.results
+            : [];
+
+          if (list.length > 0) {
+            const defaultWf =
+              list.find((w: any) => (w.is_default || w.default) && (w.status === 'published' || w.status === 'active' || !w.status)) ||
+              list.find((w: any) => w.status === 'published' || w.status === 'active') ||
+              list[0];
+
+            diditWorkflowId = defaultWf.workflow_id || defaultWf.uuid || defaultWf.id || defaultWf.settings_uuid || '';
             console.info('[Didit KYC] Auto-discovered workflow ID:', diditWorkflowId);
-          } else {
-            return res.status(200).json({ success: false, error: 'No published workflows found in your Didit account. Please log in to the Didit Console, create a verification workflow, publish it, and ensure your API key is correct.' });
           }
         } else {
           const errTxt = await workflowsResponse.text();
-          return res.status(200).json({ success: false, error: `Didit API Error during workflow discovery: ${workflowsResponse.status} ${errTxt.slice(0, 200)}` });
+          console.warn('[Didit KYC] Workflow discovery non-200:', workflowsResponse.status, errTxt.slice(0, 150));
         }
       } catch (err) {
         console.warn('[Didit KYC] Failed to auto-discover workflow:', err);
       }
     }
 
-    // 1. Try Didit v3 verification API (Standard)
+    // Step 2: Try Didit v3 verification API (with workflow_id if found)
     try {
       const v3Payload: Record<string, any> = {
         vendor_data: String(profileId),
-        callback: `${appUrl}/api/kyc/webhook`,
-        redirect_url: callbackUrl,
+        callback: callbackUrl,
         metadata: { profileId: String(profileId) },
       };
       if (diditWorkflowId) {
@@ -661,26 +665,61 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': diditApiKey,
-          Authorization: `Bearer ${diditApiKey}`,
         },
         body: JSON.stringify(v3Payload),
       });
 
       const v3Text = await v3Response.text();
       try {
-        sessionData = JSON.parse(v3Text);
-        if (v3Response.ok && (sessionData.url || sessionData.session_url || sessionData.verification_url)) {
-          sessionUrl = sessionData.url || sessionData.session_url || sessionData.verification_url;
-          sessionId = sessionData.session_id || sessionData.id;
+        const parsed = JSON.parse(v3Text);
+        if (v3Response.ok && (parsed.url || parsed.session_url || parsed.verification_url)) {
+          sessionData = parsed;
+          sessionUrl = parsed.url || parsed.session_url || parsed.verification_url;
+          sessionId = parsed.session_id || parsed.id;
+        } else {
+          lastErrorDetails = parsed;
+          console.warn('[Didit v3 Session] Response was not success:', v3Response.status, parsed);
         }
       } catch {
-        console.warn('[Didit v3 Session] Non-JSON response, attempting v1 fallback...');
+        console.warn('[Didit v3 Session] Non-JSON response, raw:', v3Text.slice(0, 150));
       }
     } catch (v3Err) {
-      console.warn('[Didit v3 Session] Exception, trying v1 fallback:', v3Err);
+      console.warn('[Didit v3 Session] Exception:', v3Err);
     }
 
-    // 2. Fallback to apx/v1 endpoint if v3 was not successful
+    // Step 3: If v3 with workflow_id failed, try v3 without workflow_id (default workflow)
+    if (!sessionUrl && diditWorkflowId) {
+      try {
+        const v3FallbackPayload = {
+          vendor_data: String(profileId),
+          callback: callbackUrl,
+          metadata: { profileId: String(profileId) },
+        };
+
+        const v3FallbackRes = await fetch('https://verification.didit.me/v3/session/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': diditApiKey,
+          },
+          body: JSON.stringify(v3FallbackPayload),
+        });
+
+        const v3FallbackText = await v3FallbackRes.text();
+        try {
+          const parsedFallback = JSON.parse(v3FallbackText);
+          if (v3FallbackRes.ok && (parsedFallback.url || parsedFallback.session_url || parsedFallback.verification_url)) {
+            sessionData = parsedFallback;
+            sessionUrl = parsedFallback.url || parsedFallback.session_url || parsedFallback.verification_url;
+            sessionId = parsedFallback.session_id || parsedFallback.id;
+          }
+        } catch {}
+      } catch (err) {
+        console.warn('[Didit v3 Default Session] Exception:', err);
+      }
+    }
+
+    // Step 4: Fallback to APX / v1 endpoint if v3 was not successful
     if (!sessionUrl) {
       try {
         const v1Response = await fetch('https://apx.didit.me/v1/session/', {
@@ -693,8 +732,7 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
           },
           body: JSON.stringify({
             vendor_data: String(profileId),
-            callback: `${appUrl}/api/kyc/webhook`,
-            redirect_url: callbackUrl,
+            callback: callbackUrl,
             features,
           }),
         });
@@ -707,7 +745,7 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
             sessionUrl = v1Data.url || v1Data.session_url || v1Data.verification_url;
             sessionId = v1Data.session_id || v1Data.id;
           } else {
-            sessionData = v1Data;
+            if (!lastErrorDetails) lastErrorDetails = v1Data;
           }
         } catch {
           console.warn('[Didit v1 Session] Non-JSON response from upstream Didit');
@@ -718,10 +756,17 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
     }
 
     if (!sessionUrl) {
+      const errorMsg =
+        lastErrorDetails?.error ||
+        lastErrorDetails?.message ||
+        lastErrorDetails?.detail ||
+        (lastErrorDetails ? JSON.stringify(lastErrorDetails) : null) ||
+        'Unable to initialize Didit verification session. Please verify directly with Government ID upload or Live Biometric Selfie.';
+
       return res.status(200).json({
         success: false,
-        error: sessionData?.error || sessionData?.message || sessionData?.detail || JSON.stringify(sessionData) || 'Unable to initialize Didit verification session. Please verify directly with Government ID upload or Live Biometric Selfie.',
-        details: sessionData,
+        error: errorMsg,
+        details: lastErrorDetails,
       });
     }
 

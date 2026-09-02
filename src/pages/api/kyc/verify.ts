@@ -186,20 +186,18 @@ export async function kycVerifyHandler(
     try {
       const v3Payload: Record<string, any> = {
         vendor_data: profileId,
-        callback: `${appUrl}/api/kyc/webhook`,
-        redirect_url: callbackUrl,
+        callback: callbackUrl,
         metadata: { profileId },
       };
       if (diditWorkflowId) {
-        v3Payload.workflow_id = diditWorkflowId;
+        v3Payload.workflow_id = diditWorkflowId.trim();
       }
 
       const v3Response = await fetch('https://verification.didit.me/v3/session/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': diditApiKey,
-          Authorization: `Bearer ${diditApiKey}`,
+          'x-api-key': diditApiKey.trim(),
         },
         body: JSON.stringify(v3Payload),
       });
@@ -207,9 +205,9 @@ export async function kycVerifyHandler(
       const v3Text = await v3Response.text();
       try {
         sessionData = JSON.parse(v3Text);
-        if (v3Response.ok && (sessionData.url || sessionData.session_url)) {
+        if (v3Response.ok && (sessionData.url || sessionData.session_url || sessionData.verification_url)) {
           sessionId = sessionData.session_id || sessionData.id;
-          sessionUrl = sessionData.url || sessionData.session_url;
+          sessionUrl = sessionData.url || sessionData.session_url || sessionData.verification_url;
         }
       } catch {
         console.warn('[Didit v3 Handler] Non-JSON response, falling back to v1');
@@ -225,13 +223,13 @@ export async function kycVerifyHandler(
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${diditApiKey}`,
-            ...(diditClientId ? { 'X-Client-Id': diditClientId } : {}),
+            Authorization: `Bearer ${diditApiKey.trim()}`,
+            'x-api-key': diditApiKey.trim(),
+            ...(diditClientId ? { 'X-Client-Id': diditClientId.trim() } : {}),
           },
           body: JSON.stringify({
             vendor_data: profileId,
-            callback: `${appUrl}/api/kyc/webhook`,
-            redirect_url: callbackUrl,
+            callback: callbackUrl,
             features,
           }),
         });
@@ -240,7 +238,7 @@ export async function kycVerifyHandler(
         try {
           sessionData = JSON.parse(v1Text);
           sessionId = sessionData?.session_id || sessionData?.id;
-          sessionUrl = sessionData?.url || sessionData?.session_url;
+          sessionUrl = sessionData?.url || sessionData?.session_url || sessionData?.verification_url;
         } catch {
           console.warn('[Didit v1 Handler] Non-JSON response');
         }

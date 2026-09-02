@@ -198,42 +198,69 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
           </p>
         </div>
 
-        {/* Verification Status Matrix */}
+        {/* Verification Status Matrix (Interactive) */}
         <div className="grid grid-cols-2 gap-3 text-left">
-          <div className={`p-3.5 rounded-2xl border ${
-            isSelfieVerified 
-              ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300' 
-              : 'bg-zinc-950/60 border-zinc-800/80 text-zinc-300'
-          }`}>
-            <div className="flex items-center gap-2 mb-1">
-              <Camera className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-bold">Live Biometrics</span>
+          <button
+            type="button"
+            onClick={() => setIsSelfieModalOpen(true)}
+            className={`p-3.5 rounded-2xl border text-left transition-all hover:scale-[1.02] cursor-pointer ${
+              isSelfieVerified 
+                ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300' 
+                : 'bg-zinc-950/60 border-zinc-800/80 hover:border-emerald-500/50 text-zinc-300'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-1.5">
+                <Camera className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-bold">Live Biometrics</span>
+              </div>
+              {isSelfieVerified ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold">Instant</span>
+              )}
             </div>
-            <span className="text-[11px] text-zinc-400">
+            <span className="text-[11px] text-zinc-400 block">
               {isSelfieVerified ? 'Biometric check verified' : 'Webcam liveness check'}
             </span>
-          </div>
+          </button>
 
-          <div className={`p-3.5 rounded-2xl border ${
-            isDocVerified 
-              ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300' 
-              : 'bg-zinc-950/60 border-zinc-800/80 text-zinc-300'
-          }`}>
-            <div className="flex items-center gap-2 mb-1">
-              <FileCheck className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-bold">Government ID</span>
+          <button
+            type="button"
+            onClick={() => setIsGovtIdModalOpen(true)}
+            className={`p-3.5 rounded-2xl border text-left transition-all hover:scale-[1.02] cursor-pointer ${
+              isDocVerified 
+                ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300' 
+                : 'bg-zinc-950/60 border-zinc-800/80 hover:border-emerald-500/50 text-zinc-300'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-1.5">
+                <FileCheck className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-bold">Government ID</span>
+              </div>
+              {isDocVerified ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 font-semibold">Upload</span>
+              )}
             </div>
-            <span className="text-[11px] text-zinc-400">
+            <span className="text-[11px] text-zinc-400 block">
               {isDocVerified ? 'Document verified' : 'Passport / National ID'}
             </span>
-          </div>
+          </button>
         </div>
 
         {/* Dynamic Alerts */}
         {error && (
           <div className="p-3.5 rounded-2xl bg-rose-950/60 border border-rose-800/50 text-rose-300 text-xs flex items-start gap-2 text-left animate-fade-in">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{error}</span>
+            <div className="flex-1 space-y-1">
+              <p className="font-semibold">{error}</p>
+              <p className="text-[11px] text-rose-400">
+                You can also complete verification instantly using the <strong>Live Biometrics</strong> or <strong>Government ID</strong> options above.
+              </p>
+            </div>
           </div>
         )}
 
@@ -258,6 +285,26 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
             <span>{isStartingDidit ? 'Connecting to Didit Identity Gateway...' : 'Verify Identity with Didit.me'}</span>
             <ExternalLink className="w-4 h-4 opacity-80" />
           </button>
+
+          {/* Alternative Direct Verification Buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setIsSelfieModalOpen(true)}
+              className="py-2.5 px-3 rounded-xl text-xs font-semibold bg-zinc-800/90 hover:bg-zinc-700 text-emerald-300 border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Camera className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Live Biometric Selfie</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsGovtIdModalOpen(true)}
+              className="py-2.5 px-3 rounded-xl text-xs font-semibold bg-zinc-800/90 hover:bg-zinc-700 text-teal-300 border border-teal-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <FileCheck className="w-3.5 h-3.5 text-teal-400" />
+              <span>Upload Govt ID</span>
+            </button>
+          </div>
 
           {/* Status Poll & Sign Out row */}
           <div className="flex items-center justify-between gap-3 pt-2 border-t border-zinc-800/80">
