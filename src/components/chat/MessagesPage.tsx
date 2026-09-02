@@ -108,6 +108,11 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [isInitiatingCall, setIsInitiatingCall] = useState(false);
   const [showStarters, setShowStarters] = useState(false);
+  
+  const [isPartnerTyping, setIsPartnerTyping] = useState(false);
+  const typingChannelRef = useRef<any>(null);
+  const partnerTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const myTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Reactively select conversation when initialSelectedUserId changes
   useEffect(() => {
@@ -980,12 +985,39 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       }
     }, 3500);
 
+    // 6. Typing Indicator Broadcast Channel
+    let typingChannel: any = null;
+    if (selectedUserId) {
+      const typingRoomId = [currentUserId, selectedUserId].sort().join('_');
+      typingChannel = supabase.channel(`typing:${typingRoomId}`);
+
+      typingChannel
+        .on('broadcast', { event: 'typing' }, ({ payload }: any) => {
+          if (payload.userId === selectedUserId) {
+            setIsPartnerTyping(payload.isTyping);
+            if (payload.isTyping) {
+              if (partnerTypingTimeoutRef.current) clearTimeout(partnerTypingTimeoutRef.current);
+              partnerTypingTimeoutRef.current = setTimeout(() => setIsPartnerTyping(false), 3000);
+            } else {
+              if (partnerTypingTimeoutRef.current) clearTimeout(partnerTypingTimeoutRef.current);
+            }
+          }
+        })
+        .subscribe();
+
+      typingChannelRef.current = typingChannel;
+    }
+
     return () => {
       supabase.removeChannel(channel);
+      if (typingChannel) supabase.removeChannel(typingChannel);
       unsubscribeStore();
       unsubCallSignals();
       clearInterval(pollInterval);
       stopRingtone();
+      if (partnerTypingTimeoutRef.current) clearTimeout(partnerTypingTimeoutRef.current);
+      if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current);
+      setIsPartnerTyping(false);
     };
   }, [currentUserId, selectedUserId, refreshAllMessages, loadConversationMessages, selectedPartner, supabase]);
 
@@ -1075,6 +1107,27 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     );
   }, [conversationsList, searchQuery]);
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessageInput(e.target.value);
+    
+    if (typingChannelRef.current) {
+      typingChannelRef.current.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: currentUserId, isTyping: true },
+      });
+      
+      if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current);
+      myTypingTimeoutRef.current = setTimeout(() => {
+        typingChannelRef.current?.send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: { userId: currentUserId, isTyping: false },
+        });
+      }, 2000);
+    }
+  };
+
   // Send message handler with Shariah anti-dowry & NSFW moderation
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -1082,6 +1135,16 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
     const trimmed = messageInput.trim();
     if (!trimmed || !currentUserId || !selectedUserId || isSending) return;
+
+    // Stop typing indicator instantly
+    if (typingChannelRef.current) {
+      typingChannelRef.current.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: currentUserId, isTyping: false },
+      });
+      if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current);
+    }
 
     // KYC Verification Hard Wall
     if (currentProfile?.kyc_status !== 'verified') {
@@ -1963,6 +2026,18 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
               {/* Bottom Input Area (Flex-docked to bottom with pb-safe and shadow) */}
               <div className="shrink-0 p-2.5 sm:p-3 bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 transition-colors pb-safe z-30 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.35)]">
+                {/* Typing Indicator */}
+                {isPartnerTyping && (
+                  <div className="px-2 pb-2 text-[11px] text-zinc-500 dark:text-zinc-400 italic animate-pulse flex items-center gap-1.5 shrink-0">
+                    <div className="flex gap-1">
+                      <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                    {selectedPartner?.full_name.split(' ')[0]} is typing...
+                  </div>
+                )}
+
                 {showStarters && (
                   <div className="mb-2 p-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl space-y-1.5 shadow-md max-h-36 overflow-y-auto">
                     <p className="text-[10px] font-bold text-zinc-400 px-2 uppercase tracking-wider">
@@ -2003,7 +2078,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                     type="text"
                     value={messageInput}
                     onChange={(e) => {
-                      setMessageInput(e.target.value);
+                      handleInputChange(e);
                       if (moderationWarning) setModerationWarning(null);
                     }}
                     placeholder={`Message ${selectedPartner.full_name} respectfully...`}

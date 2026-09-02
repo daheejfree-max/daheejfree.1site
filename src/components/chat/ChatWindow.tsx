@@ -87,6 +87,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     sender_id: string;
     timestamp: number;
   } | null>(null);
+
+  // Real-time typing status
+  const [isPartnerTyping, setIsPartnerTyping] = useState(false);
+  const typingChannelRef = useRef<any>(null);
+  const partnerTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const myTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const currentUserId = currentProfile?.id || '';
@@ -378,9 +385,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       }
     });
 
+    // 5. Typing Indicator Broadcast Channel
+    const typingRoomId = [currentUserId, targetUserId].sort().join('_');
+    const typingChannel = supabase.channel(`typing:${typingRoomId}`);
+
+    typingChannel
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (payload.userId === targetUserId) {
+          setIsPartnerTyping(payload.isTyping);
+          if (payload.isTyping) {
+            if (partnerTypingTimeoutRef.current) clearTimeout(partnerTypingTimeoutRef.current);
+            partnerTypingTimeoutRef.current = setTimeout(() => setIsPartnerTyping(false), 3000);
+          } else {
+            if (partnerTypingTimeoutRef.current) clearTimeout(partnerTypingTimeoutRef.current);
+          }
+        }
+      })
+      .subscribe();
+
+    typingChannelRef.current = typingChannel;
+
     return () => {
       supabase.removeChannel(supabaseChannel);
+      supabase.removeChannel(typingChannel);
       unsubscribeStore();
+      if (partnerTypingTimeoutRef.current) clearTimeout(partnerTypingTimeoutRef.current);
+      if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current);
     };
   }, [currentUserId, targetUserId, targetProfile.full_name, supabase]);
 
@@ -438,12 +468,43 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputContent(e.target.value);
+    
+    if (typingChannelRef.current) {
+      typingChannelRef.current.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: currentUserId, isTyping: true },
+      });
+      
+      if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current);
+      myTypingTimeoutRef.current = setTimeout(() => {
+        typingChannelRef.current?.send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: { userId: currentUserId, isTyping: false },
+        });
+      }, 2000);
+    }
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     setModerationWarning(null);
 
     const trimmed = inputContent.trim();
     if (!trimmed || !currentUserId) return;
+
+    // Stop typing indicator instantly
+    if (typingChannelRef.current) {
+      typingChannelRef.current.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: currentUserId, isTyping: false },
+      });
+      if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current);
+    }
 
     // KYC Verification Hard Wall
     if (currentProfile?.kyc_status !== 'verified') {
@@ -964,6 +1025,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           )}
         </div>
 
+        {/* Typing Indicator */}
+        {isPartnerTyping && (
+          <div className="px-4 py-2 text-xs text-zinc-500 dark:text-zinc-400 italic animate-pulse flex items-center gap-2 shrink-0">
+            <div className="flex gap-1">
+              <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+            {targetProfile.full_name.split(' ')[0]} is typing...
+          </div>
+        )}
+
         {/* Moderation Warning Notification */}
         {moderationWarning && (
           <div className="p-3 bg-red-50 dark:bg-red-950/90 border-t border-red-300 dark:border-red-800 text-red-800 dark:text-red-300 text-xs flex items-center justify-between gap-2 animate-in fade-in shrink-0">
@@ -985,7 +1058,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <input
             type="text"
             value={inputContent}
-            onChange={(e) => setInputContent(e.target.value)}
+            onChange={handleInputChange}
             placeholder="Type a message (Mahr, religious practice, family values)..."
             className="flex-1 min-h-[44px] bg-zinc-50 dark:bg-zinc-950 text-xs sm:text-sm text-zinc-900 dark:text-zinc-200 px-4 py-2.5 rounded-2xl border border-zinc-300 dark:border-zinc-800 focus:outline-none focus:border-emerald-500"
           />
