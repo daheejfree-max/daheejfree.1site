@@ -302,62 +302,89 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   }, [refreshAllMessages]);
 
   // 2. Fetch messages for active conversation and mark as read
-  const loadConversationMessages = useCallback(async () => {
-    if (!currentUserId || !selectedUserId) {
-      setActiveMessages([]);
-      return;
-    }
+  const loadConversationMessages = useCallback(
+    async (isInitialSwitch = false) => {
+      if (!currentUserId || !selectedUserId) {
+        setActiveMessages([]);
+        return;
+      }
 
-    // A. Local store fetch
-    const localMsgs = daheejStore.getMessages(currentUserId, selectedUserId);
-    setActiveMessages(localMsgs);
+      // If initial conversation switch and no active messages, pre-populate from local store
+      if (isInitialSwitch) {
+        const localMsgs = daheejStore.getMessages(currentUserId, selectedUserId);
+        if (localMsgs.length > 0) {
+          setActiveMessages(localMsgs);
+        }
+      }
 
-    // Mark as read in store
-    daheejStore.markMessagesAsRead(currentUserId, selectedUserId);
-    refreshAllMessages();
+      // Mark as read in store
+      daheejStore.markMessagesAsRead(currentUserId, selectedUserId);
 
-    // B. Supabase remote fetch
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .or(
-          `and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId})`
-        )
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        // Fallback for schemas using recipient_id
-        const { data: fbData } = await supabase
+      // Fetch remote messages from Supabase
+      try {
+        const { data, error } = await supabase
           .from('messages')
           .select('*')
           .or(
-            `and(sender_id.eq.${currentUserId},recipient_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},recipient_id.eq.${currentUserId})`
+            `and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId})`
           )
           .order('created_at', { ascending: true });
 
-        if (fbData && fbData.length > 0) {
-          setActiveMessages(fbData as ChatMessage[]);
-        }
-      } else if (data) {
-        // Strictly set the messages state to this historical data
-        setActiveMessages(data as ChatMessage[]);
+        if (error) {
+          // Fallback for schemas using recipient_id
+          const { data: fbData } = await supabase
+            .from('messages')
+            .select('*')
+            .or(
+              `and(sender_id.eq.${currentUserId},recipient_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},recipient_id.eq.${currentUserId})`
+            )
+            .order('created_at', { ascending: true });
 
-        // Remote mark as read in Supabase
-        await supabase
-          .from('messages')
-          .update({ is_read: true })
-          .eq('sender_id', selectedUserId)
-          .or(`receiver_id.eq.${currentUserId},recipient_id.eq.${currentUserId}`)
-          .eq('is_read', false);
+          if (fbData && fbData.length > 0) {
+            daheejStore.syncConversationMessages(currentUserId, selectedUserId, fbData as ChatMessage[]);
+            const unified = daheejStore.getMessages(currentUserId, selectedUserId);
+            setActiveMessages((prev) => {
+              if (
+                prev.length === unified.length &&
+                prev[prev.length - 1]?.id === unified[unified.length - 1]?.id &&
+                prev[0]?.id === unified[0]?.id
+              ) {
+                return prev;
+              }
+              return unified;
+            });
+          }
+        } else if (data) {
+          daheejStore.syncConversationMessages(currentUserId, selectedUserId, data as ChatMessage[]);
+          const unified = daheejStore.getMessages(currentUserId, selectedUserId);
+          setActiveMessages((prev) => {
+            if (
+              prev.length === unified.length &&
+              prev[prev.length - 1]?.id === unified[unified.length - 1]?.id &&
+              prev[0]?.id === unified[0]?.id
+            ) {
+              return prev;
+            }
+            return unified;
+          });
+
+          // Remote mark as read in Supabase
+          await supabase
+            .from('messages')
+            .update({ is_read: true })
+            .eq('sender_id', selectedUserId)
+            .or(`receiver_id.eq.${currentUserId},recipient_id.eq.${currentUserId}`)
+            .eq('is_read', false);
+        }
+      } catch (err) {
+        console.warn('[MessagesPage] Supabase remote sync fallback:', err);
       }
-    } catch (err) {
-      console.warn('[MessagesPage] Supabase remote sync fallback:', err);
-    }
-  }, [currentUserId, selectedUserId, refreshAllMessages]);
+    },
+    [currentUserId, selectedUserId, supabase]
+  );
 
   useEffect(() => {
-    loadConversationMessages();
+    loadConversationMessages(true);
   }, [loadConversationMessages]);
 
   // 3. Supabase Real-Time WebSocket Channel for Live Messages
@@ -435,6 +462,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
             (newMsg.sender_id === selectedUserId && mReceiver === currentUserId) ||
             (newMsg.sender_id === currentUserId && mReceiver === selectedUserId)
           ) {
+            daheejStore.addMessage(newMsg);
             setActiveMessages((prev) => {
               // Prevent duplicate bubbles
               if (prev.some((m) => m.id === newMsg.id)) return prev;
@@ -515,20 +543,19 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       refreshAllMessages();
     });
 
-    // 4. Continuous 2-second heartbeat polling so chat messages & calls ALWAYS update without page refresh
+    // 4. Background polling sync (without wiping or resetting active conversation)
     const pollInterval = setInterval(() => {
       if (selectedUserId) {
-        loadConversationMessages();
+        loadConversationMessages(false);
       }
-      refreshAllMessages();
-    }, 2000);
+    }, 3500);
 
     return () => {
       supabase.removeChannel(channel);
       unsubscribeStore();
       clearInterval(pollInterval);
     };
-  }, [currentUserId, selectedUserId, refreshAllMessages, loadConversationMessages, supabase]);
+  }, [currentUserId, selectedUserId, refreshAllMessages, loadConversationMessages, selectedPartner, supabase]);
 
   // Handle Call Initiation (Sender Side) with Call Signaling & URL param
   const handleInitiateCall = async (callType: 'video' | 'voice') => {
@@ -559,6 +586,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       const callUrl = `/call/${roomID}?callType=${callType}&role=caller&partnerId=${selectedUserId}`;
       if (typeof window !== 'undefined') {
         window.history.pushState({ tab: 'call' }, '', callUrl);
+        // Important: Dispatch event with tab: 'call' to ensure App.tsx switches the tab
         window.dispatchEvent(new CustomEvent('app:navigate', { detail: { path: callUrl, tab: 'call' } }));
       }
     } catch (err) {
@@ -692,6 +720,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
         if (fbError) {
           console.error('[MessagesPage] Remote send message error:', fbError);
           // GHOST MESSAGE CLEANUP
+          daheejStore.removeMessage(localMsg.id);
           setActiveMessages((prev) => prev.filter((m) => m.id !== localMsg.id));
           setModerationWarning(
             `Unable to save message to database (${fbError.message || 'Check RLS policy'}). Please try again.`
@@ -704,12 +733,15 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       }
 
       if (insertedData) {
+        daheejStore.removeMessage(localMsg.id);
+        daheejStore.addMessage(insertedData as ChatMessage);
         setActiveMessages((prev) =>
           prev.map((m) => (m.id === localMsg.id ? (insertedData as ChatMessage) : m))
         );
       }
     } catch (err: any) {
       console.error('[MessagesPage] Remote message insertion network error:', err);
+      daheejStore.removeMessage(localMsg.id);
       setActiveMessages((prev) => prev.filter((m) => m.id !== localMsg.id));
       setModerationWarning('Network error: Unable to store message in database.');
     } finally {

@@ -451,6 +451,52 @@ class DaheejFreeStore {
     });
   }
 
+  public syncConversationMessages(userOne: string, userTwo: string, remoteMessages: ChatMessage[]): void {
+    if (typeof window === 'undefined' || !userOne || !userTwo) return;
+    const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
+    const list: ChatMessage[] = raw ? JSON.parse(raw) : [];
+
+    // Keep all messages belonging to other user pairs
+    const otherMessages = list.filter((m) => {
+      const mReceiver = m.receiver_id || m.recipient_id;
+      const isPair =
+        (m.sender_id === userOne && mReceiver === userTwo) ||
+        (m.sender_id === userTwo && mReceiver === userOne);
+      return !isPair;
+    });
+
+    // Merge remote messages with any very recent local-only messages (< 15 seconds old)
+    const remoteIds = new Set(remoteMessages.map((m) => m.id));
+    const currentPair = list.filter((m) => {
+      const mReceiver = m.receiver_id || m.recipient_id;
+      return (
+        (m.sender_id === userOne && mReceiver === userTwo) ||
+        (m.sender_id === userTwo && mReceiver === userOne)
+      );
+    });
+
+    const pendingLocal = currentPair.filter((m) => {
+      if (remoteIds.has(m.id)) return false;
+      const ageMs = Date.now() - new Date(m.created_at).getTime();
+      return ageMs >= 0 && ageMs < 15000;
+    });
+
+    const unified = [...otherMessages, ...remoteMessages, ...pendingLocal];
+    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(unified));
+  }
+
+  public removeMessage(messageId: string): void {
+    if (typeof window === 'undefined' || !messageId) return;
+    const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
+    if (!raw) return;
+    const list: ChatMessage[] = JSON.parse(raw);
+    const updated = list.filter((m) => m.id !== messageId);
+    if (updated.length < list.length) {
+      localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(updated));
+      this.broadcast('messages', 'DELETE', { id: messageId });
+    }
+  }
+
   public getAllMessagesForUser(userId: string): ChatMessage[] {
     if (typeof window === 'undefined') return [];
     const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
