@@ -92,7 +92,7 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
       } else if (data?.notConfigured) {
          setError('Didit API Key is not configured. Please add DIDIT_API_KEY to your environment variables.');
       } else {
-        setError('Failed to initiate Didit session. Please try again later.');
+        setError(data?.error || data?.message || 'Failed to initiate Didit session. Please try again later.');
       }
     } catch (err: any) {
       console.error('[HardKYCGate] Didit session initialization error:', err);

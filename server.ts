@@ -632,6 +632,8 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
                            || workflowsData.results[0];
             diditWorkflowId = defaultWf.workflow_id || defaultWf.uuid;
             console.info('[Didit KYC] Auto-discovered workflow ID:', diditWorkflowId);
+          } else {
+            return res.status(200).json({ success: false, error: 'No published workflows found in your Didit account. Please log in to the Didit Console, create a verification workflow, publish it, and ensure your API key is correct.' });
           }
         }
       } catch (err) {

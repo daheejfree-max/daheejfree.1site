@@ -220,7 +220,7 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
       } else if (data?.notConfigured) {
          setDiditError('Didit API Key is not configured. Please add DIDIT_API_KEY to your environment variables.');
       } else {
-        setDiditError('Failed to initiate Didit session. Please try again later.');
+        setDiditError(data?.error || data?.message || 'Failed to initiate Didit session. Please try again later.');
       }
     } catch (err: any) {
       console.error('Didit KYC error:', err);
