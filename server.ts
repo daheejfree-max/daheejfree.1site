@@ -519,7 +519,7 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
 
     const diditApiKey = process.env.DIDIT_API_KEY;
     const diditClientId = process.env.DIDIT_CLIENT_ID;
-    const diditWorkflowId = process.env.DIDIT_WORKFLOW_ID || process.env.DIDIT_WORKFLOW;
+    let diditWorkflowId = process.env.DIDIT_WORKFLOW_ID || process.env.DIDIT_WORKFLOW;
     const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || (req.headers.origin as string) || 'https://daheejfree.site';
     const callbackUrl = returnUrl || `${appUrl}/profile?kyc_callback=true`;
 
@@ -614,6 +614,30 @@ app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/ap
     let sessionData: any = null;
     let sessionUrl: string | null = null;
     let sessionId: string | null = null;
+
+    // Auto-discover workflow if not provided
+    if (!diditWorkflowId && diditApiKey) {
+      try {
+        const workflowsResponse = await fetch('https://verification.didit.me/v3/workflows/', {
+          headers: {
+            'x-api-key': diditApiKey,
+            Authorization: `Bearer ${diditApiKey}`,
+          },
+        });
+        if (workflowsResponse.ok) {
+          const workflowsData = await workflowsResponse.json();
+          if (workflowsData?.results && workflowsData.results.length > 0) {
+            const defaultWf = workflowsData.results.find((w: any) => w.is_default && w.status === 'published') 
+                           || workflowsData.results.find((w: any) => w.status === 'published')
+                           || workflowsData.results[0];
+            diditWorkflowId = defaultWf.workflow_id || defaultWf.uuid;
+            console.info('[Didit KYC] Auto-discovered workflow ID:', diditWorkflowId);
+          }
+        }
+      } catch (err) {
+        console.warn('[Didit KYC] Failed to auto-discover workflow:', err);
+      }
+    }
 
     // 1. Try Didit v3 verification API (Standard)
     try {

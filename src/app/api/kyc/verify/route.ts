@@ -30,7 +30,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const diditApiKey = process.env.DIDIT_API_KEY;
     const diditClientId = process.env.DIDIT_CLIENT_ID;
-    const diditWorkflowId = process.env.DIDIT_WORKFLOW_ID;
+    let diditWorkflowId = process.env.DIDIT_WORKFLOW_ID;
     const appUrl = process.env.APP_URL || 'https://daheejfree.site';
     const callbackUrl = returnUrl || `${appUrl}/profile?kyc_callback=true`;
 
