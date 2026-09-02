@@ -544,30 +544,38 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           ) {
             daheejStore.addMessage(newMsg);
             setActiveMessages((prev) => {
-              // Prevent duplicate bubbles
-              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              // 1. If exact ID already in state, update in-place
+              if (prev.some((m) => m.id === newMsg.id)) {
+                return prev.map((m) => (m.id === newMsg.id ? { ...m, ...newMsg } : m));
+              }
 
-              const isOptimisticMatch = prev.some(
+              // 2. Check if replacing an optimistic local temporary bubble
+              const optIndex = prev.findIndex(
                 (m) =>
                   m.sender_id === newMsg.sender_id &&
                   m.content === newMsg.content &&
-                  Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 10000
+                  (m.id.startsWith('msg_') ||
+                    m.id.startsWith('temp_') ||
+                    m.id.startsWith('local_') ||
+                    Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 45000)
               );
 
-              if (isOptimisticMatch) {
-                return prev.map((m) =>
-                  m.sender_id === newMsg.sender_id &&
-                  m.content === newMsg.content &&
-                  Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 10000
-                    ? { ...m, ...newMsg }
-                    : m
-                );
+              if (optIndex !== -1) {
+                const next = [...prev];
+                next[optIndex] = newMsg;
+                return next;
               }
+
               return [...prev, newMsg];
             });
 
             if (mReceiver === currentUserId) {
               daheejStore.markMessagesAsRead(currentUserId, selectedUserId);
+              // Send read receipt back to Supabase
+              void supabase
+                .from('messages')
+                .update({ is_read: true })
+                .eq('id', newMsg.id);
             }
           } else {
             daheejStore.addMessage(newMsg);
@@ -591,8 +599,8 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
             ...rawMsg,
             receiver_id: rawMsg.receiver_id || rawMsg.recipient_id,
             recipient_id: rawMsg.recipient_id || rawMsg.receiver_id,
-            read: rawMsg.read ?? rawMsg.is_read ?? false,
-            is_read: rawMsg.is_read ?? rawMsg.read ?? false,
+            read: Boolean(rawMsg.read ?? rawMsg.is_read ?? false),
+            is_read: Boolean(rawMsg.is_read ?? rawMsg.read ?? false),
           };
 
           setActiveMessages((prev) =>
@@ -605,7 +613,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
         console.info('Supabase Realtime Status:', status);
       });
 
-    // Local reactive store broadcast subscription (for immediate multi-tab / zero latency events)
+    // Local reactive store broadcast subscription (for multi-tab / zero latency events)
     const unsubscribeStore = daheejStore.subscribeToMessages((msg) => {
       const mReceiver = msg.receiver_id || (msg as any as any).recipient_id;
 
@@ -626,7 +634,17 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
         (msg.sender_id === currentUserId && mReceiver === selectedUserId)
       ) {
         setActiveMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev;
+          if (prev.some((m) => m.id === msg.id)) {
+            return prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m));
+          }
+          // Do not duplicate if matching optimistic or confirmed message already exists
+          const isDuplicate = prev.some(
+            (m) =>
+              m.sender_id === msg.sender_id &&
+              m.content === msg.content &&
+              Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 45000
+          );
+          if (isDuplicate) return prev;
           return [...prev, msg];
         });
       }
@@ -1646,26 +1664,30 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                     return (
                       <div
                         key={msg.id}
-                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-in fade-in duration-150`}
+                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-in fade-in duration-150 my-1`}
                       >
                         <div
-                          className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm shadow-sm ${
+                          className={`max-w-[88%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm shadow-xs ${
                             isMe
-                              ? 'bg-emerald-600 text-white rounded-br-none'
-                              : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700/60 rounded-bl-none'
+                              ? 'bg-emerald-600 text-white rounded-br-xs'
+                              : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200/80 dark:border-zinc-700/60 rounded-bl-xs'
                           }`}
                         >
                           <p className="whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
                         </div>
 
-                        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-zinc-400 px-1">
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-zinc-400 dark:text-zinc-500 px-1">
                           <span>{formatMessageTime(msg.created_at)}</span>
                           {isMe && (
-                            <span>
-                              {msg.read ? (
-                                <span title="Read"><CheckCheck className="w-3.5 h-3.5 text-emerald-500" /></span>
+                            <span className="inline-flex items-center">
+                              {Boolean(msg.is_read || msg.read) ? (
+                                <span title="Read" className="inline-flex items-center gap-0.5 text-sky-500 dark:text-sky-400 font-bold">
+                                  <CheckCheck className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
+                                </span>
                               ) : (
-                                <span title="Sent"><Check className="w-3.5 h-3.5 text-zinc-400" /></span>
+                                <span title="Sent" className="inline-flex items-center text-zinc-400 dark:text-zinc-500">
+                                  <Check className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
+                                </span>
                               )}
                             </span>
                           )}

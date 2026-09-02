@@ -465,25 +465,26 @@ export default function RealtimeMessagesPage({
             }
 
             setMessages((prev) => {
-              // Prevent duplicate bubbles
-              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              // 1. Exact ID match -> update in place
+              if (prev.some((m) => m.id === newMsg.id)) {
+                return prev.map((m) => (m.id === newMsg.id ? { ...m, ...newMsg } : m));
+              }
 
-              // Check if replacing an optimistic local temporary bubble
-              const isOptimisticMatch = prev.some(
+              // 2. Check if replacing an optimistic local temporary bubble
+              const optIndex = prev.findIndex(
                 (m) =>
                   m.sender_id === newMsg.sender_id &&
                   m.content === newMsg.content &&
-                  Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 10000
+                  (m.id.startsWith('msg_') ||
+                    m.id.startsWith('temp_') ||
+                    m.id.startsWith('local_') ||
+                    Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 45000)
               );
 
-              if (isOptimisticMatch) {
-                return prev.map((m) =>
-                  m.sender_id === newMsg.sender_id &&
-                  m.content === newMsg.content &&
-                  Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 10000
-                    ? { ...m, ...newMsg }
-                    : m
-                );
+              if (optIndex !== -1) {
+                const next = [...prev];
+                next[optIndex] = newMsg;
+                return next;
               }
 
               return [...prev, newMsg];
@@ -491,9 +492,13 @@ export default function RealtimeMessagesPage({
 
             scrollToBottom(true);
 
-            // Mark as read in store
+            // Mark as read in store and remote
             if (msgReceiver === currentUserId) {
               daheejStore.markMessagesAsRead(currentUserId, partnerId);
+              void supabase
+                .from('messages')
+                .update({ is_read: true })
+                .eq('id', newMsg.id);
             }
           }
         }
@@ -506,11 +511,19 @@ export default function RealtimeMessagesPage({
           table: 'messages',
         },
         (payload: any) => {
-          const updatedMsg = payload.new as ChatMessage;
-          if (!updatedMsg || !isMounted) return;
+          const rawUpdated = payload.new as any;
+          if (!rawUpdated || !isMounted) return;
+
+          const updatedMsg: ChatMessage = {
+            ...rawUpdated,
+            receiver_id: rawUpdated.receiver_id || rawUpdated.recipient_id,
+            recipient_id: rawUpdated.recipient_id || rawUpdated.receiver_id,
+            read: Boolean(rawUpdated.read ?? rawUpdated.is_read ?? false),
+            is_read: Boolean(rawUpdated.is_read ?? rawUpdated.read ?? false),
+          };
 
           const msgSender = updatedMsg.sender_id;
-          const msgReceiver = updatedMsg.receiver_id || (updatedMsg as any as any).recipient_id;
+          const msgReceiver = updatedMsg.receiver_id;
 
           if (
             (msgSender === partnerId && msgReceiver === currentUserId) ||
@@ -546,7 +559,16 @@ export default function RealtimeMessagesPage({
         }
 
         setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev;
+          if (prev.some((m) => m.id === msg.id)) {
+            return prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m));
+          }
+          const isDuplicate = prev.some(
+            (m) =>
+              m.sender_id === msg.sender_id &&
+              m.content === msg.content &&
+              Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 45000
+          );
+          if (isDuplicate) return prev;
           return [...prev, msg];
         });
         scrollToBottom(true);
@@ -1575,7 +1597,17 @@ export default function RealtimeMessagesPage({
                               })}
                             </span>
                             {isMe && (
-                              <CheckCheck className={`w-3.5 h-3.5 ${msg.read ? 'text-teal-200' : 'text-emerald-300'}`} />
+                              <span className="inline-flex items-center">
+                                {Boolean(msg.is_read || msg.read) ? (
+                                  <span title="Read" className="inline-flex items-center text-sky-300 dark:text-sky-400 font-bold">
+                                    <CheckCheck className="w-3.5 h-3.5 text-sky-300 dark:text-sky-400" />
+                                  </span>
+                                ) : (
+                                  <span title="Sent" className="inline-flex items-center text-emerald-200/80">
+                                    <Check className="w-3.5 h-3.5 text-emerald-200/80" />
+                                  </span>
+                                )}
+                              </span>
                             )}
                           </div>
                         </div>

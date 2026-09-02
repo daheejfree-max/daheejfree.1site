@@ -26,6 +26,8 @@ import {
   Mail,
   FileText,
   CheckCircle2,
+  Check,
+  CheckCheck,
 } from 'lucide-react';
 import { Profile, ProfileSecureView, SubscriptionTier, ChatMessage, ConsentStatus } from '../../types';
 import { daheejStore } from '../../lib/supabase/store';
@@ -270,26 +272,70 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             }
 
             setMessages((prev) => {
-              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              // 1. If exact ID in state, update in-place
+              if (prev.some((m) => m.id === newMsg.id)) {
+                return prev.map((m) => (m.id === newMsg.id ? { ...m, ...newMsg } : m));
+              }
 
-              const isOptimisticMatch = prev.some(
+              // 2. Check if replacing an optimistic local temporary bubble
+              const optIndex = prev.findIndex(
                 (m) =>
                   m.sender_id === newMsg.sender_id &&
                   m.content === newMsg.content &&
-                  Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 10000
+                  (m.id.startsWith('msg_') ||
+                    m.id.startsWith('temp_') ||
+                    m.id.startsWith('local_') ||
+                    Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 45000)
               );
 
-              if (isOptimisticMatch) {
-                return prev.map((m) =>
-                  m.sender_id === newMsg.sender_id &&
-                  m.content === newMsg.content &&
-                  Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 10000
-                    ? { ...m, ...newMsg }
-                    : m
-                );
+              if (optIndex !== -1) {
+                const next = [...prev];
+                next[optIndex] = newMsg;
+                return next;
               }
+
               return [...prev, newMsg];
             });
+
+            if (mReceiver === currentUserId) {
+              daheejStore.markMessagesAsRead(currentUserId, targetUserId);
+              void supabase
+                .from('messages')
+                .update({ is_read: true })
+                .eq('id', newMsg.id);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload: any) => {
+          const rawUpdated = payload.new as any;
+          if (!rawUpdated) return;
+
+          const updatedMsg: ChatMessage = {
+            ...rawUpdated,
+            receiver_id: rawUpdated.receiver_id || rawUpdated.recipient_id,
+            recipient_id: rawUpdated.recipient_id || rawUpdated.receiver_id,
+            read: Boolean(rawUpdated.read ?? rawUpdated.is_read ?? false),
+            is_read: Boolean(rawUpdated.is_read ?? rawUpdated.read ?? false),
+          };
+
+          const msgSender = updatedMsg.sender_id;
+          const msgReceiver = updatedMsg.receiver_id;
+
+          if (
+            (msgSender === targetUserId && msgReceiver === currentUserId) ||
+            (msgSender === currentUserId && msgReceiver === targetUserId)
+          ) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m))
+            );
           }
         }
       )
@@ -317,7 +363,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         }
 
         setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev;
+          if (prev.some((m) => m.id === msg.id)) {
+            return prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m));
+          }
+          const isDuplicate = prev.some(
+            (m) =>
+              m.sender_id === msg.sender_id &&
+              m.content === msg.content &&
+              Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 45000
+          );
+          if (isDuplicate) return prev;
           return [...prev, msg];
         });
       }
@@ -969,20 +1024,35 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               return (
                 <div
                   key={m.id}
-                  className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                  className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1`}
                 >
                   <div
                     className={`max-w-[85%] sm:max-w-[78%] px-4 py-2.5 rounded-2xl text-xs sm:text-sm leading-relaxed ${
                       isMe
-                        ? 'bg-emerald-600 text-white rounded-br-sm shadow-md'
-                        : 'bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-bl-sm border border-zinc-200 dark:border-zinc-700 shadow-sm'
+                        ? 'bg-emerald-600 text-white rounded-br-xs shadow-xs'
+                        : 'bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-bl-xs border border-zinc-200 dark:border-zinc-700 shadow-xs'
                     }`}
                   >
                     {m.content}
                   </div>
-                  <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1 px-1">
-                    {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5 px-1 text-[10px] text-zinc-400 dark:text-zinc-500">
+                    <span>
+                      {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {isMe && (
+                      <span className="inline-flex items-center">
+                        {Boolean(m.is_read || m.read) ? (
+                          <span title="Read" className="inline-flex items-center text-sky-500 dark:text-sky-400 font-bold">
+                            <CheckCheck className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
+                          </span>
+                        ) : (
+                          <span title="Sent" className="inline-flex items-center text-zinc-400 dark:text-zinc-500">
+                            <Check className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })

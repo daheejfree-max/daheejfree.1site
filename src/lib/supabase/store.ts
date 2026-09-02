@@ -450,7 +450,15 @@ class DaheejFreeStore {
       );
     });
     
-    return filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    return filtered
+      .map((m) => ({
+        ...m,
+        receiver_id: m.receiver_id || m.recipient_id,
+        recipient_id: m.recipient_id || m.receiver_id,
+        read: m.read ?? m.is_read ?? false,
+        is_read: m.is_read ?? m.read ?? false,
+      }))
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }
 
   public syncConversationMessages(userOne: string, userTwo: string, remoteMessages: ChatMessage[]): void {
@@ -476,7 +484,8 @@ class DaheejFreeStore {
       return !isPair;
     });
 
-    // Merge remote messages with any very recent local-only messages (< 15 seconds old)
+    // Merge remote messages with any very recent local-only messages (< 60 seconds old)
+    // CRITICAL: Filter out pending local messages if remote already has an identical message (same sender, content, and near-timestamp)
     const remoteIds = new Set(normalizedRemote.map((m) => m.id));
     const currentPair = list.filter((m) => {
       const mReceiver = m.receiver_id || m.recipient_id;
@@ -488,6 +497,16 @@ class DaheejFreeStore {
 
     const pendingLocal = currentPair.filter((m) => {
       if (remoteIds.has(m.id)) return false;
+      
+      // If remote already contains a message with same sender and exact content within 45s, do NOT duplicate
+      const alreadyConfirmedInRemote = normalizedRemote.some(
+        (rm) =>
+          rm.sender_id === m.sender_id &&
+          rm.content === m.content &&
+          Math.abs(new Date(rm.created_at).getTime() - new Date(m.created_at).getTime()) < 45000
+      );
+      if (alreadyConfirmedInRemote) return false;
+
       const ageMs = Date.now() - new Date(m.created_at).getTime();
       return ageMs >= -300000 && ageMs < 60000;
     });
@@ -526,7 +545,8 @@ class DaheejFreeStore {
 
     return list.filter((m) => {
       const mReceiver = m.receiver_id || m.recipient_id;
-      return mReceiver === userId && m.read === false;
+      const isRead = m.read ?? m.is_read ?? false;
+      return mReceiver === userId && !isRead;
     }).length;
   }
 
@@ -537,7 +557,8 @@ class DaheejFreeStore {
 
     return list.filter((m) => {
       const mReceiver = m.receiver_id || m.recipient_id;
-      return mReceiver === userId && m.sender_id === senderId && m.read === false;
+      const isRead = m.read ?? m.is_read ?? false;
+      return mReceiver === userId && m.sender_id === senderId && !isRead;
     }).length;
   }
 
@@ -550,16 +571,17 @@ class DaheejFreeStore {
 
     const updatedList = list.map((m) => {
       const mReceiver = m.receiver_id || m.recipient_id;
-      if (mReceiver === viewerId && m.sender_id === partnerId && !m.read) {
+      const isUnread = !(m.read ?? m.is_read ?? false);
+      if (mReceiver === viewerId && m.sender_id === partnerId && isUnread) {
         changed = true;
-        return { ...m, read: true };
+        return { ...m, read: true, is_read: true };
       }
       return m;
     });
 
     if (changed) {
       localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(updatedList));
-      this.broadcast('messages', 'UPDATE', { viewerId, partnerId, read: true });
+      this.broadcast('messages', 'UPDATE', { viewerId, partnerId, read: true, is_read: true });
     }
   }
 
@@ -582,6 +604,7 @@ class DaheejFreeStore {
       receiver_id: recipientId,
       content,
       read: false,
+      is_read: false,
       created_at: new Date().toISOString(),
     };
 
@@ -595,10 +618,35 @@ class DaheejFreeStore {
     if (typeof window === 'undefined' || !msg) return;
     const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
     const list: ChatMessage[] = raw ? JSON.parse(raw) : [];
-    if (!list.some((m) => m.id === msg.id)) {
-      list.push(msg);
+
+    const normalized: ChatMessage = {
+      ...msg,
+      receiver_id: msg.receiver_id || msg.recipient_id,
+      recipient_id: msg.recipient_id || msg.receiver_id,
+      read: msg.read ?? msg.is_read ?? false,
+      is_read: msg.is_read ?? msg.read ?? false,
+    };
+
+    // Check if replacing an optimistic temporary message
+    const optIndex = list.findIndex(
+      (m) =>
+        (m.id.startsWith('msg_') || m.id.startsWith('temp_') || m.id.startsWith('local_')) &&
+        m.sender_id === normalized.sender_id &&
+        m.content === normalized.content &&
+        Math.abs(new Date(m.created_at).getTime() - new Date(normalized.created_at).getTime()) < 45000
+    );
+
+    if (optIndex !== -1) {
+      list[optIndex] = normalized;
       localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(list));
-      this.broadcast('messages', 'INSERT', msg);
+      this.broadcast('messages', 'UPDATE', normalized);
+      return;
+    }
+
+    if (!list.some((m) => m.id === normalized.id)) {
+      list.push(normalized);
+      localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(list));
+      this.broadcast('messages', 'INSERT', normalized);
     }
   }
 
