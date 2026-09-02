@@ -202,7 +202,11 @@ export default function App() {
     const handleCustomNavigate = (e: Event) => {
       const customEvt = e as CustomEvent<{ path?: string; tab?: string; userId?: string }>;
       if (customEvt.detail?.tab) {
-        setCurrentTab(customEvt.detail.tab);
+        let newTab = customEvt.detail.tab;
+        if (newTab.startsWith('call')) {
+          newTab = 'call';
+        }
+        setCurrentTab(newTab);
       }
       if (customEvt.detail?.userId) {
         setSelectedChatUserId(customEvt.detail.userId);

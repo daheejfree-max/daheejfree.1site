@@ -99,7 +99,7 @@ export default function CallRoom({
   // References
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const remoteAudioRef = useRef<HTMLVideoElement | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -563,7 +563,7 @@ export default function CallRoom({
           video: videoMode,
           audio: true,
           userLabel: 'You',
-          timeoutMs: 3000,
+          timeoutMs: 30000,
         });
 
         stream = mediaResult.stream;
@@ -1029,8 +1029,8 @@ export default function CallRoom({
 
   return (
     <div className="relative h-full w-full bg-zinc-950 overflow-hidden font-sans text-white select-none">
-      {/* Hidden audio element for remote audio stream delivery */}
-      <audio ref={remoteAudioRef} autoPlay playsInline />
+      {/* Hidden element for remote audio stream delivery (using video tag for better iOS Safari compatibility) */}
+      <video ref={remoteAudioRef} autoPlay playsInline className="absolute w-[1px] h-[1px] opacity-0 pointer-events-none" />
 
       {/* Top Header Floating Glass Bar */}
       <div className="absolute top-0 left-0 w-full p-4 sm:p-6 flex items-center justify-between z-40 bg-gradient-to-b from-black/90 via-black/50 to-transparent pointer-events-none">
