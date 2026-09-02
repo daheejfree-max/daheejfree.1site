@@ -193,9 +193,11 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
             if (partner && partner.id) {
               daheejStore.setProfileFromRemote(partner);
+              const isUnlocked = !partner.photo_privacy || daheejStore.hasAcceptedPhotoConsent(currentUserId, partner.id);
               loadedProfiles.push({
                 ...partner,
-                is_photo_unlocked: !partner.photo_privacy,
+                is_photo_unlocked: isUnlocked,
+                photo_access_granted: isUnlocked,
                 is_wali_unlocked: viewerTier === 'diamond',
               });
             }
@@ -886,7 +888,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                     {/* Avatar with Photo Privacy Blur & Active Status */}
                     <div className="relative shrink-0">
                       <div className="w-12 h-12 rounded-2xl overflow-hidden bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 flex items-center justify-center">
-                        {partner.is_photo_unlocked && partner.avatar_url ? (
+                        {(!partner.photo_privacy || partner.is_photo_unlocked || daheejStore.hasAcceptedPhotoConsent(currentUserId, partner.id)) && partner.avatar_url ? (
                           <img
                             src={partner.avatar_url}
                             alt={partner.full_name}
@@ -986,7 +988,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                   {/* Partner Avatar & Identity */}
                   <div className="relative shrink-0">
                     <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl overflow-hidden bg-zinc-200 dark:bg-zinc-800 border border-emerald-400/40 flex items-center justify-center shadow-sm">
-                      {selectedPartner.is_photo_unlocked && selectedPartner.avatar_url ? (
+                      {(!selectedPartner.photo_privacy || selectedPartner.is_photo_unlocked || daheejStore.hasAcceptedPhotoConsent(currentUserId, selectedPartner.id)) && selectedPartner.avatar_url ? (
                         <img
                           src={selectedPartner.avatar_url}
                           alt={selectedPartner.full_name}

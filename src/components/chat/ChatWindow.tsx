@@ -90,7 +90,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const currentUserId = currentProfile?.id || '';
   const targetUserId = targetProfile.id;
 
-  const togglePhotoReveal = () => {
+  const togglePhotoReveal = async () => {
     if (!currentUserId) return;
     if (currentProfile?.kyc_status !== 'verified') {
       setWaliNotice('KYC Verification Required: Please complete your Didit KYC verification to manage photo access.');
@@ -102,12 +102,63 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
     if (nextState) {
       const req = daheejStore.sendConsentRequest(currentUserId, targetUserId);
-      daheejStore.updateConsentStatus(req.id, 'accepted');
+      daheejStore.updateConsentStatus(req.id, 'accepted', currentUserId, targetUserId);
       setWaliNotice('Photo permissions granted to match.');
+
+      try {
+        await supabase.from('photo_permissions').upsert(
+          {
+            requestor_id: currentUserId,
+            target_id: targetUserId,
+            status: 'approved',
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'requestor_id,target_id' }
+        );
+      } catch (e) {
+        console.warn('[ChatWindow] Supabase photo consent error:', e);
+      }
+
+      try {
+        await fetch('/api/photo-permissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requesterId: currentUserId,
+            targetUserId,
+            status: 'approved',
+          }),
+        });
+      } catch (e) {
+        console.warn('[ChatWindow] API photo consent error:', e);
+      }
     } else {
       const req = daheejStore.sendConsentRequest(currentUserId, targetUserId);
-      daheejStore.updateConsentStatus(req.id, 'rejected');
+      daheejStore.updateConsentStatus(req.id, 'rejected', currentUserId, targetUserId);
       setWaliNotice('Photo access revoked.');
+
+      try {
+        await supabase
+          .from('photo_permissions')
+          .update({ status: 'rejected', updated_at: new Date().toISOString() })
+          .or(`and(requestor_id.eq.${currentUserId},target_id.eq.${targetUserId}),and(requestor_id.eq.${targetUserId},target_id.eq.${currentUserId})`);
+      } catch (e) {
+        console.warn('[ChatWindow] Supabase photo consent revoke error:', e);
+      }
+
+      try {
+        await fetch('/api/photo-permissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requesterId: currentUserId,
+            targetUserId,
+            status: 'rejected',
+          }),
+        });
+      } catch (e) {
+        console.warn('[ChatWindow] API photo consent revoke error:', e);
+      }
     }
 
     setTimeout(() => setWaliNotice(null), 3000);

@@ -108,7 +108,7 @@ export const PhotoConsentModal: React.FC<PhotoConsentModalProps> = ({
         {/* Profile Snapshot Card */}
         <div className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800/80 rounded-2xl p-4 flex items-center gap-4 transition-colors">
           <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-white dark:bg-zinc-900 border border-emerald-300 dark:border-emerald-500/30 flex items-center justify-center shadow-sm">
-            {targetProfile.photo_access_granted && targetProfile.avatar_url ? (
+            {(consentStatus === 'accepted' || targetProfile.photo_access_granted || targetProfile.is_photo_unlocked || targetProfile.photo_privacy === false) && targetProfile.avatar_url ? (
               <img
                 src={targetProfile.avatar_url}
                 alt={targetProfile.full_name}

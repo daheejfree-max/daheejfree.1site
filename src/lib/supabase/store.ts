@@ -276,67 +276,127 @@ class DaheejFreeStore {
   }
 
   public hasAcceptedPhotoConsent(viewerId: string, targetProfileId: string): boolean {
+    if (!viewerId || !targetProfileId) return false;
     if (viewerId === targetProfileId) return true;
+    
+    // Check if target profile has public photos
+    const targetProfile = this.getProfileById(targetProfileId);
+    if (targetProfile && (targetProfile.photo_privacy === false || targetProfile.photo_privacy_mode === 'public')) {
+      return true;
+    }
+
     const reqs = this.getConsentRequests();
     return reqs.some(
       (r) =>
         (r.status === 'accepted' || r.status === 'approved') &&
         ((r.requester_id === viewerId && (r.target_user_id === targetProfileId || r.target_id === targetProfileId)) ||
-          (r.requester_id === targetProfileId && (r.target_user_id === viewerId || r.target_id === viewerId)))
+          (r.requester_id === targetProfileId && (r.target_user_id === viewerId || r.target_id === viewerId)) ||
+          ((r as any).requestor_id === viewerId && (r.target_id === targetProfileId || r.target_user_id === targetProfileId)) ||
+          ((r as any).requestor_id === targetProfileId && (r.target_id === viewerId || r.target_user_id === viewerId)))
     );
   }
 
   public getConsentStatusBetween(viewerId: string, targetProfileId: string): ConsentStatus | 'none' {
+    if (!viewerId || !targetProfileId) return 'none';
     if (viewerId === targetProfileId) return 'accepted';
+    
+    const targetProfile = this.getProfileById(targetProfileId);
+    if (targetProfile && (targetProfile.photo_privacy === false || targetProfile.photo_privacy_mode === 'public')) {
+      return 'accepted';
+    }
+
     const reqs = this.getConsentRequests();
     const req = reqs.find(
       (r) =>
-        (r.requester_id === viewerId && (r.target_user_id === targetProfileId || r.target_id === targetProfileId)) ||
-        (r.requester_id === targetProfileId && (r.target_user_id === viewerId || r.target_id === viewerId))
+        ((r.requester_id === viewerId || (r as any).requestor_id === viewerId) && (r.target_user_id === targetProfileId || r.target_id === targetProfileId)) ||
+        ((r.requester_id === targetProfileId || (r as any).requestor_id === targetProfileId) && (r.target_user_id === viewerId || r.target_id === viewerId))
     );
-    return req ? (req.status as ConsentStatus) : 'none';
+    if (!req) return 'none';
+    if (req.status === 'approved') return 'accepted';
+    return req.status as ConsentStatus;
+  }
+
+  public upsertConsentRequest(data: Partial<ConsentRequest> & { id?: string; requester_id?: string; requestor_id?: string; target_id?: string; target_user_id?: string; status?: string }): ConsentRequest {
+    const reqs = this.getConsentRequests();
+    const reqId = data.requester_id || (data as any).requestor_id || '';
+    const tgtId = data.target_user_id || data.target_id || '';
+    const normStatus: 'pending' | 'accepted' | 'approved' | 'rejected' | 'revoked' =
+      (data.status === 'approved' || data.status === 'accepted')
+        ? 'accepted'
+        : (data.status === 'rejected' ? 'rejected' : (data.status === 'revoked' ? 'revoked' : 'pending'));
+
+    const index = reqs.findIndex(
+      (r) =>
+        (data.id && r.id === data.id) ||
+        (reqId && tgtId && (
+          (r.requester_id === reqId && (r.target_user_id === tgtId || r.target_id === tgtId)) ||
+          (r.requester_id === tgtId && (r.target_user_id === reqId || r.target_id === reqId)) ||
+          ((r as any).requestor_id === reqId && (r.target_id === tgtId || r.target_user_id === tgtId)) ||
+          ((r as any).requestor_id === tgtId && (r.target_id === reqId || r.target_user_id === reqId))
+        ))
+    );
+
+    const existing = index !== -1 ? reqs[index] : null;
+    const resolved: ConsentRequest = {
+      id: data.id || existing?.id || 'req_' + Math.random().toString(36).substring(2, 9),
+      requester_id: reqId || existing?.requester_id || '',
+      target_user_id: tgtId || existing?.target_user_id || '',
+      target_id: tgtId || existing?.target_id || '',
+      status: normStatus,
+      created_at: data.created_at || existing?.created_at || new Date().toISOString(),
+      updated_at: data.updated_at || new Date().toISOString(),
+      target: data.target || existing?.target || null,
+      requester: data.requester || existing?.requester || null,
+    };
+
+    if (index !== -1) {
+      reqs[index] = resolved;
+    } else {
+      reqs.push(resolved);
+    }
+
+    localStorage.setItem(STORAGE_KEY_CONSENT, JSON.stringify(reqs));
+    this.broadcast('consent_requests', index !== -1 ? 'UPDATE' : 'INSERT', resolved, existing || undefined);
+    return resolved;
   }
 
   public sendConsentRequest(requesterId: string, targetId: string): ConsentRequest {
-    const reqs = this.getConsentRequests();
-    const existing = reqs.find(
-      (r) =>
-        (r.requester_id === requesterId && (r.target_user_id === targetId || r.target_id === targetId)) ||
-        (r.requester_id === targetId && (r.target_user_id === requesterId || r.target_id === requesterId))
-    );
-
-    if (existing) {
-      existing.status = 'pending';
-      existing.requester_id = requesterId;
-      existing.target_user_id = targetId;
-      existing.target_id = targetId;
-      existing.updated_at = new Date().toISOString();
-      localStorage.setItem(STORAGE_KEY_CONSENT, JSON.stringify(reqs));
-      this.broadcast('consent_requests', 'UPDATE', existing);
-      return existing;
-    }
-
-    const newReq: ConsentRequest = {
-      id: 'req_' + Math.random().toString(36).substring(2, 9),
+    return this.upsertConsentRequest({
       requester_id: requesterId,
       target_user_id: targetId,
       target_id: targetId,
       status: 'pending',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    reqs.push(newReq);
-    localStorage.setItem(STORAGE_KEY_CONSENT, JSON.stringify(reqs));
-    this.broadcast('consent_requests', 'INSERT', newReq);
-    return newReq;
+    });
   }
 
-  public updateConsentStatus(requestId: string, status: ConsentStatus): ConsentRequest | null {
+  public updateConsentStatus(requestId: string, status: ConsentStatus, requesterId?: string, targetId?: string): ConsentRequest | null {
     const reqs = this.getConsentRequests();
-    const index = reqs.findIndex((r) => r.id === requestId);
-    if (index === -1) return null;
+    let index = reqs.findIndex((r) => r.id === requestId);
+    
+    if (index === -1 && requesterId && targetId) {
+      index = reqs.findIndex(
+        (r) =>
+          ((r.requester_id === requesterId || (r as any).requestor_id === requesterId) && (r.target_user_id === targetId || r.target_id === targetId)) ||
+          ((r.requester_id === targetId || (r as any).requestor_id === targetId) && (r.target_user_id === requesterId || r.target_id === requesterId))
+      );
+    }
+
+    const normStatus = status === 'none' ? 'pending' : (status === 'approved' ? 'accepted' : status);
+
+    if (index === -1) {
+      if (requesterId && targetId) {
+        return this.upsertConsentRequest({
+          id: requestId,
+          requester_id: requesterId,
+          target_user_id: targetId,
+          target_id: targetId,
+          status: normStatus,
+        });
+      }
+      return null;
+    }
+
     const old = reqs[index];
-    const normStatus = status === 'none' ? 'pending' : status;
     const updated: ConsentRequest = {
       ...old,
       status: normStatus,

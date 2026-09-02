@@ -5,7 +5,7 @@
 // ==============================================================================
 
 import React from 'react';
-import { Lock, Unlock, Check, X, Eye, Shield, Users, Clock, AlertCircle } from 'lucide-react';
+import { Lock, Unlock, Check, X, Eye, Shield, Users, Clock } from 'lucide-react';
 import { ConsentRequest, Profile } from '../../types';
 import { daheejStore } from '../../lib/supabase/store';
 
@@ -26,7 +26,10 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
   onReject,
   onViewProfile,
 }) => {
-  const getProfile = (id: string): Profile | null => daheejStore.getProfileById(id);
+  const getProfile = (id: string): Profile | null => {
+    if (!id) return null;
+    return daheejStore.getProfileById(id);
+  };
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
@@ -65,22 +68,29 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
         ) : (
           <div className="space-y-3">
             {(inboundRequests || []).map((req) => {
-              const requester = getProfile(req.requester_id);
-              if (!requester) return null;
+              const reqId = req.requester_id || (req as any).requestor_id || '';
+              const requester = (req.requester as Profile) || getProfile(reqId) || {
+                id: reqId,
+                full_name: 'Nikah Candidate',
+                gender: 'female',
+                profession: 'Professional',
+                location: 'Verified Member',
+                avatar_url: null,
+              } as Profile;
 
               return (
                 <div
                   key={req.id}
                   className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800/90 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-zinc-400 font-bold text-sm shadow-sm">
+                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => reqId && onViewProfile(reqId)}>
+                    <div className="w-12 h-12 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-zinc-400 font-bold text-sm shadow-sm overflow-hidden">
                       {(req.status === 'accepted' || req.status === 'approved') && requester.avatar_url ? (
                         <img
                           src={requester.avatar_url}
                           alt={requester.full_name}
                           referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover rounded-xl"
+                          className="w-full h-full object-cover"
                         />
                       ) : (
                         <Lock className="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
@@ -91,7 +101,7 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
                       <h4 className="font-bold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
                         {requester.full_name}
                         <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">
-                          ({requester.gender === 'female' ? 'Sister' : 'Brother'}, {requester.location || 'Member'})
+                          ({requester.gender === 'female' ? 'Sister' : 'Brother'}, {requester.location || requester.city || 'Member'})
                         </span>
                       </h4>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -107,7 +117,7 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
                         <button
                           id={`btn-reject-consent-${req.id}`}
                           onClick={() => onReject(req.id)}
-                          className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-zinc-900 hover:bg-red-50 dark:hover:bg-zinc-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 flex items-center gap-1.5 transition-colors shadow-sm"
+                          className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-zinc-900 hover:bg-red-50 dark:hover:bg-zinc-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
                         >
                           <X className="w-3.5 h-3.5" />
                           Decline
@@ -115,7 +125,7 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
                         <button
                           id={`btn-accept-consent-${req.id}`}
                           onClick={() => onAccept(req.id)}
-                          className="px-4 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-md shadow-emerald-700/20 transition-colors"
+                          className="px-4 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-md shadow-emerald-700/20 transition-colors cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" />
                           Grant 2-Way Consent
@@ -159,23 +169,29 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
         ) : (
           <div className="space-y-3">
             {(outboundRequests || []).map((req) => {
-              const targetId = req.target_user_id || req.target_id || '';
-              const target = getProfile(targetId);
-              if (!target) return null;
+              const targetId = req.target_user_id || req.target_id || (req as any).targetUserId || '';
+              const target = (req.target as Profile) || getProfile(targetId) || {
+                id: targetId,
+                full_name: 'Prospective Candidate',
+                gender: 'female',
+                profession: 'Member',
+                location: 'Verified Member',
+                avatar_url: null,
+              } as Profile;
 
               return (
                 <div
                   key={req.id}
                   className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800/90 rounded-2xl p-4 flex items-center justify-between gap-4 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-zinc-400 shadow-sm">
+                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => targetId && onViewProfile(targetId)}>
+                    <div className="w-10 h-10 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-zinc-400 shadow-sm overflow-hidden">
                       {(req.status === 'accepted' || req.status === 'approved') && target.avatar_url ? (
                         <img
                           src={target.avatar_url}
                           alt={target.full_name}
                           referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover rounded-xl"
+                          className="w-full h-full object-cover"
                         />
                       ) : (
                         <Lock className="w-4 h-4 text-zinc-500" />
@@ -183,7 +199,7 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
                     </div>
                     <div>
                       <h4 className="font-bold text-sm text-zinc-900 dark:text-white">{target.full_name}</h4>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">{target.location || 'Verified Match'}</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">{target.location || (target as any).city || 'Verified Match'}</p>
                     </div>
                   </div>
 

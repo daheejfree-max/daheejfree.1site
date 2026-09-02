@@ -885,11 +885,43 @@ app.post('/api/call-signals', async (req, res) => {
 // ==============================================================================
 // 6. PHOTO PERMISSIONS BACKEND API (TASK 6)
 // ==============================================================================
+app.get('/api/photo-permissions', async (req, res) => {
+  try {
+    const userId = req.query.userId as string;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId query parameter is required' });
+    }
+
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+    if (supabaseUrl && serviceRoleKey) {
+      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+      
+      const { data, error } = await supabaseAdmin
+        .from('photo_permissions')
+        .select('*')
+        .or(`target_id.eq.${userId},requestor_id.eq.${userId},target_user_id.eq.${userId},requester_id.eq.${userId}`)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        return res.json({ success: true, permissions: data });
+      }
+    }
+
+    res.json({ success: true, permissions: [] });
+  } catch (err) {
+    console.error('[API Photo Permissions GET] Error:', err);
+    res.status(500).json({ success: false, error: (err as Error)?.message || 'Failed to fetch photo permissions' });
+  }
+});
+
 app.post('/api/photo-permissions', async (req, res) => {
   try {
-    const { requesterId, requestorId, targetUserId, targetId, status = 'pending' } = req.body;
+    const { id, requesterId, requestorId, targetUserId, targetId, status = 'pending' } = req.body;
     const resolvedReqId = requestorId || requesterId;
     const resolvedTgtId = targetId || targetUserId;
+    const normStatus = status === 'accepted' ? 'approved' : status;
 
     if (!resolvedReqId || !resolvedTgtId) {
       return res.status(400).json({ success: false, error: 'Requester ID and Target User ID are required' });
@@ -901,6 +933,20 @@ app.post('/api/photo-permissions', async (req, res) => {
     if (supabaseUrl && serviceRoleKey) {
       const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
       
+      // If updating by ID
+      if (id && !id.startsWith('req_') && !id.startsWith('perm_')) {
+        const { data: updatedById } = await supabaseAdmin
+          .from('photo_permissions')
+          .update({ status: normStatus, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+
+        if (updatedById) {
+          return res.json({ success: true, permission: updatedById });
+        }
+      }
+
       // Upsert with standard schema column names (requestor_id, target_id)
       const { data, error } = await supabaseAdmin
         .from('photo_permissions')
@@ -908,7 +954,7 @@ app.post('/api/photo-permissions', async (req, res) => {
           {
             requestor_id: resolvedReqId,
             target_id: resolvedTgtId,
-            status,
+            status: normStatus,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'requestor_id,target_id' }
@@ -927,7 +973,7 @@ app.post('/api/photo-permissions', async (req, res) => {
           {
             requester_id: resolvedReqId,
             target_user_id: resolvedTgtId,
-            status,
+            status: normStatus,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'requester_id,target_user_id' }
@@ -935,24 +981,37 @@ app.post('/api/photo-permissions', async (req, res) => {
         .select()
         .single();
 
-      if (altError && error) throw error || altError;
+      if (altError && error) {
+        // Try update if conflict
+        const { data: updData } = await supabaseAdmin
+          .from('photo_permissions')
+          .update({ status: normStatus, updated_at: new Date().toISOString() })
+          .or(`and(requestor_id.eq.${resolvedReqId},target_id.eq.${resolvedTgtId}),and(requestor_id.eq.${resolvedTgtId},target_id.eq.${resolvedReqId}),and(requester_id.eq.${resolvedReqId},target_user_id.eq.${resolvedTgtId}),and(requester_id.eq.${resolvedTgtId},target_user_id.eq.${resolvedReqId})`)
+          .select()
+          .maybeSingle();
+
+        if (updData) {
+          return res.json({ success: true, permission: updData });
+        }
+        throw error || altError;
+      }
       return res.json({ success: true, permission: altData || data });
     }
 
     res.json({
       success: true,
       permission: {
-        id: `perm_${Date.now()}`,
+        id: id || `perm_${Date.now()}`,
         requestor_id: resolvedReqId,
         target_id: resolvedTgtId,
-        status,
+        status: normStatus,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
     });
   } catch (err) {
     console.error('[API Photo Permissions] Error:', err);
-    res.status(500).json({ success: false, error: (err as Error)?.message || 'Failed to create photo permission' });
+    res.status(500).json({ success: false, error: (err as Error)?.message || 'Failed to update photo permission' });
   }
 });
 
