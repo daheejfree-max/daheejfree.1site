@@ -1,0 +1,16 @@
+{
+  "name": "DaheejFree Matrimony",
+  "short_name": "DaheejFree",
+  "description": "The premier dowry-free Islamic matrimonial platform built on privacy and prophetic traditions.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
