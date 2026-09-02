@@ -519,6 +519,55 @@ export async function recordCallMissed({
 }
 
 /**
+ * Checks if a specific call invite message is still actively ringing,
+ * or if it has expired / concluded / cancelled.
+ */
+export function isCallInviteCurrentlyActive(
+  msg: ChatMessage,
+  allMessages: ChatMessage[] = []
+): boolean {
+  if (!msg || !msg.content) return false;
+  const invite = parseCallInvite(msg.content);
+  if (!invite) return false;
+
+  // 1. Time expiration: A call invite is only ringing for at most 60 seconds
+  const createdAtTime = new Date(msg.created_at || Date.now()).getTime();
+  if (isNaN(createdAtTime) || Date.now() - createdAtTime > 60000) {
+    return false;
+  }
+
+  // 2. Check if there are subsequent termination events (CALL_ENDED, CALL_DECLINED, CALL_MISSED)
+  // for this room or later in the chat thread
+  const targetRoomId = invite.room_id;
+  for (const other of allMessages) {
+    if (other.id === msg.id) continue;
+    const otherTime = new Date(other.created_at || 0).getTime();
+    
+    // If an event occurred after or matches this room
+    const event = parseCallEvent(other.content);
+    if (event) {
+      if (
+        (event.room_id && targetRoomId && event.room_id === targetRoomId) ||
+        otherTime >= createdAtTime
+      ) {
+        if (
+          event.type === 'CALL_ENDED' ||
+          event.type === 'CALL_DECLINED' ||
+          event.type === 'CALL_MISSED' ||
+          other.content?.includes('CALL_ENDED') ||
+          other.content?.includes('CALL_DECLINED') ||
+          other.content?.includes('CALL_MISSED')
+        ) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+/**
  * End a call session in public.call_signals
  */
 export async function endCallSession(roomID?: string, signalId?: string): Promise<void> {
@@ -528,13 +577,13 @@ export async function endCallSession(roomID?: string, signalId?: string): Promis
     if (signalId) {
       await supabase
         .from('call_signals')
-        .update({ type: 'end-call' })
+        .update({ type: 'call-ended' })
         .eq('id', signalId);
     }
     if (roomID) {
       await supabase
         .from('call_signals')
-        .update({ type: 'end-call' })
+        .update({ type: 'call-ended' })
         .eq('room_id', roomID);
     }
   } catch (err) {
@@ -543,7 +592,7 @@ export async function endCallSession(roomID?: string, signalId?: string): Promis
 }
 
 /**
- * Mark a call signal as missed
+ * Mark a call signal as missed or cancelled
  */
 export async function markCallAsMissed(roomID?: string, signalId?: string): Promise<void> {
   if (!roomID && !signalId) return;
@@ -590,15 +639,19 @@ export async function declineCallSession(signalId?: string, roomID?: string): Pr
 
 /**
  * Subscribe to realtime incoming call signals for a user with instantaneous heartbeat polling
+ * and automatic cancellation dismissal
  */
 export function subscribeToCallSignals(
   currentUserId: string,
-  onIncomingCall: (invite: CallInviteData) => void
+  onIncomingCall: (invite: CallInviteData) => void,
+  onCallCancelled?: (roomID?: string, signalId?: string) => void
 ): () => void {
   if (!currentUserId) return () => {};
 
   let isMounted = true;
   let seenSignalIds = new Set<string>();
+  let activeRingingSignalId: string | null = null;
+  let activeRingingRoomId: string | null = null;
 
   // 1. Proactive Fetch Check
   const checkPendingSignals = async () => {
@@ -609,29 +662,53 @@ export function subscribeToCallSignals(
         .from('call_signals')
         .select('*')
         .eq('receiver_id', currentUserId)
-        .eq('type', 'offer')
         .gte('created_at', recentThreshold)
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(3);
 
       if (!error && data && data.length > 0 && isMounted) {
-        const row = data[0];
-        if (!seenSignalIds.has(row.id)) {
-          seenSignalIds.add(row.id);
-          const sig = row.payload || {};
+        // Find newest valid offer
+        const activeOffer = data.find((row) => row.type === 'offer');
+        
+        // If there was an active ringing signal that got cancelled/ended
+        if (activeRingingSignalId) {
+          const matchedRow = data.find((row) => row.id === activeRingingSignalId);
+          if (matchedRow && (matchedRow.type === 'reject-call' || matchedRow.type === 'end-call' || matchedRow.type === 'call-ended' || matchedRow.type === 'cancel-call')) {
+            const rId = activeRingingRoomId || undefined;
+            const sId = activeRingingSignalId;
+            activeRingingSignalId = null;
+            activeRingingRoomId = null;
+            if (onCallCancelled) onCallCancelled(rId, sId);
+            return;
+          }
+        }
+
+        if (activeOffer && !seenSignalIds.has(activeOffer.id)) {
+          seenSignalIds.add(activeOffer.id);
+          activeRingingSignalId = activeOffer.id;
+          activeRingingRoomId = activeOffer.room_id || null;
+
+          const sig = activeOffer.payload || {};
           const rawType = sig.call_type || 'video';
           const callType: 'video' | 'voice' = (rawType === 'voice' || rawType === 'audio') ? 'voice' : 'video';
           onIncomingCall({
-            id: row.id,
+            id: activeOffer.id,
             type: 'CALL_INVITE',
             callType,
-            room_id: row.room_id || sig.room_id || `room_${Date.now()}`,
+            room_id: activeOffer.room_id || sig.room_id || `room_${Date.now()}`,
             caller_name: sig.caller_name || 'Matrimonial Candidate',
             caller_avatar: sig.caller_avatar || null,
-            caller_id: row.caller_id,
-            timestamp: row.created_at,
+            caller_id: activeOffer.caller_id,
+            timestamp: activeOffer.created_at,
           });
         }
+      } else if (activeRingingSignalId && (!data || data.length === 0)) {
+        // Signal expired
+        const rId = activeRingingRoomId || undefined;
+        const sId = activeRingingSignalId;
+        activeRingingSignalId = null;
+        activeRingingRoomId = null;
+        if (onCallCancelled) onCallCancelled(rId, sId);
       }
     } catch (e) {
       // ignore
@@ -641,27 +718,50 @@ export function subscribeToCallSignals(
   // Run immediately on subscribe
   checkPendingSignals();
 
-  // 2. Active 2-second Heartbeat Polling Fallback so users never need to reload to detect calls
+  // 2. Active 2-second Heartbeat Polling Fallback
   const pollInterval = setInterval(() => {
     checkPendingSignals();
   }, 2000);
 
-  // 3. Supabase Realtime Postgres Changes Subscription
+  // 3. Supabase Realtime Postgres Changes Subscription (INSERT and UPDATE)
   const channel = supabase
-    .channel(`call_signals_live_${currentUserId}`)
+    .channel(`call_signals_live_${currentUserId}_${Math.random().toString(36).slice(2, 7)}`)
     .on(
       'postgres_changes',
       {
-        event: 'INSERT',
+        event: '*',
         schema: 'public',
         table: 'call_signals',
         filter: `receiver_id=eq.${currentUserId}`,
       },
       (payload) => {
-        const row = payload.new as CallSignal;
-        if (row && row.type === 'offer' && isMounted) {
+        if (!isMounted) return;
+        const row = (payload.new || payload.old) as CallSignal;
+        if (!row) return;
+
+        // If cancelled or ended
+        const signalType = row.type as string;
+        if (
+          signalType === 'reject-call' ||
+          signalType === 'end-call' ||
+          signalType === 'call-ended' ||
+          signalType === 'cancel-call'
+        ) {
+          activeRingingSignalId = null;
+          activeRingingRoomId = null;
+          if (onCallCancelled) {
+            onCallCancelled(row.room_id, row.id);
+          }
+          return;
+        }
+
+        // If new offer
+        if (payload.eventType === 'INSERT' && row.type === 'offer') {
           if (!seenSignalIds.has(row.id)) {
             seenSignalIds.add(row.id);
+            activeRingingSignalId = row.id;
+            activeRingingRoomId = row.room_id || null;
+
             const sig = (row.payload as any) || {};
             const rawType = sig.call_type || 'video';
             const callType: 'video' | 'voice' = (rawType === 'voice' || rawType === 'audio') ? 'voice' : 'video';
@@ -685,22 +785,40 @@ export function subscribeToCallSignals(
   const unsubsStore = daheejStore.subscribeToCalls((call) => {
     if (!isMounted) return;
     const recipientId = call.recipient_id || call.callee_id;
-    if (recipientId === currentUserId && call.status === 'ringing') {
-      if (!seenSignalIds.has(call.id)) {
-        seenSignalIds.add(call.id);
-        const rawType = call.call_type || 'video';
-        const callType: 'video' | 'voice' = (rawType === 'voice' || rawType === 'audio') ? 'voice' : 'video';
-        const sdp = (call.sdp_offer as any) || {};
-        onIncomingCall({
-          id: call.id,
-          type: 'CALL_INVITE',
-          callType,
-          room_id: sdp.room_id || `room_${Date.now()}`,
-          caller_name: sdp.caller_name || 'Matrimonial Candidate',
-          caller_avatar: sdp.caller_avatar || null,
-          caller_id: call.caller_id,
-          timestamp: call.created_at || new Date().toISOString(),
-        });
+    if (recipientId === currentUserId) {
+      const callStatus = call.status as string;
+      if (
+        callStatus === 'ended' ||
+        callStatus === 'cancelled' ||
+        callStatus === 'rejected' ||
+        callStatus === 'completed' ||
+        callStatus === 'declined'
+      ) {
+        activeRingingSignalId = null;
+        activeRingingRoomId = null;
+        if (onCallCancelled) {
+          onCallCancelled(call.id, call.id);
+        }
+      } else if (call.status === 'ringing') {
+        if (!seenSignalIds.has(call.id)) {
+          seenSignalIds.add(call.id);
+          activeRingingSignalId = call.id;
+          activeRingingRoomId = (call.sdp_offer as any)?.room_id || call.id;
+
+          const rawType = call.call_type || 'video';
+          const callType: 'video' | 'voice' = (rawType === 'voice' || rawType === 'audio') ? 'voice' : 'video';
+          const sdp = (call.sdp_offer as any) || {};
+          onIncomingCall({
+            id: call.id,
+            type: 'CALL_INVITE',
+            callType,
+            room_id: sdp.room_id || `room_${Date.now()}`,
+            caller_name: sdp.caller_name || 'Matrimonial Candidate',
+            caller_avatar: sdp.caller_avatar || null,
+            caller_id: call.caller_id,
+            timestamp: call.created_at || new Date().toISOString(),
+          });
+        }
       }
     }
   });

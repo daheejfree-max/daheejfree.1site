@@ -94,6 +94,7 @@ export default function CallRoom({
     message: string;
   } | null>(null);
   const [generalError, setGeneralError] = useState<string | null>(null);
+  const [callEndedReason, setCallEndedReason] = useState<string | null>(null);
 
   const [isMicMuted, setIsMicMuted] = useState<boolean>(false);
   const [isCameraOff, setIsCameraOff] = useState<boolean>(callType === 'voice' || callType === 'audio');
@@ -510,6 +511,22 @@ export default function CallRoom({
           .order('created_at', { ascending: true });
 
         if (isMounted && signals && signals.length > 0) {
+          // Check if any signal has already marked this room as ended or cancelled
+          const terminationSignal = signals.find(
+            (s) =>
+              s.type === 'call-ended' ||
+              s.type === 'end-call' ||
+              s.type === 'reject-call' ||
+              s.type === 'cancel-call'
+          );
+
+          if (terminationSignal) {
+            isTerminatedRef.current = true;
+            setCallEndedReason('This call session has already ended or was cancelled.');
+            setPhase('Disconnected');
+            return;
+          }
+
           const myId = myUserIdRef.current;
           for (const record of signals) {
             if (record.type === 'offer' && record.caller_id !== myId) {
@@ -567,8 +584,12 @@ export default function CallRoom({
           if (
             record.type === 'reject-call' ||
             record.type === 'end-call' ||
-            record.type === 'call-ended'
+            record.type === 'call-ended' ||
+            record.type === 'cancel-call'
           ) {
+            isTerminatedRef.current = true;
+            setCallEndedReason('Call session ended by partner.');
+            setPhase('Disconnected');
             handleHangupRef.current(undefined, false);
           } else if (record.type === 'offer') {
             if (record.caller_id !== myId && record.payload) {
@@ -1126,6 +1147,51 @@ export default function CallRoom({
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Return to Chat</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Call Ended / Cancelled Screen
+  if (callEndedReason || (phase === 'Disconnected' && !isConnected)) {
+    return (
+      <div className="min-h-[100dvh] w-full bg-zinc-950 flex items-center justify-center p-4 text-white font-sans">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-4 shadow-2xl animate-fade-in pointer-events-auto">
+          <div className="w-16 h-16 rounded-3xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto shadow-inner">
+            <PhoneOff className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold text-white">Call Ended</h2>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              {callEndedReason || 'This call session has concluded.'}
+            </p>
+            {duration > 0 && (
+              <p className="text-xs font-mono text-emerald-400 font-semibold pt-1">
+                Duration: {formatTime(duration)}
+              </p>
+            )}
+          </div>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  if (window.opener && !window.opener.closed) {
+                    try { window.close(); } catch {}
+                  }
+                  try {
+                    router.push('/messages');
+                  } catch {
+                    window.location.href = '/messages';
+                  }
+                }
+              }}
+              className="w-full py-3.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 hover:scale-[1.02] active:scale-95 text-white text-xs font-bold transition shadow-lg flex items-center justify-center gap-2 cursor-pointer pointer-events-auto"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Return to Messages</span>
             </button>
           </div>
         </div>

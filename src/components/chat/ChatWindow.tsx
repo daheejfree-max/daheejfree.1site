@@ -31,7 +31,7 @@ import { Profile, ProfileSecureView, SubscriptionTier, ChatMessage, ConsentStatu
 import { daheejStore } from '../../lib/supabase/store';
 import { createBrowserClient } from '@supabase/ssr';
 import { moderateTextContent } from '../../lib/moderation';
-import { parseCallInvite, sendCallInvite, declineCallSession, isCallSignalingContent } from '../../lib/callSignaling';
+import { parseCallInvite, sendCallInvite, declineCallSession, isCallSignalingContent, isCallInviteCurrentlyActive } from '../../lib/callSignaling';
 
 const supabaseUrl =
   (typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_SUPABASE_URL || process.env?.VITE_SUPABASE_URL : undefined) ||
@@ -829,8 +829,56 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
               if (callInvite) {
                 const isVideo = callInvite.callType === 'video';
+                const isStillActive = isCallInviteCurrentlyActive(m, messages);
                 const callerCallUrl = `/call/${callInvite.room_id}?callType=${callInvite.callType}&role=caller`;
                 const receiverCallUrl = `/call/${callInvite.room_id}?callType=${callInvite.callType}&role=receiver`;
+
+                if (!isStillActive) {
+                  return (
+                    <div
+                      key={m.id}
+                      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-2 w-full`}
+                    >
+                      <div
+                        className={`w-full max-w-[90%] sm:max-w-md p-3.5 rounded-2xl border transition-all ${
+                          isMe
+                            ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300 shadow-sm'
+                            : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 shadow-sm'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 shrink-0">
+                            {isVideo ? <Video className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xs text-zinc-700 dark:text-zinc-300">
+                                {isMe ? `Outgoing ${isVideo ? 'Video' : 'Voice'} Call` : `Incoming ${isVideo ? 'Video' : 'Voice'} Call`}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-zinc-200 dark:bg-zinc-800 text-zinc-500">
+                                Call Ended
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                              {isMe ? 'Call invitation completed' : 'Call session completed'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-2.5 pt-1.5 border-t border-zinc-200 dark:border-zinc-800 text-[10px] text-zinc-400 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => handleInitiateCall(isVideo ? 'video' : 'voice')}
+                            className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                          >
+                            {isVideo ? <Video className="w-3 h-3" /> : <Phone className="w-3 h-3" />}
+                            <span>Call Again</span>
+                          </button>
+                          <span>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
 
                 return (
                   <div
@@ -857,12 +905,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             <span className="font-bold text-xs sm:text-sm">
                               {isMe ? `Outgoing ${isVideo ? 'Video' : 'Voice'} Call` : `Incoming ${isVideo ? 'Video' : 'Voice'} Call`}
                             </span>
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-300">
-                              P2P WebRTC
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 animate-pulse">
+                              Ringing...
                             </span>
                           </div>
                           <p className="text-[11px] opacity-80 truncate mt-0.5">
-                            {isMe ? 'You initiated a call room' : `${callInvite.caller_name || targetProfile.full_name} is calling you`}
+                            {isMe ? 'Ringing partner (Expires in 45s)...' : `${callInvite.caller_name || targetProfile.full_name} is calling you`}
                           </p>
                         </div>
                       </div>
@@ -879,7 +927,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             className="w-full min-h-[44px] py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer active:scale-[0.98] bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-emerald-950"
                           >
                             <Video className="w-4 h-4" />
-                            <span>Rejoin Call Room</span>
+                            <span>Join Call Room</span>
                           </button>
                         ) : (
                           <div className="flex items-center gap-2 w-full">

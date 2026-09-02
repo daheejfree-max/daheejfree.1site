@@ -134,54 +134,75 @@ export const GlobalCallPopup: React.FC = () => {
     const currentUserId = currentUser.id;
     let isMounted = true;
 
-    const unsubscribe = subscribeToCallSignals(currentUserId, async (invite) => {
+    const handleCallDismiss = (roomID?: string, signalId?: string) => {
       if (!isMounted) return;
+      stopRingtone();
+      setIncomingCall((prev) => {
+        if (!prev) return null;
+        if (!roomID && !signalId) return null;
+        if (signalId && prev.id === signalId) return null;
+        if (roomID && prev.room_id === roomID) return null;
+        return null;
+      });
+      setCallerProfile(null);
+    };
 
-      // Do not trigger popup if user is already inside an active call room
-      if (typeof window !== 'undefined' && (window.location.pathname.includes('/call') || window.location.href.includes('/call/'))) {
-        return;
-      }
+    const unsubscribe = subscribeToCallSignals(
+      currentUserId,
+      async (invite) => {
+        if (!isMounted) return;
 
-      console.info('[GlobalCallPopup] Received incoming call signal:', invite);
-
-      // Fetch caller details
-      let name = invite.caller_name;
-      let avatar = invite.caller_avatar || '';
-
-      if (invite.caller_id) {
-        const localProfile = daheejStore.getProfileById(invite.caller_id);
-        if (localProfile) {
-          name = localProfile.full_name || name;
-          avatar = localProfile.avatar_url || avatar;
-        } else {
-          try {
-            const { data: dbProf } = await supabase
-              .from('profiles')
-              .select('full_name, avatar_url')
-              .eq('id', invite.caller_id)
-              .maybeSingle();
-            if (dbProf) {
-              name = dbProf.full_name || name;
-              avatar = dbProf.avatar_url || avatar;
-            }
-          } catch (e) {}
+        // Do not trigger popup if user is already inside an active call room
+        if (typeof window !== 'undefined' && (window.location.pathname.includes('/call') || window.location.href.includes('/call/'))) {
+          return;
         }
+
+        // Validate timestamp: Ignore stale invites (> 45s old)
+        if (invite.timestamp) {
+          const invTime = new Date(invite.timestamp).getTime();
+          if (!isNaN(invTime) && Date.now() - invTime > 45000) {
+            return;
+          }
+        }
+
+        console.info('[GlobalCallPopup] Received active incoming call signal:', invite);
+
+        // Fetch caller details
+        let name = invite.caller_name;
+        let avatar = invite.caller_avatar || '';
+
+        if (invite.caller_id) {
+          const localProfile = daheejStore.getProfileById(invite.caller_id);
+          if (localProfile) {
+            name = localProfile.full_name || name;
+            avatar = localProfile.avatar_url || avatar;
+          } else {
+            try {
+              const { data: dbProf } = await supabase
+                .from('profiles')
+                .select('full_name, avatar_url')
+                .eq('id', invite.caller_id)
+                .maybeSingle();
+              if (dbProf) {
+                name = dbProf.full_name || name;
+                avatar = dbProf.avatar_url || avatar;
+              }
+            } catch (e) {}
+          }
+        }
+
+        setCallerProfile({ name, avatar });
+        setIncomingCall(invite);
+        startRingtone();
+      },
+      (roomID, signalId) => {
+        handleCallDismiss(roomID, signalId);
       }
+    );
 
-      setCallerProfile({ name, avatar });
-      setIncomingCall(invite);
-      startRingtone();
-    });
-
-    // Auto-dismiss and decline if not answered within 35 seconds
-    if (callTimeoutRef.current) {
-      clearTimeout(callTimeoutRef.current);
-      callTimeoutRef.current = null;
-    }
-
-    // Also listen for call_signals to dismiss if ended/declined/missed
+    // Also listen directly for call_signals to dismiss immediately if ended/declined/missed
     const updateChannel = supabase
-      .channel(`call_signals_updates_${currentUserId}`)
+      .channel(`call_signals_updates_${currentUserId}_${Math.random().toString(36).slice(2, 6)}`)
       .on(
         'postgres_changes',
         {
@@ -192,11 +213,10 @@ export const GlobalCallPopup: React.FC = () => {
         },
         (payload: any) => {
           if (!isMounted) return;
-          const type = payload?.new?.type;
-          if (type === 'reject-call' || type === 'end-call') {
-            stopRingtone();
-            setIncomingCall(null);
-            setCallerProfile(null);
+          const row = (payload?.new || payload?.old) as any;
+          const type = row?.type;
+          if (type === 'reject-call' || type === 'end-call' || type === 'call-ended' || type === 'cancel-call') {
+            handleCallDismiss(row?.room_id, row?.id);
           }
         }
       )

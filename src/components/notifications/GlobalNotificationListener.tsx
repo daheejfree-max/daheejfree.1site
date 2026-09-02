@@ -210,37 +210,36 @@ export const GlobalNotificationListener: React.FC<GlobalNotificationListenerProp
           // Message must be addressed to the current logged-in user and NOT sent by self
           if (receiver !== activeUserId || sender === activeUserId) return;
 
+          // If it is a call cancellation/ended message, dismiss any pending notification
+          if (
+            newMsg.content?.includes('CALL_ENDED') ||
+            newMsg.content?.includes('CALL_DECLINED') ||
+            newMsg.content?.includes('CALL_MISSED')
+          ) {
+            stopRingtone();
+            setIncomingCall(null);
+            return;
+          }
+
           const invite = parseCallInvite(newMsg.content);
 
           if (invite) {
-            // INCOMING CALL INVITE
-            let callerName = invite.caller_name || 'Matched Partner';
-            let callerAvatar = '';
-
-            const cachedProfile = daheejStore.getProfileById(sender);
-            if (cachedProfile) {
-              callerName = cachedProfile.full_name || callerName;
-              callerAvatar = cachedProfile.avatar_url || '';
-            }
-
-            setIncomingCall({
-              room_id: invite.room_id || `call_${Date.now()}`,
-              callType: invite.callType || 'video',
-              caller_name: callerName,
-              caller_avatar: callerAvatar,
-              sender_id: sender,
-              timestamp: Date.now(),
-            });
-
-            startRingtone();
-
-            // Native Browser Notification for Incoming Call
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-              new Notification(`Incoming ${invite.callType === 'video' ? 'Video' : 'Voice'} Call from ${callerName}`, {
-                body: 'Click to answer 1-on-1 Shariah verified call',
-                icon: '/favicon.ico',
-                requireInteraction: true,
-              });
+            // Note: Dedicated full-screen modal & ringtone is handled by GlobalCallPopup
+            // Only trigger if not already in a call room and not expired
+            if (
+              typeof window !== 'undefined' &&
+              !window.location.pathname.includes('/call') &&
+              !window.location.href.includes('/call/')
+            ) {
+              const callerName = invite.caller_name || 'Matched Partner';
+              // Native Browser Notification for Incoming Call
+              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                new Notification(`Incoming ${invite.callType === 'video' ? 'Video' : 'Voice'} Call from ${callerName}`, {
+                  body: 'Click to answer 1-on-1 Shariah verified call',
+                  icon: '/favicon.ico',
+                  requireInteraction: true,
+                });
+              }
             }
           } else if (!newMsg.content?.includes('CALL_')) {
             // INCOMING TEXT MESSAGE
@@ -286,32 +285,11 @@ export const GlobalNotificationListener: React.FC<GlobalNotificationListenerProp
       )
       .subscribe();
 
-    // Local store messages fallback
-    const unsubStore = daheejStore.subscribeToMessages((msg) => {
-      if (!isMounted) return;
-      if (msg.receiver_id === activeUserId && msg.sender_id !== activeUserId) {
-        const invite = parseCallInvite(msg.content);
-        if (invite && !incomingCall) {
-          const profile = daheejStore.getProfileById(msg.sender_id);
-          setIncomingCall({
-            room_id: invite.room_id,
-            callType: invite.callType,
-            caller_name: profile?.full_name || invite.caller_name || 'Matched Partner',
-            caller_avatar: profile?.avatar_url,
-            sender_id: msg.sender_id,
-            timestamp: Date.now(),
-          });
-          startRingtone();
-        }
-      }
-    });
-
     return () => {
       isMounted = false;
       stopRingtone();
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
       supabase.removeChannel(channel);
-      unsubStore();
     };
   }, [activeUserId, startRingtone, stopRingtone, playMessageChime]);
 

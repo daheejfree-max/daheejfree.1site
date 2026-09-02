@@ -22,7 +22,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { Profile, ChatMessage } from '../../../types';
 import { daheejStore } from '../../../lib/supabase/store';
 import { moderateTextContent } from '../../../lib/moderation';
-import { parseCallInvite, declineCallSession } from '../../../lib/callSignaling';
+import { parseCallInvite, declineCallSession, isCallInviteCurrentlyActive } from '../../../lib/callSignaling';
 import { getDisplayName } from '../../../lib/utils';
 
 const supabaseUrl =
@@ -361,12 +361,34 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
             }
 
             if (callInvite) {
+              const isStillActive = isCallInviteCurrentlyActive(m, messages);
+              const isVideo = callInvite.callType === 'video';
+
+              if (!isStillActive) {
+                return (
+                  <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-2 w-full`}>
+                    <div className="p-3 rounded-2xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400 max-w-[85%] sm:max-w-md flex items-center justify-between gap-3 shadow-xs">
+                      <div className="flex items-center gap-2">
+                        {isVideo ? <Video className="w-4 h-4 text-zinc-400" /> : <Phone className="w-4 h-4 text-zinc-400" />}
+                        <span>{isMe ? `Outgoing ${isVideo ? 'Video' : 'Voice'} Call` : `Incoming ${isVideo ? 'Video' : 'Voice'} Call`} (Ended)</span>
+                      </div>
+                      <button
+                        onClick={() => handleInitiateCall(isVideo ? 'video' : 'voice')}
+                        className="text-emerald-600 dark:text-emerald-400 font-semibold hover:underline cursor-pointer text-[11px]"
+                      >
+                        Call Again
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-2 w-full`}>
                   <div className="p-3.5 rounded-2xl border bg-emerald-900/30 border-emerald-500/40 text-emerald-200 max-w-[90%] sm:max-w-md space-y-2 shadow-sm">
                     <div className="flex items-center gap-2">
                       {callInvite.callType === 'video' ? <Video className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
-                      <span className="font-bold text-xs">P2P {callInvite.callType === 'video' ? 'Video' : 'Voice'} Call</span>
+                      <span className="font-bold text-xs">P2P {callInvite.callType === 'video' ? 'Video' : 'Voice'} Call (Ringing...)</span>
                     </div>
                     <button
                       onClick={() => {
@@ -376,7 +398,7 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
                       className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <PhoneIncoming className="w-3.5 h-3.5" />
-                      <span>{isMe ? 'Rejoin Call' : 'Accept Call'}</span>
+                      <span>{isMe ? 'Join Call' : 'Accept Call'}</span>
                     </button>
                   </div>
                 </div>
