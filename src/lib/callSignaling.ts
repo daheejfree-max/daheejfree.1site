@@ -527,36 +527,51 @@ export function isCallInviteCurrentlyActive(
   allMessages: ChatMessage[] = []
 ): boolean {
   if (!msg || !msg.content) return false;
-  const invite = parseCallInvite(msg.content);
-  if (!invite) return false;
-
-  // 1. Time expiration: A call invite is only ringing for at most 60 seconds
-  const createdAtTime = new Date(msg.created_at || Date.now()).getTime();
-  if (isNaN(createdAtTime) || Date.now() - createdAtTime > 60000) {
+  
+  const trimmed = msg.content.trim();
+  if (
+    trimmed === 'CALL_DECLINED' ||
+    trimmed.startsWith('CALL_DECLINED') ||
+    trimmed === 'CALL_ENDED' ||
+    trimmed.startsWith('CALL_ENDED') ||
+    trimmed === 'CALL_MISSED' ||
+    trimmed.startsWith('CALL_MISSED')
+  ) {
     return false;
   }
 
-  // 2. Check if there are subsequent termination events (CALL_ENDED, CALL_DECLINED, CALL_MISSED)
+  const invite = parseCallInvite(msg.content);
+  if (!invite) return false;
+
+  // 1. Time expiration: A call invite is only actively ringing for at most 45 seconds
+  const createdAtTime = new Date(msg.created_at || Date.now()).getTime();
+  if (isNaN(createdAtTime) || Date.now() - createdAtTime > 45000) {
+    return false;
+  }
+
+  // 2. Check if there are subsequent termination events (CALL_ENDED, CALL_DECLINED, CALL_MISSED, CALL_CONNECTED)
   // for this room or later in the chat thread
   const targetRoomId = invite.room_id;
   for (const other of allMessages) {
     if (other.id === msg.id) continue;
     const otherTime = new Date(other.created_at || 0).getTime();
     
-    // If an event occurred after or matches this room
+    // If an event occurred after this invite or explicitly references this room
     const event = parseCallEvent(other.content);
     if (event) {
-      if (
-        (event.room_id && targetRoomId && event.room_id === targetRoomId) ||
-        otherTime >= createdAtTime
-      ) {
+      const matchesRoom = Boolean(event.room_id && targetRoomId && event.room_id === targetRoomId);
+      const isAfterOrNear = otherTime >= createdAtTime - 2000;
+      
+      if (matchesRoom || isAfterOrNear) {
         if (
           event.type === 'CALL_ENDED' ||
           event.type === 'CALL_DECLINED' ||
           event.type === 'CALL_MISSED' ||
+          event.type === 'CALL_CONNECTED' ||
           other.content?.includes('CALL_ENDED') ||
           other.content?.includes('CALL_DECLINED') ||
-          other.content?.includes('CALL_MISSED')
+          other.content?.includes('CALL_MISSED') ||
+          other.content?.includes('CALL_CONNECTED')
         ) {
           return false;
         }

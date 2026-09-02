@@ -242,19 +242,17 @@ export default function App() {
   const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
   const [acceptedMatchesCount, setAcceptedMatchesCount] = useState<number>(0);
   const [googleFastUser, setGoogleFastUser] = useState<{ name: string; email: string; avatar_url?: string } | null>(null);
-  const [isOathDismissed, setIsOathDismissed] = useState(false);
-
   const currentUserId = currentProfile?.id || null;
   const isLocalCovenantSigned = typeof window !== 'undefined' && (
     localStorage.getItem('covenant_signed') === 'true' ||
-    localStorage.getItem('islamic_oath_signed') === 'true'
+    localStorage.getItem('islamic_oath_signed') === 'true' ||
+    localStorage.getItem('policies_accepted') === 'true'
   );
   const isOathRequired = Boolean(
     currentProfile &&
     !currentProfile.islamic_oath_signed &&
     !currentProfile.covenant_signed &&
-    !isLocalCovenantSigned &&
-    !isOathDismissed
+    !isLocalCovenantSigned
   );
 
   // Track incoming match requests & accepted matches count reactively with Supabase Realtime
@@ -1032,7 +1030,7 @@ export default function App() {
       {/* Privacy & Anti-Screenshot Blur Protection */}
       <PrivacyAntiScreenshotGuard />
 
-      {/* Islamic Oath & Anti-Dowry Mandatory Modal Guardrail */}
+      {/* Islamic Oath, Safety & Policies Mandatory Modal Guardrail */}
       {currentProfile && isOathRequired && (
         <IslamicOathModal
           isOpen={isOathRequired}
@@ -1043,21 +1041,32 @@ export default function App() {
               covenant_signed: true,
               covenant_signed_at: new Date().toISOString(),
               anti_dowry_pledged: true,
+              terms_accepted: true,
+              privacy_accepted: true,
             });
             daheejStore.updateProfile(currentProfile.id, {
               islamic_oath_signed: true,
               covenant_signed: true,
               covenant_signed_at: new Date().toISOString(),
               anti_dowry_pledged: true,
+              terms_accepted: true,
+              privacy_accepted: true,
             });
             try {
               localStorage.setItem('covenant_signed', 'true');
               localStorage.setItem('islamic_oath_signed', 'true');
+              localStorage.setItem('policies_accepted', 'true');
             } catch (e) {}
-            setIsOathDismissed(true);
             refreshState();
           }}
-          onClose={() => setIsOathDismissed(true)}
+          onDecline={async () => {
+            await signOut();
+            setCurrentTab('explore');
+          }}
+          onClose={async () => {
+            await signOut();
+            setCurrentTab('explore');
+          }}
         />
       )}
 

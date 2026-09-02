@@ -257,9 +257,12 @@ export default function RealtimeMessagesPage({
           const matchesList = Array.from(profileMap.values());
           setAcceptedMatches(matchesList);
 
-          // Default selection if none is active
+          // Default selection if none is active (Desktop only)
           if (!activeChat && matchesList.length > 0) {
-            setActiveChat(matchesList[0]);
+            const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+            if (isDesktop) {
+              setActiveChat(matchesList[0]);
+            }
           }
         } else {
           // Local fallback from store
@@ -276,7 +279,10 @@ export default function RealtimeMessagesPage({
           if (isMounted) {
             setAcceptedMatches(localProfiles);
             if (!activeChat && localProfiles.length > 0) {
-              setActiveChat(localProfiles[0]);
+              const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+              if (isDesktop) {
+                setActiveChat(localProfiles[0]);
+              }
             }
           }
         }
@@ -1225,346 +1231,151 @@ export default function RealtimeMessagesPage({
                         msg.content?.includes('CALL_CONNECTED'));
                     const callInvite = (!isCallDeclined && !isCallEnded && !isCallMissed && !isCallConnected) ? parseCallInvite(msg.content) : null;
 
-                    // If message is a CALL_DECLINED state
-                    if (isCallDeclined) {
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-2 w-full`}
-                        >
-                          <div
-                            className={`w-full max-w-[90%] sm:max-w-md p-3.5 rounded-2xl border transition-all ${
-                              isMe
-                                ? 'bg-rose-950/40 border-rose-800/60 text-rose-200 shadow-sm'
-                                : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-300 shadow-sm'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-500 shrink-0">
-                                <PhoneOff className="w-5 h-5" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-xs sm:text-sm text-rose-700 dark:text-rose-300">
-                                    Call Declined
-                                  </span>
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-rose-500/20 text-rose-600 dark:text-rose-400">
-                                    Declined
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-rose-600/90 dark:text-rose-300/90 truncate mt-0.5 font-medium">
-                                  {isMe ? 'Call invitation was declined' : 'You declined the call'}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="mt-2.5 pt-2 border-t border-rose-500/20 text-[10px] text-rose-500/70 dark:text-rose-400/70 flex items-center justify-between">
-                              <span>Session Cancelled</span>
-                              <span>
-                                {new Date(msg.created_at || Date.now()).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
+                    // Check if invite is currently ringing and unexpired
+                    const isStillActive = isCallInviteCurrentlyActive(msg, messages);
 
-                    // If message is a CALL_MISSED state
-                    if (isCallMissed) {
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-2 w-full`}
-                        >
-                          <div
-                            className={`w-full max-w-[90%] sm:max-w-md p-3.5 rounded-2xl border transition-all ${
-                              isMe
-                                ? 'bg-red-950/40 border-red-800/60 text-red-200 shadow-sm'
-                                : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 shadow-sm'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-500 shrink-0">
-                                <PhoneMissed className="w-5 h-5" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-xs sm:text-sm text-red-700 dark:text-red-300">
-                                    Missed Call
-                                  </span>
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-red-500/20 text-red-600 dark:text-red-400">
-                                    Unavailable
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-red-600/90 dark:text-red-300/90 truncate mt-0.5 font-medium">
-                                  User isn't available at the moment.
-                                </p>
-                              </div>
-                            </div>
-                            <div className="mt-2.5 pt-2 border-t border-red-500/20 text-[10px] text-red-500/70 dark:text-red-400/70 flex items-center justify-between">
-                              <span>Ringing Timeout</span>
-                              <span>
-                                {new Date(msg.created_at || Date.now()).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // If message is a CALL_CONNECTED state
-                    if (isCallConnected) {
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-2 w-full`}
-                        >
-                          <div
-                            className={`w-full max-w-[90%] sm:max-w-md p-3.5 rounded-2xl border transition-all ${
-                              isMe
-                                ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-200 shadow-sm'
-                                : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-300 shadow-sm'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-500 shrink-0">
-                                <PhoneCall className="w-5 h-5 animate-pulse" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-xs sm:text-sm text-emerald-700 dark:text-emerald-300">
-                                    Call Connected
-                                  </span>
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-                                    Active / Verified
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-emerald-600/90 dark:text-emerald-300/90 truncate mt-0.5 font-medium">
-                                  Encrypted 1-on-1 Shariah Call established
-                                </p>
-                              </div>
-                            </div>
-                            <div className="mt-2.5 pt-2 border-t border-emerald-500/20 text-[10px] text-emerald-500/70 dark:text-emerald-400/70 flex items-center justify-between">
-                              <span>Peer Connected</span>
-                              <span>
-                                {new Date(msg.created_at || Date.now()).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // If message is a CALL_ENDED state
-                    if (isCallEnded) {
+                    // 1. Sleek Compact Call Log Pill for completed/ended/declined/missed/expired calls
+                    if (isCallDeclined || isCallMissed || isCallEnded || isCallConnected || (callInvite && !isStillActive)) {
+                      const isVideo = callInvite?.callType === 'video' || eventData?.type === 'CALL_ENDED';
                       const durationSec = eventData?.duration || 0;
                       const formattedDuration = durationSec > 0
                         ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`
                         : '';
 
                       return (
-                        <div
-                          key={msg.id}
-                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-2 w-full`}
-                        >
-                          <div
-                            className={`w-full max-w-[90%] sm:max-w-md p-3.5 rounded-2xl border transition-all ${
-                              isMe
-                                ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300 shadow-sm'
-                                : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 shadow-sm'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 shrink-0">
-                                <PhoneOff className="w-5 h-5" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-xs sm:text-sm text-zinc-700 dark:text-zinc-300">
-                                    Call Ended
-                                  </span>
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-zinc-200 dark:bg-zinc-800 text-zinc-500">
-                                    {formattedDuration ? `Duration ${formattedDuration}` : 'Session Finished'}
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-                                  {isMe ? 'You ended the call session' : 'Call session ended'}
-                                </p>
-                              </div>
+                        <div key={msg.id} className="w-full flex justify-center my-2.5 px-2">
+                          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-100/90 dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/60 shadow-xs text-xs">
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                              isCallMissed || isCallDeclined
+                                ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400'
+                                : isCallConnected
+                                ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
+                            }`}>
+                              {isCallMissed ? (
+                                <PhoneMissed className="w-3 h-3" />
+                              ) : isCallDeclined ? (
+                                <PhoneOff className="w-3 h-3" />
+                              ) : isCallConnected ? (
+                                <PhoneCall className="w-3 h-3" />
+                              ) : isVideo ? (
+                                <Video className="w-3 h-3" />
+                              ) : (
+                                <Phone className="w-3 h-3" />
+                              )}
                             </div>
-                            <div className="mt-2.5 pt-2 border-t border-zinc-200 dark:border-zinc-800 text-[10px] text-zinc-400 flex items-center justify-between">
-                              <span>Room Closed</span>
+
+                            <div className="flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300 font-medium">
                               <span>
-                                {new Date(msg.created_at || Date.now()).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
+                                {isCallMissed
+                                  ? (isMe ? 'Unanswered Call' : 'Missed Call')
+                                  : isCallDeclined
+                                  ? 'Call Declined'
+                                  : isCallConnected
+                                  ? 'Call Connected'
+                                  : `${isVideo ? 'Video' : 'Voice'} Call Ended ${formattedDuration ? `(${formattedDuration})` : ''}`}
+                              </span>
+                              <span className="text-zinc-400 dark:text-zinc-500 text-[10px]">
+                                • {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleInitiateCall(isVideo ? 'video' : 'voice')}
+                              className="ml-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white transition-all cursor-pointer shadow-xs shrink-0"
+                              title="Call Back"
+                            >
+                              Call Back
+                            </button>
                           </div>
                         </div>
                       );
                     }
 
-                    // If message is a CALL_INVITE signaling block
-                    if (callInvite) {
+                    // 2. Touch-Optimized Active Ringing Call Card
+                    if (callInvite && isStillActive) {
                       const isVideo = callInvite.callType === 'video';
-                      const isStillActive = isCallInviteCurrentlyActive(msg, messages);
                       const callerCallUrl = `/call/${callInvite.room_id}?callType=${callInvite.callType}&role=caller`;
                       const receiverCallUrl = `/call/${callInvite.room_id}?callType=${callInvite.callType}&role=receiver`;
 
-                      // If call is finished / historical / expired
-                      if (!isStillActive) {
-                        return (
-                          <div
-                            key={msg.id}
-                            className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-2 w-full`}
-                          >
-                            <div
-                              className={`w-full max-w-[90%] sm:max-w-md p-3.5 rounded-2xl border transition-all ${
-                                isMe
-                                  ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300 shadow-sm'
-                                  : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 shadow-sm'
-                              }`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 shrink-0">
-                                  {isVideo ? <Video className="w-5 h-5" /> : <Phone className="w-5 h-5" />}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold text-xs sm:text-sm text-zinc-700 dark:text-zinc-300">
-                                      {isMe
-                                        ? `Outgoing ${isVideo ? 'Video' : 'Voice'} Call`
-                                        : `Incoming ${isVideo ? 'Video' : 'Voice'} Call`}
-                                    </span>
-                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-zinc-200 dark:bg-zinc-800 text-zinc-500">
-                                      Call Ended
-                                    </span>
-                                  </div>
-                                  <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-                                    {isMe ? 'Call invitation completed' : 'Call session completed'}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="mt-2.5 pt-2 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-[10px] text-zinc-400">
-                                <button
-                                  type="button"
-                                  onClick={() => handleInitiateCall(isVideo ? 'video' : 'voice')}
-                                  className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
-                                >
-                                  {isVideo ? <Video className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}
-                                  <span>Call Again</span>
-                                </button>
-                                <span>
-                                  {new Date(msg.created_at || Date.now()).toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      // Active Live Ringing Call Card
                       return (
                         <div
                           key={msg.id}
-                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-2 w-full`}
+                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-2.5 w-full`}
                         >
                           <div
-                            className={`w-full max-w-[92%] sm:max-w-md p-4 rounded-2xl border transition-all ${
+                            className={`w-full max-w-[92%] sm:max-w-md p-3.5 sm:p-4 rounded-2xl border transition-all ${
                               isMe
-                                ? 'bg-gradient-to-br from-emerald-800 to-teal-950 border-emerald-600 text-white shadow-md'
-                                : 'bg-gradient-to-br from-white to-emerald-50/50 dark:from-zinc-900 dark:to-emerald-950/40 border-emerald-500/50 text-zinc-900 dark:text-white shadow-lg'
+                                ? 'bg-gradient-to-br from-emerald-900 to-teal-950 border-emerald-500/60 text-white shadow-lg'
+                                : 'bg-gradient-to-br from-emerald-950/95 to-teal-950/95 border-2 border-emerald-400 text-white shadow-xl ring-2 ring-emerald-500/20 animate-pulse'
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <div
-                                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
-                                  isMe
-                                    ? 'bg-emerald-600 text-white'
-                                    : 'bg-emerald-500 text-white animate-pulse'
-                                }`}
-                              >
-                                {isVideo ? <Video className="w-5 h-5" /> : <Phone className="w-5 h-5" />}
+                              <div className="relative w-11 h-11 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-md">
+                                <span className="absolute -inset-1 rounded-2xl bg-emerald-400 opacity-60 animate-ping" />
+                                {isVideo ? <Video className="w-5 h-5 relative z-10" /> : <Phone className="w-5 h-5 relative z-10" />}
                               </div>
-
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-bold text-xs sm:text-sm">
+                                  <span className="font-bold text-xs sm:text-sm text-white">
                                     {isMe
                                       ? `Outgoing ${isVideo ? 'Video' : 'Voice'} Call`
                                       : `Incoming ${isVideo ? 'Video' : 'Voice'} Call`}
                                   </span>
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 animate-pulse">
-                                    Ringing...
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-400 text-emerald-950 uppercase tracking-wider">
+                                    Ringing
                                   </span>
                                 </div>
-                                <p className="text-[11px] opacity-80 truncate mt-0.5">
+                                <p className="text-[11px] text-emerald-100/90 truncate mt-0.5 font-medium">
                                   {isMe
-                                    ? 'Ringing partner (Expires in 45s)...'
+                                    ? 'Waiting for partner to answer...'
                                     : `${callInvite.caller_name || getDisplayName(activeChat)} is calling you`}
                                 </p>
                               </div>
                             </div>
 
-                            {/* Responsive Action Buttons */}
-                            <div className="mt-3 pt-3 border-t border-emerald-500/20 flex flex-col gap-2">
+                            {/* Responsive Action Buttons with 44px minimum touch target */}
+                            <div className="mt-3 pt-2.5 border-t border-emerald-400/20 flex items-center gap-2">
                               {isMe ? (
                                 <button
+                                  type="button"
                                   onClick={() => {
                                     if (typeof window !== 'undefined') {
-                                      window.open(callerCallUrl, '_blank');
+                                      window.history.pushState({ tab: 'call' }, '', callerCallUrl);
+                                      window.dispatchEvent(new CustomEvent('app:navigate', { detail: { path: callerCallUrl, tab: 'call' } }));
                                     }
                                   }}
-                                  className="w-full min-h-[44px] py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer active:scale-[0.98] bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-emerald-950"
+                                  className="w-full min-h-[44px] py-2 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer active:scale-95 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-emerald-950"
                                 >
                                   <Video className="w-4 h-4" />
-                                  <span>Join Call Room</span>
+                                  <span>Enter Call Room</span>
                                 </button>
                               ) : (
-                                <div className="flex items-center gap-2 w-full">
+                                <>
                                   <button
+                                    type="button"
                                     onClick={() => {
                                       if (typeof window !== 'undefined') {
-                                        window.open(receiverCallUrl, '_blank');
+                                        window.history.pushState({ tab: 'call' }, '', receiverCallUrl);
+                                        window.dispatchEvent(new CustomEvent('app:navigate', { detail: { path: receiverCallUrl, tab: 'call' } }));
                                       }
                                     }}
-                                    className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-medium rounded-lg py-2.5 px-4 flex items-center justify-center gap-2 flex-1 min-h-[44px] text-xs sm:text-sm transition-colors cursor-pointer shadow-sm"
+                                    className="bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-emerald-950 font-bold rounded-xl py-2.5 px-3 flex items-center justify-center gap-1.5 flex-1 min-h-[44px] text-xs sm:text-sm transition-all cursor-pointer shadow-md active:scale-95"
                                   >
-                                    <PhoneIncoming className="w-4 h-4 animate-bounce" />
-                                    <span>Accept & Join Call</span>
+                                    <PhoneIncoming className="w-4 h-4" />
+                                    <span>Accept & Join</span>
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() => handleDeclineCall(msg.id, callInvite.room_id)}
-                                    className="bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600 hover:text-white active:bg-rose-700 font-medium rounded-lg py-2.5 px-4 flex items-center justify-center gap-2 flex-1 min-h-[44px] text-xs sm:text-sm transition-colors cursor-pointer shadow-sm"
+                                    className="bg-rose-500/20 border border-rose-400/40 text-rose-200 hover:bg-rose-600 hover:text-white active:bg-rose-700 font-bold rounded-xl py-2.5 px-3 flex items-center justify-center gap-1.5 flex-1 min-h-[44px] text-xs sm:text-sm transition-all cursor-pointer shadow-sm active:scale-95"
                                   >
                                     <PhoneOff className="w-4 h-4" />
                                     <span>Decline</span>
                                   </button>
-                                </div>
+                                </>
                               )}
-
-                              <div className="flex items-center justify-between text-[10px] opacity-60 px-1">
-                                <span>1-on-1 Halal Audio/Video</span>
-                                <span>
-                                  {new Date(msg.created_at || Date.now()).toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
-                                </span>
-                              </div>
                             </div>
                           </div>
                         </div>

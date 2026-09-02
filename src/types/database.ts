@@ -73,6 +73,9 @@ export interface Profile {
   islamic_oath_date?: string;
   covenant_signed?: boolean;
   covenant_signed_at?: string;
+  terms_accepted?: boolean;
+  privacy_accepted?: boolean;
+  policies_accepted?: boolean;
   is_onboarded?: boolean;
   city?: string;
   kyc_document_type?: string;
@@ -89,7 +92,6 @@ export interface Profile {
   selfie_url?: string | null;
   selfie_verification_url?: string | null;
   legal_consent_accepted_at?: string | null;
-  terms_accepted?: boolean;
   icebreakers?: string[];
   last_known_ip?: string | null;
   created_at?: string;
