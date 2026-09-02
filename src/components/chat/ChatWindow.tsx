@@ -419,7 +419,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       const { scrollHeight, clientHeight } = chatContainerRef.current;
       chatContainerRef.current.scrollTop = scrollHeight - clientHeight;
     }
-  }, [messages]);
+  }, [messages, isPartnerTyping]);
 
   const handleInitiateCall = async (callType: 'video' | 'voice') => {
     if (!targetUserId || !currentUserId || isInitiatingCall) return;
@@ -1023,19 +1023,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               );
             })
           )}
-        </div>
-
-        {/* Typing Indicator */}
-        {isPartnerTyping && (
-          <div className="px-4 py-2 text-xs text-zinc-500 dark:text-zinc-400 italic animate-pulse flex items-center gap-2 shrink-0">
-            <div className="flex gap-1">
-              <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          {/* Typing Bubble */}
+          {isPartnerTyping && (
+            <div className="flex flex-col items-start animate-in fade-in duration-150 my-1">
+              <div className="max-w-[88%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 shadow-xs bg-white dark:bg-zinc-800 border border-zinc-200/80 dark:border-zinc-700/60 rounded-bl-xs">
+                <div className="flex items-center gap-1.5 h-4">
+                  <span className="w-1.5 h-1.5 bg-zinc-400 dark:bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-zinc-400 dark:bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-zinc-400 dark:bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-zinc-400 dark:text-zinc-500 px-1">
+                <span>{targetProfile.full_name.split(' ')[0]} is typing...</span>
+              </div>
             </div>
-            {targetProfile.full_name.split(' ')[0]} is typing...
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Moderation Warning Notification */}
         {moderationWarning && (

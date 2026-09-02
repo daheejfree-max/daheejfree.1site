@@ -1086,7 +1086,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [activeMessages, selectedUserId]);
+  }, [activeMessages, selectedUserId, isPartnerTyping]);
 
   // Calculate conversations list with preview metadata
   const conversationsList = useMemo(() => {
@@ -1104,7 +1104,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       );
       const lastMessage = sorted[0] || null;
       const unreadCount = sorted.filter(
-        (m) => (m.receiver_id === currentUserId || m.recipient_id === currentUserId) && !m.read
+        (m) => (m.receiver_id === currentUserId || m.recipient_id === currentUserId) && !(m.read || m.is_read)
       ).length;
 
       return {
@@ -2025,6 +2025,21 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                     );
                   })
                 )}
+                {/* Typing Bubble */}
+                {isPartnerTyping && (
+                  <div className="flex flex-col items-start animate-in fade-in duration-150 my-1">
+                    <div className="max-w-[88%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 shadow-xs bg-white dark:bg-zinc-800 border border-zinc-200/80 dark:border-zinc-700/60 rounded-bl-xs">
+                      <div className="flex items-center gap-1.5 h-4">
+                        <span className="w-1.5 h-1.5 bg-zinc-400 dark:bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-1.5 bg-zinc-400 dark:bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-1.5 bg-zinc-400 dark:bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-zinc-400 dark:text-zinc-500 px-1">
+                      <span>{selectedPartner?.full_name.split(' ')[0]} is typing...</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Moderation Warning Toast */}
@@ -2037,18 +2052,6 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
               {/* Bottom Input Area (Flex-docked to bottom with pb-safe and shadow) */}
               <div className="shrink-0 p-2.5 sm:p-3 bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 transition-colors pb-safe z-30 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.35)]">
-                {/* Typing Indicator */}
-                {isPartnerTyping && (
-                  <div className="px-2 pb-2 text-[11px] text-zinc-500 dark:text-zinc-400 italic animate-pulse flex items-center gap-1.5 shrink-0">
-                    <div className="flex gap-1">
-                      <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                    {selectedPartner?.full_name.split(' ')[0]} is typing...
-                  </div>
-                )}
-
                 {showStarters && (
                   <div className="mb-2 p-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl space-y-1.5 shadow-md max-h-36 overflow-y-auto">
                     <p className="text-[10px] font-bold text-zinc-400 px-2 uppercase tracking-wider">
