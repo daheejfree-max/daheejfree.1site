@@ -11,6 +11,7 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
         'next/navigation': path.resolve(__dirname, 'src/lib/navigation.ts'),
         'next/headers': path.resolve(__dirname, 'src/lib/headers.ts'),
+        'next/server': path.resolve(__dirname, 'src/lib/next-server.ts'),
       },
     },
     server: {

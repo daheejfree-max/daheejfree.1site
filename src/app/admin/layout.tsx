@@ -67,23 +67,18 @@ export default async function AdminLayout({
   const userEmail = user.email?.toLowerCase() || '';
 
   // 3. Verify is_admin in public.profiles table
-  let isAdmin = false;
-  try {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, is_admin, full_name')
-      .eq('id', user.id)
-      .maybeSingle();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single();
 
-    const isDesignatedSuperadmin =
-      userEmail === 'behumble7860@gmail.com' ||
-      userEmail === 'hasnainkhan3177@gmail.com';
+  const isDesignatedSuperadmin =
+    userEmail === 'behumble7860@gmail.com' ||
+    userEmail === 'hasnainkhan3177@gmail.com' ||
+    userEmail === 'admin@daheejfree.com';
 
-    isAdmin = Boolean(profile?.is_admin || isDesignatedSuperadmin);
-  } catch (err) {
-    console.error('[Admin Layout Server Guard] Profile query failed:', err);
-    isAdmin = false;
-  }
+  const isAdmin = Boolean(profile?.is_admin || isDesignatedSuperadmin);
 
   // Strictly block unauthorized users who are not administrators
   if (!isAdmin) {

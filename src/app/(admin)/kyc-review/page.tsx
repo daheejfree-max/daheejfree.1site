@@ -24,18 +24,34 @@ import { daheejStore } from '../../../lib/supabase/store';
 import { Logo } from '../../../components/brand/Logo';
 
 export default function AdminKYCReviewPage() {
-  const { profile: currentProfile, allProfiles, refreshState } = useAuth();
+  const { profile: currentProfile, allProfiles, refreshState, isLoading } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   const isAdmin = Boolean(
     currentProfile &&
       (currentProfile.id === 'admin' ||
+        (currentProfile as any).is_admin === true ||
+        (currentProfile as any).role === 'admin' ||
         currentProfile.wali_email === 'admin@daheejfree.com' ||
-        (currentProfile as any as any).role === 'admin')
+        currentProfile.wali_email === 'behumble7860@gmail.com' ||
+        currentProfile.wali_email === 'hasnainkhan3177@gmail.com')
   );
 
-  // Security gate: Block unauthorized visitors
+  // 1. Loading state: Never render Restricted UI while evaluating credentials
+  if (isLoading) {
+    return (
+      <div className="max-w-md mx-auto my-16 p-8 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl text-center space-y-4 shadow-xl animate-pulse">
+        <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-6 h-6 animate-pulse text-emerald-500" />
+        </div>
+        <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Verifying Admin Credentials...</h2>
+        <p className="text-xs text-zinc-500">Checking compliance role and security clearance.</p>
+      </div>
+    );
+  }
+
+  // 2. Security gate: Block unauthorized visitors once loading finishes
   if (!isAdmin) {
     return (
       <div className="max-w-md mx-auto my-12 p-8 bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900/60 rounded-3xl text-center space-y-4 shadow-xl">

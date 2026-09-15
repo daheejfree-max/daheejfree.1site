@@ -3,7 +3,8 @@
 // Protected with SUPABASE_SERVICE_ROLE_KEY & Strict Admin Identity Verification
 // ==============================================================================
 
-import { createAdminClient } from '../../../../lib/supabase/server';
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,9 +22,36 @@ interface AdminActionRequest {
 
 export async function POST(req: Request) {
   try {
-    const adminClient = createAdminClient();
+    // 1. Explicitly check for process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Admin API Error: SUPABASE_SERVICE_ROLE_KEY is missing from environment.');
+      return NextResponse.json(
+        { error: 'Server misconfiguration: Missing service role key' },
+        { status: 500 }
+      );
+    }
 
-    // 1. Extract Bearer token from Authorization header
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      process.env.VITE_SUPABASE_URL ||
+      '';
+
+    if (!supabaseUrl) {
+      return NextResponse.json(
+        { error: 'Server misconfiguration: Missing Supabase URL' },
+        { status: 500 }
+      );
+    }
+
+    // Initialize elevated Supabase Admin client using SUPABASE_SERVICE_ROLE_KEY
+    const adminClient = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    // 2. Extract Bearer token from Authorization header or cookie
     const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
     let token = '';
 
@@ -50,18 +78,18 @@ export async function POST(req: Request) {
     }
 
     if (!token) {
-      return Response.json(
-        { success: false, error: 'Unauthorized: Missing Bearer authentication token.' },
+      return NextResponse.json(
+        { error: 'Unauthorized: Missing Bearer authentication token.' },
         { status: 401 }
       );
     }
 
-    // 2. Verify Bearer token with Supabase Auth
+    // 3. Verify Bearer token with Supabase Auth
     const { data: authData, error: authError } = await adminClient.auth.getUser(token);
 
     if (authError || !authData?.user) {
-      return Response.json(
-        { success: false, error: 'Unauthorized: Invalid or expired session token.' },
+      return NextResponse.json(
+        { error: 'Unauthorized: Invalid or expired session token.' },
         { status: 401 }
       );
     }
@@ -69,8 +97,8 @@ export async function POST(req: Request) {
     const requesterUserId = authData.user.id;
     const requesterEmail = authData.user.email?.toLowerCase();
 
-    // 3. Query public.profiles to verify is_admin === true
-    const { data: requesterProfile, error: profileError } = await adminClient
+    // 4. Query public.profiles to verify is_admin === true
+    const { data: requesterProfile } = await adminClient
       .from('profiles')
       .select('id, is_admin, full_name, kyc_status')
       .eq('id', requesterUserId)
@@ -84,8 +112,8 @@ export async function POST(req: Request) {
 
     if (!isVerifiedAdmin) {
       console.warn(`[Admin API] Unauthorized access attempt by user ${requesterUserId} (${requesterEmail})`);
-      return Response.json(
-        { success: false, error: 'Forbidden: Administrator privileges required.' },
+      return NextResponse.json(
+        { error: 'Forbidden: Administrator privileges required.' },
         { status: 403 }
       );
     }
@@ -98,13 +126,13 @@ export async function POST(req: Request) {
         .eq('id', requesterUserId);
     }
 
-    // 4. Parse & Validate Payload
+    // 5. Parse & Validate Payload
     let body: AdminActionRequest;
     try {
       body = await req.json();
     } catch {
-      return Response.json(
-        { success: false, error: 'Invalid JSON payload in request body.' },
+      return NextResponse.json(
+        { error: 'Invalid JSON payload in request body.' },
         { status: 400 }
       );
     }
@@ -112,8 +140,8 @@ export async function POST(req: Request) {
     const { action, targetUserId, payload } = body;
 
     if (!action || !targetUserId) {
-      return Response.json(
-        { success: false, error: 'Missing required fields: action and targetUserId are mandatory.' },
+      return NextResponse.json(
+        { error: 'Missing required fields: action and targetUserId are mandatory.' },
         { status: 400 }
       );
     }
@@ -126,13 +154,13 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (targetFindError || !targetProfile) {
-      return Response.json(
-        { success: false, error: `Target user with ID '${targetUserId}' does not exist.` },
+      return NextResponse.json(
+        { error: `Target user with ID '${targetUserId}' does not exist.` },
         { status: 404 }
       );
     }
 
-    // 5. Execute Admin Action
+    // 6. Execute Admin Action
     let updateFields: Record<string, any> = {
       updated_at: new Date().toISOString(),
     };
@@ -157,9 +185,8 @@ export async function POST(req: Request) {
         const allowedTiers = ['free', 'gold', 'diamond', 'platinum'];
 
         if (!allowedTiers.includes(targetTier)) {
-          return Response.json(
+          return NextResponse.json(
             {
-              success: false,
               error: `Invalid subscription tier '${targetTier}'. Allowed: ${allowedTiers.join(', ')}`,
             },
             { status: 400 }
@@ -195,16 +222,15 @@ export async function POST(req: Request) {
         break;
 
       default:
-        return Response.json(
+        return NextResponse.json(
           {
-            success: false,
             error: `Unsupported admin action '${action}'. Supported: verify_kyc, grant_subscription, ban_user, unban_user.`,
           },
           { status: 400 }
         );
     }
 
-    // 6. Perform the database update on public.profiles
+    // 7. Perform the database update on public.profiles
     const { data: updatedData, error: updateError } = await adminClient
       .from('profiles')
       .update(updateFields)
@@ -214,25 +240,22 @@ export async function POST(req: Request) {
 
     if (updateError) {
       console.error('[Admin Action Error] Database update failed:', updateError);
-      return Response.json(
-        { success: false, error: `Database update failed: ${updateError.message}` },
+      return NextResponse.json(
+        { error: `Database update failed: ${updateError.message}` },
         { status: 500 }
       );
     }
 
-    return Response.json({
+    return NextResponse.json({
       success: true,
       message: successMessage,
       action,
       targetUserId,
       profile: updatedData,
     });
-  } catch (err: any) {
-    console.error('[Admin Action Handler Exception]:', err);
-    return Response.json(
-      { success: false, error: err?.message || 'Internal Server Error' },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error('Admin API Error:', error);
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
 

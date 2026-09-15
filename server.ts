@@ -129,18 +129,18 @@ app.post('/api/auth/log-ip', async (req, res) => {
 // ==============================================================================
 app.post('/api/admin/action', async (req, res) => {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-    const supabaseServiceKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-      process.env.VITE_SUPABASE_ANON_KEY ||
-      '';
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return res.status(500).json({ success: false, error: 'Supabase configuration missing on server.' });
+    // 1. Explicitly check for process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Admin API Error: SUPABASE_SERVICE_ROLE_KEY is missing from environment.');
+      return res.status(500).json({ error: 'Server misconfiguration: Missing service role key' });
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    if (!supabaseUrl) {
+      return res.status(500).json({ error: 'Server misconfiguration: Missing Supabase URL' });
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
     // 1. Extract Bearer token from Authorization header or cookie
     const authHeader = req.headers.authorization || (req.headers as any).Authorization;
@@ -307,9 +307,9 @@ app.post('/api/admin/action', async (req, res) => {
       targetUserId,
       profile: updatedData,
     });
-  } catch (err: any) {
-    console.error('[Express Admin API Exception]:', err);
-    return res.status(500).json({ success: false, error: err?.message || 'Internal server error' });
+  } catch (error: any) {
+    console.error("Admin API Error:", error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 

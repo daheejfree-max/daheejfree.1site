@@ -35,6 +35,8 @@ import { Profile } from '../../types/database';
 type FilterTab = 'all' | 'pending_kyc' | 'verified_kyc' | 'premium' | 'banned';
 
 export default function AdminControlPanel() {
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [users, setUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -44,6 +46,42 @@ export default function AdminControlPanel() {
     type: 'success' | 'error' | 'info';
     message: string;
   } | null>(null);
+
+  // Client Component Admin Guard with Loading State
+  useEffect(() => {
+    async function checkAdminClearance() {
+      try {
+        setAuthLoading(true);
+        const { data: authData } = await supabase.auth.getUser();
+        const user = authData?.user;
+        if (!user) {
+          setIsAdmin(false);
+          return;
+        }
+
+        const userEmail = user.email?.toLowerCase() || '';
+        const isDesignated =
+          userEmail === 'behumble7860@gmail.com' ||
+          userEmail === 'hasnainkhan3177@gmail.com' ||
+          userEmail === 'admin@daheejfree.com';
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', user.id)
+          .single();
+
+        setIsAdmin(Boolean(profile?.is_admin || isDesignated));
+      } catch (err) {
+        console.error('[Admin Auth Guard Error]:', err);
+        setIsAdmin(false);
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+
+    checkAdminClearance();
+  }, []);
 
   // Auto-dismiss notifications after 4.5s
   useEffect(() => {
@@ -164,6 +202,45 @@ export default function AdminControlPanel() {
   }, [users, activeTab, searchTerm]);
 
   // 4. Secure Action Dispatcher
+  const executeAction = async (
+    action: 'verify_kyc' | 'grant_subscription' | 'ban_user' | 'unban_user',
+    targetUserId: string,
+    payload?: any
+  ) => {
+    // Retrieve caller session token
+    const sessionRes = await supabase.auth.getSession();
+    const token = sessionRes.data.session?.access_token;
+
+    if (!token) {
+      throw new Error('No active authentication session. Please re-login.');
+    }
+
+    const res = await fetch('/api/admin/action', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action,
+        targetUserId,
+        payload,
+      }),
+    });
+
+    const rawText = await res.text();
+    let result: any;
+    try {
+      result = JSON.parse(rawText);
+    } catch (e) {
+      console.error("Backend crashed with non-JSON response:", rawText);
+      throw new Error(`Server error (Status ${res.status}). Check Vercel logs.`);
+    }
+    if (!res.ok) throw new Error(result.error || 'Request rejected');
+
+    return result;
+  };
+
   const handleAdminAction = async (
     action: 'verify_kyc' | 'grant_subscription' | 'ban_user' | 'unban_user',
     targetUserId: string,
@@ -173,32 +250,7 @@ export default function AdminControlPanel() {
     setNotification(null);
 
     try {
-      // Retrieve caller session token
-      const sessionRes = await supabase.auth.getSession();
-      const token = sessionRes.data.session?.access_token;
-
-      if (!token) {
-        throw new Error('No active authentication session. Please re-login.');
-      }
-
-      const response = await fetch('/api/admin/action', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          action,
-          targetUserId,
-          payload,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result?.error || 'Admin action failed on server.');
-      }
+      const result = await executeAction(action, targetUserId, payload);
 
       // Show success feedback
       setNotification({
@@ -224,6 +276,34 @@ export default function AdminControlPanel() {
       setActionLoadingId(null);
     }
   };
+
+  // 1. Loading state: Never render Restricted UI while evaluating credentials
+  if (authLoading) {
+    return (
+      <div className="min-h-[450px] flex flex-col items-center justify-center space-y-4 p-8">
+        <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shadow-lg animate-pulse">
+          <ShieldAlert className="w-7 h-7 animate-pulse text-emerald-500" />
+        </div>
+        <h2 className="text-lg font-bold text-zinc-200">Verifying Admin Access...</h2>
+        <p className="text-xs text-zinc-500">Checking security clearance and is_admin credentials with Supabase.</p>
+      </div>
+    );
+  }
+
+  // 2. Restricted UI: Only render when verification completed and isAdmin is false
+  if (!isAdmin) {
+    return (
+      <div className="max-w-md mx-auto my-16 p-8 bg-zinc-900 border border-red-900/50 rounded-3xl text-center space-y-4 shadow-xl">
+        <div className="w-12 h-12 rounded-2xl bg-red-950 text-red-400 flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-bold text-white">Admin Access Restricted</h2>
+        <p className="text-xs text-zinc-400 leading-relaxed">
+          The God Mode Control Panel requires verified administrator privileges.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

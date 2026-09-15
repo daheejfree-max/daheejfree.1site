@@ -414,8 +414,16 @@ export default function App() {
         currentProfile.wali_email === 'hasnainkhan3177@gmail.com'
       )
     );
-    if ((currentTab === 'admin' || currentTab === 'admin-kyc') && !isAdmin) {
-      setCurrentTab(currentUserId ? 'matches' : 'login');
+
+    // Only redirect once loading is finished and profile has been evaluated
+    if (!isLoading) {
+      if ((currentTab === 'admin' || currentTab === 'admin-kyc')) {
+        if (!currentUserId) {
+          setCurrentTab('login');
+        } else if (currentProfile && !isAdmin) {
+          setCurrentTab('matches');
+        }
+      }
     }
   }, [currentUserId, currentProfile, currentTab, isLoading]);
 
