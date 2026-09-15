@@ -129,9 +129,13 @@ app.post('/api/auth/log-ip', async (req, res) => {
 // ==============================================================================
 app.options(['/api/admin/action', '/api/admin/action/'], (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  return res.status(204).end();
+  return res.status(200).end();
+});
+
+app.get(['/api/admin/action', '/api/admin/action/'], (req, res) => {
+  res.json({ status: 'Admin API Active' });
 });
 
 app.post(['/api/admin/action', '/api/admin/action/'], async (req, res) => {

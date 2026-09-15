@@ -24,6 +24,7 @@ declare module 'next/headers' {
 }
 
 declare module 'next/server' {
+  export class NextRequest extends Request {}
   export class NextResponse extends Response {
     static json(body: any, init?: ResponseInit): Response;
     static redirect(url: string | URL, status?: number): Response;

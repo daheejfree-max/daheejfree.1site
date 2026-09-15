@@ -35,13 +35,7 @@ export default async function AdminLayout({
     process.env.VITE_SUPABASE_ANON_KEY ||
     '';
 
-  let cookieStore: any;
-  try {
-    cookieStore = await cookies();
-  } catch {
-    cookieStore = null;
-  }
-
+  const cookieStore = await cookies();
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       get(name: string) {
@@ -50,24 +44,17 @@ export default async function AdminLayout({
     },
   });
 
-  // 2. Authenticate User Session
-  let user: any = null;
-  try {
-    const { data: authData } = await supabase.auth.getUser();
-    user = authData?.user || null;
-  } catch (err) {
-    console.warn('[Admin Layout Server Guard] Auth fetch warning:', err);
-  }
+  // 2. Authenticate User Session (redirect strictly OUTSIDE try/catch to avoid Error 310)
+  const { data: authData } = await supabase.auth.getUser();
+  const user = authData?.user;
 
-  // Strictly block unauthenticated visitors
   if (!user) {
     redirect('/login');
   }
 
   const userEmail = user.email?.toLowerCase() || '';
 
-  // 3. Verify is_admin in public.profiles table
-  // Must await the profile fetch before deciding to block the user
+  // 3. Verify is_admin in public.profiles table (redirect strictly OUTSIDE try/catch)
   const { data: profile } = await supabase
     .from('profiles')
     .select('is_admin')
@@ -81,7 +68,6 @@ export default async function AdminLayout({
 
   const isAdmin = Boolean(profile?.is_admin || isDesignatedSuperadmin);
 
-  // Strictly block unauthorized users who are not administrators
   if (!isAdmin) {
     redirect('/');
   }
