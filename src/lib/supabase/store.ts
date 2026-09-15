@@ -116,6 +116,10 @@ class DaheejFreeStore {
     return profiles.find((p) => p.id === id) || null;
   }
 
+  public getProfile(id: string): Profile | null {
+    return this.getProfileById(id);
+  }
+
   public createProfile(profile: Profile): Profile {
     const profiles = this.getProfiles();
     profiles.unshift(profile);

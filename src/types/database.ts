@@ -44,6 +44,7 @@ export interface Profile {
   kyc_status: KYCStatus;
   kyc_verified?: boolean;
   is_verified?: boolean;
+  id_verified?: boolean;
   is_active?: boolean;
   is_online?: boolean;
   last_seen?: string;

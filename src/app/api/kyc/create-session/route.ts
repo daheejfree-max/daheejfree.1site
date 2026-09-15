@@ -1,166 +1,103 @@
 // ==============================================================================
-// NEXT.JS API ROUTE: STRICT DIDIT.ME KYC SESSION GENERATOR
+// DIDIT.ME KYC SESSION CREATION API ROUTE
 // ==============================================================================
 
-import { createClient } from '@supabase/supabase-js';
+// Helper for Next.js / Web-compatible JSON response
+const NextResponse = {
+  json: (body: any, init?: ResponseInit) =>
+    new Response(JSON.stringify(body), {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers || {}),
+      },
+    }),
+};
 
 export async function POST(request: Request): Promise<Response> {
-  const headers = { 'Content-Type': 'application/json' };
-
   try {
+    // 1. Secure server-side validation of DIDIT_API_KEY
+    const diditApiKey = process.env.DIDIT_API_KEY;
+    if (!diditApiKey) {
+      return NextResponse.json(
+        { error: 'KYC configuration missing on server.' },
+        { status: 500 }
+      );
+    }
+
+    // 2. Parse request body safely
     let body: any = {};
     try {
-      body = await request.json();
+      const rawBody = await request.text();
+      body = rawBody ? JSON.parse(rawBody) : {};
     } catch {
       body = {};
     }
 
-    const { profileId, userId, returnUrl, features } = body;
-    const targetProfileId = profileId || userId;
-
-    if (!targetProfileId) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing required profileId or userId' }),
-        { status: 400, headers }
+    const userId = body.userId || body.profileId || body.user_id || body.id;
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Missing required user/profile ID.' },
+        { status: 400 }
       );
     }
 
-    const diditApiKey = process.env.DIDIT_API_KEY;
-    const diditClientId = process.env.DIDIT_CLIENT_ID;
-    const diditWorkflowId = process.env.DIDIT_WORKFLOW_ID;
-    const appUrl = process.env.APP_URL || 'https://daheejfree.site';
-    const callbackUrl = returnUrl || `${appUrl}/profile?kyc_callback=true`;
+    const siteUrl = (
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_URL ||
+      'https://daheejfree.site'
+    ).replace(/\/$/, '');
 
-    if (!diditApiKey) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Didit.me KYC API key is pending configuration on the production server. You can complete your verification instantly using the Live Webcam Biometric Selfie Check.',
-        }),
-        { status: 200, headers }
-      );
-    }
+    const callbackUrl = `${siteUrl}/api/kyc/callback`;
 
-    let diditData: any = null;
-    let sessionId: string | null = null;
-    let sessionUrl: string | null = null;
+    // 3. Call Didit's v2 session API to generate a hosted verification link
+    const diditPayload = {
+      callback: callbackUrl,
+      vendor_data: String(userId),
+    };
 
-    // 1. Try Didit v3 API
+    const res = await fetch('https://apx.didit.me/auth/v2/session/', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${diditApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(diditPayload),
+    });
+
+    // 4. Safe text-parser to prevent JSON parse crashes on HTML error pages
+    const rawText = await res.text();
+    let data: any;
     try {
-      const v3Payload: Record<string, any> = {
-        vendor_data: targetProfileId,
-        callback: callbackUrl,
-        metadata: { profileId: targetProfileId },
-      };
-      if (diditWorkflowId) {
-        v3Payload.workflow_id = diditWorkflowId.trim();
-      }
-
-      const v3Res = await fetch('https://verification.didit.me/v3/session/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': diditApiKey.trim(),
-        },
-        body: JSON.stringify(v3Payload),
-      });
-
-      const v3Text = await v3Res.text();
-      try {
-        const parsed = JSON.parse(v3Text);
-        if (v3Res.ok && (parsed.url || parsed.session_url || parsed.verification_url)) {
-          diditData = parsed;
-          sessionId = parsed.session_id || parsed.id;
-          sessionUrl = parsed.url || parsed.session_url || parsed.verification_url;
-        }
-      } catch {
-        console.warn('[Didit Session Route] v3 non-JSON, trying v1 fallback...');
-      }
-    } catch (v3Err) {
-      console.warn('[Didit Session Route] v3 error, trying v1:', v3Err);
-    }
-
-    // 2. Fallback to v1 endpoint
-    if (!sessionUrl) {
-      try {
-        const v1Response = await fetch('https://apx.didit.me/v1/session/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${diditApiKey.trim()}`,
-            'x-api-key': diditApiKey.trim(),
-            ...(diditClientId ? { 'X-Client-Id': diditClientId.trim() } : {}),
-          },
-          body: JSON.stringify({
-            vendor_data: targetProfileId,
-            callback: callbackUrl,
-            features: features || 'ID,OCR,LIVENESS',
-          }),
-        });
-
-        const v1Text = await v1Response.text();
-        try {
-          diditData = JSON.parse(v1Text);
-          sessionId = diditData?.session_id || diditData?.id;
-          sessionUrl = diditData?.url || diditData?.session_url || diditData?.verification_url;
-        } catch {
-          console.warn('[Didit Session Route] v1 non-JSON response');
-        }
-      } catch (v1Err) {
-        console.error('[Didit Session Route] v1 error:', v1Err);
-      }
-    }
-
-    if (!sessionUrl) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: diditData?.error || diditData?.message || 'Unable to initialize Didit.me verification session. Please use the Live Webcam Biometric Selfie Check below.',
-          details: diditData,
-        }),
-        { status: 200, headers }
+      data = JSON.parse(rawText);
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid response from Didit gateway', raw: rawText.slice(0, 300) },
+        { status: 502 }
       );
     }
 
-    // Persist kyc_session_id in Supabase profiles table using Service Role
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (supabaseUrl && serviceRoleKey) {
-      try {
-        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-        await supabaseAdmin
-          .from('profiles')
-          .update({
-            kyc_session_id: sessionId,
-            didit_session_url: sessionUrl,
-            kyc_status: 'pending',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', targetProfileId);
-      } catch (dbErr) {
-        console.warn('[Didit Session] Database update notice:', dbErr);
-      }
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: data?.error || data?.message || 'Failed to create KYC session with Didit gateway', details: data },
+        { status: res.status }
+      );
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        sessionId,
-        sessionUrl,
-        profileId: targetProfileId,
-        status: 'pending',
-      }),
-      { status: 200, headers }
-    );
+    const verificationUrl = data.url || data.session_url || data.verification_url;
+    return NextResponse.json({
+      success: true,
+      url: verificationUrl,
+      session_url: verificationUrl,
+      sessionId: data.session_id || data.id,
+      data,
+    });
   } catch (error: any) {
-    console.error('[API KYC] Session creation error:', error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error?.message || 'Failed to create Didit KYC session',
-      }),
-      { status: 500, headers }
+    console.error('[KYC create-session] Unhandled server error:', error);
+    return NextResponse.json(
+      { error: error?.message || 'Internal server error while creating KYC session.' },
+      { status: 500 }
     );
   }
 }

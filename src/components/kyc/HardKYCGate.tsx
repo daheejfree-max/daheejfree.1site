@@ -53,10 +53,11 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
     setStatusMessage(null);
 
     try {
-      const response = await fetch('/api/kyc/verify', {
+      const response = await fetch('/api/kyc/create-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userId: currentProfile.id,
           profileId: currentProfile.id,
           returnUrl: window.location.href,
         }),
@@ -65,38 +66,37 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
       let data: any = null;
       try {
         const responseText = await response.text();
-        data = JSON.parse(responseText);
+        data = responseText ? JSON.parse(responseText) : {};
       } catch {
-        console.warn('[HardKYCGate] Non-JSON response received from verify endpoint');
+        console.warn('[HardKYCGate] Non-JSON response received from create-session endpoint');
       }
 
-      if (data?.sessionUrl) {
+      const sessionUrl = data?.url || data?.sessionUrl || data?.session_url || data?.verification_url;
+      const sessionId = data?.sessionId || data?.session_id;
+
+      if (sessionUrl) {
         if (onUpdateProfile) {
           onUpdateProfile({
-            kyc_session_id: data.sessionId,
-            didit_session_url: data.sessionUrl,
+            kyc_session_id: sessionId,
+            didit_session_url: sessionUrl,
             kyc_status: 'pending',
           });
         }
         daheejStore.updateProfile(currentProfile.id, {
-          kyc_session_id: data.sessionId,
-          didit_session_url: data.sessionUrl,
+          kyc_session_id: sessionId,
+          didit_session_url: sessionUrl,
           kyc_status: 'pending',
         });
 
         // Launch Didit.me verification window
-        window.location.href = data.sessionUrl;
-        setStatusMessage(
-          'Redirecting to Didit Identity Gateway...'
-        );
-      } else if (data?.notConfigured) {
-         setError('Didit API Key is not configured. Please add DIDIT_API_KEY to your environment variables.');
+        setStatusMessage('Redirecting to Didit Identity Gateway...');
+        window.location.href = sessionUrl;
       } else {
         setError(data?.error || data?.message || 'Failed to initiate Didit session. Please try again later.');
       }
     } catch (err: any) {
       console.error('[HardKYCGate] Didit session initialization error:', err);
-      setError(err.message || 'Unable to connect to Didit. Please check your network or API keys.');
+      setError(err.message || 'Unable to connect to Didit gateway. Please check your network or server configuration.');
     } finally {
       setIsStartingDidit(false);
     }

@@ -498,9 +498,175 @@ app.post(['/api/webhooks/razorpay', '/api/razorpay/webhook'], async (req, res) =
 });
 
 // ==============================================================================
-// 3. DIDIT.ME KYC SESSION CREATION & VERIFICATION (STRICT PRODUCTION PROTOCOL)
+// 3. DIDIT.ME KYC SESSION CREATION & CALLBACK (STRICT SPECIFICATION)
 // ==============================================================================
-app.all(['/api/kyc/verify', '/api/kyc/create-session', '/api/kyc/initiate', '/api/kyc/session'], async (req, res) => {
+
+// A. Backend Session Creation Endpoint (/api/kyc/create-session)
+app.all('/api/kyc/create-session', async (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+
+  // 1. Ensure it reads process.env.DIDIT_API_KEY securely on the server
+  if (!process.env.DIDIT_API_KEY) {
+    return res.status(500).json({ error: 'KYC configuration missing on server.' });
+  }
+
+  const userId =
+    req.body?.userId ||
+    req.body?.profileId ||
+    req.body?.user_id ||
+    req.body?.id ||
+    req.query?.userId ||
+    req.query?.profileId;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'Missing required user ID.' });
+  }
+
+  const siteUrl = (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    (req.headers.origin as string) ||
+    'https://daheejfree.site'
+  ).replace(/\/$/, '');
+
+  const callbackUrl = `${siteUrl}/api/kyc/callback`;
+
+  try {
+    // 2. Call Didit's v2 session API
+    const diditRes = await fetch('https://apx.didit.me/auth/v2/session/', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.DIDIT_API_KEY.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        callback: callbackUrl,
+        vendor_data: String(userId),
+      }),
+    });
+
+    // 3. Safe text-parser to prevent JSON parse crashes
+    const rawText = await diditRes.text();
+    let data: any;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      return res.status(502).json({ error: 'Invalid response from Didit gateway', raw: rawText.slice(0, 300) });
+    }
+
+    if (!diditRes.ok) {
+      return res.status(diditRes.status).json({
+        error: data?.error || data?.message || 'Failed to create KYC session with Didit gateway',
+        details: data,
+      });
+    }
+
+    const sessionUrl = data.url || data.session_url || data.verification_url;
+
+    // Optional: save session URL to profile if DB available
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    if (supabaseUrl && serviceRoleKey) {
+      try {
+        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+        await supabaseAdmin
+          .from('profiles')
+          .update({
+            kyc_session_id: data.session_id || data.id,
+            didit_session_url: sessionUrl,
+            kyc_status: 'pending',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', String(userId));
+      } catch (err) {
+        console.warn('[Didit KYC] DB notice:', err);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      url: sessionUrl,
+      session_url: sessionUrl,
+      sessionId: data.session_id || data.id,
+      data,
+    });
+  } catch (err: any) {
+    console.error('[Didit create-session] Network error:', err);
+    return res.status(500).json({ error: err?.message || 'Internal server error creating KYC session.' });
+  }
+});
+
+// B. KYC Webhook & Callback Handler (/api/kyc/callback)
+app.all('/api/kyc/callback', async (req, res) => {
+  const isPost = req.method === 'POST';
+  const payload = isPost ? req.body || {} : req.query || {};
+
+  const vendorDataUserId =
+    payload.vendor_data ||
+    payload.vendorData ||
+    payload.userId ||
+    payload.user_id ||
+    payload.profile_id ||
+    payload.profileId;
+
+  const status = String(payload.status || payload.decision || payload.event || '').toLowerCase();
+  const isApproved =
+    status === 'approved' ||
+    status === 'verified' ||
+    status === 'completed' ||
+    status === 'success' ||
+    payload.verification_status === 'approved' ||
+    payload.verified === true;
+
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+  if (isApproved && vendorDataUserId && supabaseUrl && serviceRoleKey) {
+    try {
+      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+      await supabaseAdmin
+        .from('profiles')
+        .update({
+          kyc_verified: true,
+          kyc_status: 'verified',
+          id_verified: true,
+          selfie_verified: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', String(vendorDataUserId));
+      console.info(`[Didit Callback Handler] Verified profile ${vendorDataUserId}`);
+    } catch (dbErr) {
+      console.error('[Didit Callback Handler] Supabase update error:', dbErr);
+    }
+  }
+
+  if (isPost) {
+    return res.status(200).json({
+      success: true,
+      verified: isApproved,
+      vendorDataUserId,
+      status,
+    });
+  } else {
+    // Browser GET redirect back to app
+    const siteUrl = (
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_URL ||
+      'https://daheejfree.site'
+    ).replace(/\/$/, '');
+
+    const targetUrl = isApproved
+      ? `${siteUrl}/profile?kyc_verified=true&refresh=true`
+      : `${siteUrl}/profile?kyc_callback=done&refresh=true`;
+
+    return res.redirect(targetUrl);
+  }
+});
+
+// C. Legacy / Extended KYC endpoint compatibility
+app.all(['/api/kyc/verify', '/api/kyc/initiate', '/api/kyc/session'], async (req, res) => {
   // 1. Enforce JSON Header Immediately
   res.setHeader('Content-Type', 'application/json');
 

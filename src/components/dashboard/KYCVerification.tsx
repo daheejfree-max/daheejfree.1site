@@ -29,6 +29,7 @@ import {
   BadgeCheck,
   Globe,
   Zap,
+  RefreshCw,
 } from 'lucide-react';
 import { Profile, SubscriptionTier } from '../../types';
 import { supabase } from '../../lib/supabase/client';
@@ -74,6 +75,7 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [photoUploadSuccess, setPhotoUploadSuccess] = useState(false);
   const [isStartingDidit, setIsStartingDidit] = useState(false);
+  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
   const [diditError, setDiditError] = useState<string | null>(null);
   const [diditSessionUrl, setDiditSessionUrl] = useState<string | null>(profile?.didit_session_url || null);
 
@@ -178,10 +180,11 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
     setDiditError(null);
 
     try {
-      const res = await fetch('/api/kyc/verify', {
+      const res = await fetch('/api/kyc/create-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userId: profile.id,
           profileId: profile.id,
           returnUrl: window.location.href,
         }),
@@ -190,17 +193,13 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
       let data: any = null;
       try {
         const responseText = await res.text();
-        data = JSON.parse(responseText);
+        data = responseText ? JSON.parse(responseText) : {};
       } catch {
         console.warn('[KYCVerification] Non-JSON response received from verify endpoint');
       }
 
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.error || 'Unable to connect to Didit identity gateway. You can use the Live Webcam Biometric Selfie Check to complete verification.');
-      }
-
-      const sessionUrl = data.sessionUrl;
-      const sessionId = data.sessionId || `session_${Date.now()}`;
+      const sessionUrl = data?.url || data?.sessionUrl || data?.session_url || data?.verification_url;
+      const sessionId = data?.sessionId || data?.session_id || `session_${Date.now()}`;
 
       if (sessionUrl) {
         setDiditSessionUrl(sessionUrl);
@@ -217,16 +216,56 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
 
         // Open Didit verification in same tab to prevent popup blockers
         window.location.href = sessionUrl;
-      } else if (data?.notConfigured) {
-         setDiditError('Didit API Key is not configured. Please add DIDIT_API_KEY to your environment variables.');
       } else {
         setDiditError(data?.error || data?.message || 'Failed to initiate Didit session. Please try again later.');
       }
     } catch (err: any) {
       console.error('Didit KYC error:', err);
-      setDiditError(err.message || 'Unable to connect to Didit. Please check your network or API keys.');
+      setDiditError(err.message || 'Unable to connect to Didit gateway. Please check your network or server configuration.');
     } finally {
       setIsStartingDidit(false);
+    }
+  };
+
+  // Phase 3 Fallback: Refresh Verification Status from public.profiles
+  const handleRefreshKYCStatus = async () => {
+    setIsRefreshingStatus(true);
+    setDiditError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('kyc_verified, kyc_status, id_verified, selfie_verified, is_verified')
+        .eq('id', profile.id)
+        .single();
+
+      if (error) {
+        console.warn('[KYCVerification] Supabase refresh warning:', error);
+      }
+
+      const isVerified =
+        data?.kyc_verified === true ||
+        data?.kyc_status === 'verified' ||
+        data?.is_verified === true;
+
+      if (isVerified) {
+        const verifiedUpdates: Partial<Profile> = {
+          kyc_verified: true,
+          kyc_status: 'verified',
+          is_verified: true,
+          id_verified: true,
+          selfie_verified: true,
+        };
+        daheejStore.updateProfile(profile.id, verifiedUpdates);
+        onUpdateProfile(verifiedUpdates);
+      } else {
+        const currentStatus = data?.kyc_status || 'pending';
+        setDiditError(`Status: ${currentStatus.replace('_', ' ').toUpperCase()}. If you just finished verification on Didit, please allow a moment for gateway synchronization.`);
+      }
+    } catch (err: any) {
+      setDiditError(err?.message || 'Unable to refresh status.');
+    } finally {
+      setIsRefreshingStatus(false);
     }
   };
 
@@ -414,6 +453,17 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
                     <ExternalLink className="w-4 h-4 opacity-80" />
                   </>
                 )}
+              </button>
+
+              <button
+                id="btn-didit-refresh"
+                type="button"
+                onClick={handleRefreshKYCStatus}
+                disabled={isRefreshingStatus}
+                className="px-5 py-3.5 rounded-2xl text-xs sm:text-sm font-semibold border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshingStatus ? 'animate-spin' : ''}`} />
+                <span>Refresh Status</span>
               </button>
             </div>
           </div>

@@ -53,6 +53,8 @@ import WebRTCCallsRoutePage from './app/calls/page';
 import LoginPage from './app/(auth)/login/page';
 import SignupPage from './app/(auth)/signup/page';
 import RegisterPage from './app/(auth)/register/page';
+import ForgotPasswordPage from './app/forgot-password/page';
+import ResetPasswordPage from './app/reset-password/page';
 import AdminKYCReviewPage from './app/(admin)/kyc-review/page';
 import KYCPendingPage from './app/(dashboard)/profile/kyc-pending/page';
 import OnboardingPage from './app/onboarding/page';
@@ -118,6 +120,8 @@ export default function App() {
         'login',
         'signup',
         'register',
+        'forgot-password',
+        'reset-password',
         'onboarding',
         'admin-kyc',
         'kyc-pending',
@@ -704,6 +708,12 @@ export default function App() {
 
         {/* Tab - Auth: Comprehensive Onboarding & KYC Wizard */}
         {currentTab === 'register' && <RegisterPage />}
+
+        {/* Tab - Auth: Forgot Password */}
+        {currentTab === 'forgot-password' && <ForgotPasswordPage />}
+
+        {/* Tab - Auth: Reset Password */}
+        {currentTab === 'reset-password' && <ResetPasswordPage />}
 
         {/* Tab 1: Nikah Matches (Explorer) */}
         {currentTab === 'matches' && (
