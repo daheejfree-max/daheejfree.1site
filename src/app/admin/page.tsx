@@ -209,9 +209,9 @@ export default function AdminControlPanel() {
   ) => {
     // Retrieve caller session token
     const sessionRes = await supabase.auth.getSession();
-    const token = sessionRes.data.session?.access_token;
+    const session = sessionRes.data.session;
 
-    if (!token) {
+    if (!session?.access_token) {
       throw new Error('No active authentication session. Please re-login.');
     }
 
@@ -219,23 +219,19 @@ export default function AdminControlPanel() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({
-        action,
-        targetUserId,
-        payload,
-      }),
+      body: JSON.stringify({ action, targetUserId, payload }),
     });
 
     const rawText = await res.text();
-    let result: any;
+    let result;
     try {
       result = JSON.parse(rawText);
     } catch (e) {
-      console.error("Backend crashed with non-JSON response:", rawText);
-      throw new Error(`Server error (Status ${res.status}). Check Vercel logs.`);
+      throw new Error(`Server error (Status ${res.status}). Endpoint returned non-JSON data.`);
     }
+
     if (!res.ok) throw new Error(result.error || 'Request rejected');
 
     return result;

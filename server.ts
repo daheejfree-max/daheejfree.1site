@@ -127,7 +127,14 @@ app.post('/api/auth/log-ip', async (req, res) => {
 // ADMIN GOD-MODE CONTROLS API: /api/admin/action
 // Protected with SUPABASE_SERVICE_ROLE_KEY & Strict Admin Identity Verification
 // ==============================================================================
-app.post('/api/admin/action', async (req, res) => {
+app.options(['/api/admin/action', '/api/admin/action/'], (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  return res.status(204).end();
+});
+
+app.post(['/api/admin/action', '/api/admin/action/'], async (req, res) => {
   try {
     // 1. Explicitly check for process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -242,8 +249,8 @@ app.post('/api/admin/action', async (req, res) => {
         break;
 
       case 'grant_subscription': {
-        const rawTier = typeof payload === 'string' ? payload : payload?.tier;
-        const targetTier = String(rawTier || 'gold').toLowerCase().trim();
+        const rawTier = typeof payload === 'string' ? payload : (payload?.subscription_tier || payload?.tier || 'gold');
+        const targetTier = String(rawTier).toLowerCase().trim();
         const allowedTiers = ['free', 'gold', 'diamond', 'platinum'];
 
         if (!allowedTiers.includes(targetTier)) {

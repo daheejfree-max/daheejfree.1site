@@ -61,12 +61,13 @@ export default async function AdminLayout({
 
   // Strictly block unauthenticated visitors
   if (!user) {
-    redirect('/');
+    redirect('/login');
   }
 
   const userEmail = user.email?.toLowerCase() || '';
 
   // 3. Verify is_admin in public.profiles table
+  // Must await the profile fetch before deciding to block the user
   const { data: profile } = await supabase
     .from('profiles')
     .select('is_admin')
@@ -82,8 +83,13 @@ export default async function AdminLayout({
 
   // Strictly block unauthorized users who are not administrators
   if (!isAdmin) {
-    console.warn(`[Admin Layout Server Guard] Access denied for non-admin user ${user.id} (${userEmail})`);
-    redirect('/');
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-zinc-950">
+        <div className="p-8 text-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow text-red-600 font-bold">
+          Admin Access Restricted
+        </div>
+      </div>
+    );
   }
 
   return (
