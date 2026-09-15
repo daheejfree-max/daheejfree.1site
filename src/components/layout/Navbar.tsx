@@ -79,8 +79,51 @@ export const Navbar: React.FC<NavbarProps> = ({
   const router = useRouter();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Strictly verify is_admin clearance in database to hide/show Admin God Mode button
+  useEffect(() => {
+    let isMounted = true;
+    const checkAdmin = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          if (isMounted) setIsAdmin(false);
+          return;
+        }
+
+        const userEmail = user.email?.toLowerCase() || '';
+        const isDesignatedSuperadmin =
+          userEmail === 'hasnainkhan3177@gmail.com' ||
+          userEmail === 'behumble7860@gmail.com' ||
+          userEmail === 'admin@daheejfree.com';
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', user.id)
+          .single();
+
+        if (isMounted) {
+          if (profile?.is_admin === true || isDesignatedSuperadmin) {
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+          }
+        }
+      } catch (err) {
+        if (isMounted) setIsAdmin(false);
+      }
+    };
+
+    checkAdmin();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentProfile?.id]);
 
   // Dynamic exact count state with real-time Supabase updates & instant decrementing
   const [livePendingRequestsCount, setLivePendingRequestsCount] = useState<number>(pendingRequestsCount);
@@ -280,7 +323,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className={`shrink-0 sticky top-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-800 transition-colors shadow-sm ${hideMobileNav ? '!hidden md:!block' : ''}`}>
+      <header className={`min-h-[44px] shrink-0 sticky top-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-800 transition-colors shadow-sm ${hideMobileNav ? '!hidden md:!block' : ''}`}>
       {/* 1. Solemn Islamic Anti-Dowry Pledge Banner */}
       <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 dark:from-emerald-900 dark:via-teal-900 dark:to-emerald-950 px-4 py-1.5 text-center text-xs text-white dark:text-emerald-100 flex items-center justify-center gap-2 border-b border-emerald-600/40 dark:border-emerald-700/40 shadow-inner">
         <Shield className="w-3.5 h-3.5 text-emerald-300 dark:text-emerald-400 flex-shrink-0" />
@@ -315,7 +358,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-discover"
                   onClick={() => handleNavClick('matches')}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer ${
                     currentTab === 'matches'
                       ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 shadow-xs'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
@@ -329,7 +372,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-requests"
                   onClick={() => handleNavClick('requests')}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
+                  className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
                     currentTab === 'requests'
                       ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 shadow-xs'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
@@ -348,7 +391,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-my-matches"
                   onClick={() => handleNavClick('my-matches')}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
+                  className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
                     currentTab === 'my-matches'
                       ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 shadow-xs'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
@@ -367,7 +410,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-messages"
                   onClick={() => handleNavClick('messages')}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
+                  className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
                     currentTab === 'messages'
                       ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 shadow-xs'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
@@ -388,7 +431,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-landing"
                   onClick={() => handleNavClick('landing')}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     currentTab === 'landing'
                       ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-semibold'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
@@ -401,7 +444,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-pricing"
                   onClick={() => handleNavClick('pricing')}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     currentTab === 'pricing'
                       ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-semibold'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
@@ -414,7 +457,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-pledge"
                   onClick={() => handleNavClick('pledge')}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     currentTab === 'pledge'
                       ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-semibold'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
@@ -426,54 +469,51 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             )}
 
-            {/* Admin Console Tabs */}
-            {currentProfile && (
-              currentProfile.id === 'admin' ||
-              (currentProfile as any).is_admin === true ||
-              (currentProfile as any).role === 'admin' ||
-              currentProfile.wali_email === 'admin@daheejfree.com' ||
-              currentProfile.wali_email === 'behumble7860@gmail.com' ||
-              currentProfile.wali_email === 'hasnainkhan3177@gmail.com'
-            ) && (
+            {/* Admin Console Tabs (strictly guarded by verified database isAdmin state) */}
+            {isAdmin && (
               <>
                 <button
                   id="nav-tab-admin-godmode"
                   onClick={() => handleNavClick('admin')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                  className={`min-h-[44px] px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
                     currentTab === 'admin'
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
                       : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800/60'
                   }`}
+                  title="Admin God Mode Control Panel"
                 >
                   <Shield className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Admin God Mode</span>
+                  <span className="hidden xl:inline">Admin God Mode</span>
+                  <span className="xl:hidden">Admin</span>
                 </button>
                 <button
                   id="nav-tab-admin-kyc"
                   onClick={() => handleNavClick('admin-kyc')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                  className={`min-h-[44px] px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
                     currentTab === 'admin-kyc'
                       ? 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800'
                       : 'text-red-600 dark:text-red-400/90 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40'
                   }`}
+                  title="KYC Verification Queue"
                 >
                   <Shield className="w-3.5 h-3.5" />
-                  <span>KYC Queue</span>
+                  <span className="hidden xl:inline">KYC Queue</span>
+                  <span className="xl:hidden">KYC</span>
                 </button>
               </>
             )}
           </nav>
 
           {/* Right: Actions, Theme Toggle, Prayer Times, Tier Badge, Account Menu & Mobile Toggle */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5">
-            {/* Desktop Prayer Times Quick Trigger */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Desktop Prayer Times Quick Trigger (visible on xl+ or via menu) */}
             <button
               id="btn-nav-prayer-times"
               onClick={() => {
                 if (onOpenPrayerTimes) onOpenPrayerTimes();
                 else handleNavClick('prayer');
               }}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-all cursor-pointer shadow-xs"
+              className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-all cursor-pointer shadow-xs"
               title="Islamic Prayer Times & Qibla Direction"
             >
               <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -871,7 +911,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <button
                           type="button"
                           onClick={() => handleNavClick('matches')}
-                          className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
+                          className={`min-h-[44px] w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
                             currentTab === 'matches'
                               ? 'bg-emerald-600 text-white shadow-xs'
                               : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900'
@@ -886,7 +926,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <button
                           type="button"
                           onClick={() => handleNavClick('requests')}
-                          className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
+                          className={`min-h-[44px] w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
                             currentTab === 'requests'
                               ? 'bg-emerald-600 text-white shadow-xs'
                               : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900'
@@ -906,7 +946,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <button
                           type="button"
                           onClick={() => handleNavClick('my-matches')}
-                          className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
+                          className={`min-h-[44px] w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
                             currentTab === 'my-matches' || currentTab === 'accepted'
                               ? 'bg-emerald-600 text-white shadow-xs'
                               : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900'
@@ -926,7 +966,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <button
                           type="button"
                           onClick={() => handleNavClick('messages')}
-                          className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
+                          className={`min-h-[44px] w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
                             currentTab === 'messages'
                               ? 'bg-emerald-600 text-white shadow-xs'
                               : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900'
@@ -1018,7 +1058,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       type="button"
                       onClick={() => handleNavClick('landing')}
-                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-colors ${
+                      className={`min-h-[44px] w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-colors ${
                         currentTab === 'landing'
                           ? 'bg-emerald-600 text-white'
                           : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900'
@@ -1031,7 +1071,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       type="button"
                       onClick={() => handleNavClick('pricing')}
-                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-colors ${
+                      className={`min-h-[44px] w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-colors ${
                         currentTab === 'pricing'
                           ? 'bg-emerald-600 text-white'
                           : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900'
@@ -1065,15 +1105,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 )}
 
-                {/* Admin Console shortcut if applicable */}
-                {currentProfile && (
-                  currentProfile.id === 'admin' ||
-                  (currentProfile as any).is_admin === true ||
-                  (currentProfile as any).role === 'admin' ||
-                  currentProfile.wali_email === 'admin@daheejfree.com' ||
-                  currentProfile.wali_email === 'behumble7860@gmail.com' ||
-                  currentProfile.wali_email === 'hasnainkhan3177@gmail.com'
-                ) && (
+                {/* Admin Console shortcut if applicable (guarded by verified database isAdmin state) */}
+                {isAdmin && (
                   <div className="space-y-1.5 pt-1">
                     <button
                       type="button"
@@ -1148,7 +1181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="mobile-tab-discover"
             type="button"
             onClick={() => handleNavClick('matches')}
-            className={`flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
+            className={`min-h-[44px] flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
               currentTab === 'matches'
                 ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                 : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
@@ -1157,7 +1190,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {currentTab === 'matches' && (
               <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600 dark:bg-emerald-400" />
             )}
-            <Compass className={`w-5 h-5 ${currentTab === 'matches' ? 'stroke-[2.5]' : 'stroke-2'}`} />
+            <Compass className={`min-h-[44px] w-5 h-5 ${currentTab === 'matches' ? 'stroke-[2.5]' : 'stroke-2'}`} />
             <span className="text-[10px] mt-1 truncate">Discover</span>
           </button>
 
@@ -1166,7 +1199,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="mobile-tab-requests"
             type="button"
             onClick={() => handleNavClick('requests')}
-            className={`flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
+            className={`min-h-[44px] flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
               currentTab === 'requests'
                 ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                 : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
@@ -1176,7 +1209,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600 dark:bg-emerald-400" />
             )}
             <div className="relative">
-              <UserCheck className={`w-5 h-5 ${currentTab === 'requests' ? 'stroke-[2.5]' : 'stroke-2'}`} />
+              <UserCheck className={`min-h-[44px] w-5 h-5 ${currentTab === 'requests' ? 'stroke-[2.5]' : 'stroke-2'}`} />
               {livePendingRequestsCount > 0 && (
                 <span className="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-rose-600 text-white text-[9px] font-extrabold flex items-center justify-center animate-pulse shadow-xs">
                   {livePendingRequestsCount}
@@ -1191,7 +1224,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="mobile-tab-my-matches"
             type="button"
             onClick={() => handleNavClick('my-matches')}
-            className={`flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
+            className={`min-h-[44px] flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
               currentTab === 'my-matches' || currentTab === 'accepted'
                 ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                 : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
@@ -1201,7 +1234,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600 dark:bg-emerald-400" />
             )}
             <div className="relative">
-              <HeartHandshake className={`w-5 h-5 ${currentTab === 'my-matches' || currentTab === 'accepted' ? 'stroke-[2.5]' : 'stroke-2'}`} />
+              <HeartHandshake className={`min-h-[44px] w-5 h-5 ${currentTab === 'my-matches' || currentTab === 'accepted' ? 'stroke-[2.5]' : 'stroke-2'}`} />
               {liveAcceptedMatchesCount > 0 && (
                 <span className="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center shadow-xs">
                   {liveAcceptedMatchesCount}
@@ -1216,7 +1249,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="mobile-tab-messages"
             type="button"
             onClick={() => handleNavClick('messages')}
-            className={`flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
+            className={`min-h-[44px] flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
               currentTab === 'messages'
                 ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                 : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
@@ -1226,7 +1259,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600 dark:bg-emerald-400" />
             )}
             <div className="relative">
-              <MessageSquare className={`w-5 h-5 ${currentTab === 'messages' ? 'stroke-[2.5]' : 'stroke-2'}`} />
+              <MessageSquare className={`min-h-[44px] w-5 h-5 ${currentTab === 'messages' ? 'stroke-[2.5]' : 'stroke-2'}`} />
               {liveUnreadMessagesCount > 0 && (
                 <span className="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-emerald-600 text-white text-[9px] font-extrabold flex items-center justify-center animate-pulse shadow-xs">
                   {liveUnreadMessagesCount}
@@ -1241,7 +1274,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="mobile-tab-profile"
             type="button"
             onClick={() => handleNavClick('profile')}
-            className={`flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
+            className={`min-h-[44px] flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
               currentTab === 'profile'
                 ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                 : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
@@ -1250,7 +1283,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {currentTab === 'profile' && (
               <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600 dark:bg-emerald-400" />
             )}
-            <User className={`w-5 h-5 ${currentTab === 'profile' ? 'stroke-[2.5]' : 'stroke-2'}`} />
+            <User className={`min-h-[44px] w-5 h-5 ${currentTab === 'profile' ? 'stroke-[2.5]' : 'stroke-2'}`} />
             <span className="text-[10px] mt-1 truncate">Profile</span>
           </button>
         </div>

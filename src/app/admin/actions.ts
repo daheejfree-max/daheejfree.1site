@@ -40,6 +40,7 @@ export async function executeAdminAction(
     );
 
     let user: any = null;
+    // Authenticate via cookies first
     try {
       const { data: authData } = await supabase.auth.getUser();
       user = authData?.user;
@@ -47,13 +48,18 @@ export async function executeAdminAction(
       console.warn('[executeAdminAction] getUser error:', e);
     }
 
-    // Fallback: If caller passed user payload (e.g. from client session context)
-    if (!user && payload?.user) {
-      user = payload.user;
+    // If cookies were not present, cryptographically verify token from client session
+    if (!user && payload?.token) {
+      try {
+        const { data: tokenAuth } = await supabase.auth.getUser(payload.token);
+        user = tokenAuth?.user;
+      } catch (e) {
+        console.warn('[executeAdminAction] token auth error:', e);
+      }
     }
 
     if (!user) {
-      throw new Error('Unauthorized: No active user session');
+      throw new Error('Unauthorized: No active verified user session');
     }
 
     const userEmail = user.email?.toLowerCase() || '';

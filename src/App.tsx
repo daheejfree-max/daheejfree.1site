@@ -24,6 +24,7 @@ import { useWebRTC } from './hooks/useWebRTC';
 import { usePhotoConsent } from './hooks/usePhotoConsent';
 import { useConnections } from './hooks/useConnections';
 import { Navbar } from './components/layout/Navbar';
+import { BottomNav } from './components/layout/BottomNav';
 import { Footer } from './components/layout/Footer';
 import { ProfileCard } from './components/profiles/ProfileCard';
 import { ProfileGridSkeleton } from './components/profiles/ProfileSkeleton';
@@ -250,6 +251,33 @@ export default function App() {
   const [acceptedMatchesCount, setAcceptedMatchesCount] = useState<number>(0);
   const [googleFastUser, setGoogleFastUser] = useState<{ name: string; email: string; avatar_url?: string } | null>(null);
   const currentUserId = currentProfile?.id || null;
+  const [sessionUserEmail, setSessionUserEmail] = useState<string>('');
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user?.email) {
+        setSessionUserEmail(data.user.email.toLowerCase());
+      }
+    });
+  }, [currentUserId]);
+
+  const isAdmin = useMemo(() => {
+    const isSuperAdminEmail =
+      sessionUserEmail === 'hasnainkhan3177@gmail.com' ||
+      sessionUserEmail === 'behumble7860@gmail.com' ||
+      sessionUserEmail === 'admin@daheejfree.com';
+
+    if (isSuperAdminEmail) return true;
+
+    return Boolean(
+      currentProfile && (
+        (currentProfile as any).is_admin === true ||
+        currentProfile.wali_email === 'admin@daheejfree.com' ||
+        currentProfile.wali_email === 'behumble7860@gmail.com' ||
+        currentProfile.wali_email === 'hasnainkhan3177@gmail.com'
+      )
+    );
+  }, [currentProfile, sessionUserEmail]);
   const isLocalCovenantSigned = typeof window !== 'undefined' && (
     localStorage.getItem('covenant_signed') === 'true' ||
     localStorage.getItem('islamic_oath_signed') === 'true' ||
@@ -403,18 +431,7 @@ export default function App() {
       setCurrentTab('login');
     }
 
-    // 4. Admin console: strictly restricted to admin role, is_admin flag, or superadmin emails
-    const isAdmin = Boolean(
-      currentProfile && (
-        currentProfile.id === 'admin' ||
-        (currentProfile as any).is_admin === true ||
-        (currentProfile as any).role === 'admin' ||
-        currentProfile.wali_email === 'admin@daheejfree.com' ||
-        currentProfile.wali_email === 'behumble7860@gmail.com' ||
-        currentProfile.wali_email === 'hasnainkhan3177@gmail.com'
-      )
-    );
-
+    // 4. Admin console: strictly restricted to verified database is_admin flag or superadmin emails
     // Only redirect once loading is finished and profile has been evaluated
     if (!isLoading) {
       if ((currentTab === 'admin' || currentTab === 'admin-kyc')) {
@@ -425,7 +442,7 @@ export default function App() {
         }
       }
     }
-  }, [currentUserId, currentProfile, currentTab, isLoading]);
+  }, [currentUserId, currentProfile, currentTab, isLoading, isAdmin]);
 
 
   // 2-Way Photo Privacy & Consent engine
@@ -994,13 +1011,35 @@ export default function App() {
         )}
 
         {/* Tab 7: Admin Compliance & KYC Queue */}
-        {currentTab === 'admin-kyc' && <AdminKYCReviewPage />}
+        {currentTab === 'admin-kyc' && (
+          isAdmin ? (
+            <AdminKYCReviewPage />
+          ) : (
+            <div className="py-24 text-center">
+              <div className="max-w-md mx-auto p-6 bg-rose-50 dark:bg-rose-950/40 rounded-2xl border border-rose-200 dark:border-rose-900">
+                <ShieldAlert className="w-10 h-10 text-rose-500 mx-auto mb-3" />
+                <h3 className="text-base font-bold text-zinc-900 dark:text-white">Admin Clearance Required</h3>
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">This compliance console is restricted to authorized platform administrators.</p>
+              </div>
+            </div>
+          )
+        )}
 
         {/* Tab: God Mode Admin Control Panel */}
         {currentTab === 'admin' && (
-          <div className="min-h-screen bg-zinc-950 text-zinc-100 -m-4 sm:-m-6 md:-m-8 p-4 md:p-8">
-            <AdminControlPanel />
-          </div>
+          isAdmin ? (
+            <div className="min-h-screen bg-zinc-950 text-zinc-100 -m-4 sm:-m-6 md:-m-8 p-4 md:p-8">
+              <AdminControlPanel />
+            </div>
+          ) : (
+            <div className="py-24 text-center">
+              <div className="max-w-md mx-auto p-6 bg-rose-50 dark:bg-rose-950/40 rounded-2xl border border-rose-200 dark:border-rose-900">
+                <ShieldAlert className="w-10 h-10 text-rose-500 mx-auto mb-3" />
+                <h3 className="text-base font-bold text-zinc-900 dark:text-white">Admin Clearance Required</h3>
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">Access to platform administration is restricted to authorized personnel.</p>
+              </div>
+            </div>
+          )
         )}
 
         {/* Tab 8: KYC Pending Holding Wall */}
@@ -1149,6 +1188,30 @@ export default function App() {
       {currentTab !== 'messages' && currentTab !== 'call' && (
         <Footer onNavigate={(tab) => setCurrentTab(tab)} />
       )}
+
+      {/* Mobile Sticky Bottom Navigation (Touch-optimized for smartphones) */}
+      <BottomNav
+        currentTab={currentTab}
+        onNavigate={(tab) => setCurrentTab(tab)}
+        pendingRequestsCount={pendingRequestsCount}
+        acceptedMatchesCount={acceptedMatchesCount}
+        unreadMessagesCount={unreadMessagesCount}
+        currentProfile={currentProfile}
+        isAdmin={isAdmin}
+        hideMobileNav={currentTab === 'call' || (currentTab === 'messages' && isMobileChatActive)}
+        isNavigationLocked={Boolean(
+          currentUserId &&
+          currentProfile &&
+          (!currentProfile.terms_accepted ||
+            !(currentProfile.privacy_policy_accepted || currentProfile.privacy_accepted) ||
+            !(currentProfile.anti_dowry_pledged || currentProfile.anti_dowry_pledge) ||
+            currentProfile.is_onboarded === false ||
+            !currentProfile.avatar_url ||
+            !currentProfile.profession ||
+            !currentProfile.wali_name ||
+            !currentProfile.wali_phone)
+        )}
+      />
     </div>
   );
 }

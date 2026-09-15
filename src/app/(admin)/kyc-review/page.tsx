@@ -21,22 +21,66 @@ import {
 import { Profile } from '../../../types/database';
 import { useAuth } from '../../../hooks/useAuth';
 import { daheejStore } from '../../../lib/supabase/store';
+import { supabase } from '../../../lib/supabase/client';
+import { executeAdminAction } from '../../admin/actions';
 import { Logo } from '../../../components/brand/Logo';
 
 export default function AdminKYCReviewPage() {
   const { profile: currentProfile, allProfiles, refreshState, isLoading } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [isVerifyingAdmin, setIsVerifyingAdmin] = useState(true);
+  const [isAdminState, setIsAdminState] = useState(false);
 
-  const isAdmin = Boolean(
-    currentProfile &&
-      (currentProfile.id === 'admin' ||
-        (currentProfile as any).is_admin === true ||
-        (currentProfile as any).role === 'admin' ||
-        currentProfile.wali_email === 'admin@daheejfree.com' ||
-        currentProfile.wali_email === 'behumble7860@gmail.com' ||
-        currentProfile.wali_email === 'hasnainkhan3177@gmail.com')
-  );
+  // Check admin status against Supabase profiles table and authenticated session
+  React.useEffect(() => {
+    let isMounted = true;
+    async function checkAdminStatus() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const userEmail = user?.email?.toLowerCase() || '';
+        const isSuperAdminEmail =
+          userEmail === 'hasnainkhan3177@gmail.com' ||
+          userEmail === 'behumble7860@gmail.com' ||
+          userEmail === 'admin@daheejfree.com';
+
+        if (isSuperAdminEmail) {
+          if (isMounted) setIsAdminState(true);
+          return;
+        }
+
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_admin')
+            .eq('id', user.id)
+            .single();
+
+          if (isMounted) {
+            setIsAdminState(Boolean(profile?.is_admin || (currentProfile as any)?.is_admin));
+          }
+        } else {
+          if (isMounted) {
+            setIsAdminState(Boolean((currentProfile as any)?.is_admin));
+          }
+        }
+      } catch (err) {
+        console.warn('Error verifying admin status:', err);
+        if (isMounted) {
+          setIsAdminState(Boolean((currentProfile as any)?.is_admin));
+        }
+      } finally {
+        if (isMounted) setIsVerifyingAdmin(false);
+      }
+    }
+
+    checkAdminStatus();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentProfile]);
+
+  const isAdmin = isAdminState;
 
   // ALL HOOKS UNCONDITIONALLY AT THE TOP BEFORE ANY RETURN (fixes React Error #310)
   const pendingProfiles = useMemo(() => {
@@ -93,14 +137,26 @@ export default function AdminKYCReviewPage() {
     );
   }
 
-  const handleApprove = (profileId: string) => {
+  const handleApprove = async (profileId: string) => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      await executeAdminAction(profileId, 'verify_kyc', { token: session?.access_token });
+    } catch (e) {
+      console.warn('[handleApprove] server action notice:', e);
+    }
     daheejStore.updateKYCStatus(profileId, 'verified');
     setActionSuccess(`Profile ${profileId} approved and verified.`);
     refreshState();
     setTimeout(() => setActionSuccess(null), 3000);
   };
 
-  const handleRejectAndBan = (profileId: string) => {
+  const handleRejectAndBan = async (profileId: string) => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      await executeAdminAction(profileId, 'ban_user', { token: session?.access_token });
+    } catch (e) {
+      console.warn('[handleRejectAndBan] server action notice:', e);
+    }
     daheejStore.updateKYCStatus(profileId, 'banned');
     setActionSuccess(`Profile ${profileId} rejected and permanently banned.`);
     refreshState();

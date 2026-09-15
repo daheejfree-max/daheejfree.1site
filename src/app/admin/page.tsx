@@ -216,7 +216,7 @@ export default function AdminControlPanel() {
     // Direct invocation of Server Action without /api/admin/action HTTP route
     const result = await executeAdminAction(targetUserId, action, {
       ...payload,
-      user: currentUser,
+      token: session?.access_token,
     });
 
     if (!result.success) {
