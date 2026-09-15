@@ -111,6 +111,16 @@ class DaheejFreeStore {
     return raw ? JSON.parse(raw) : SEED_PROFILES;
   }
 
+  public getAllProfiles(): Profile[] {
+    return this.getProfiles();
+  }
+
+  public getCurrentProfile(): Profile | null {
+    const currentId = this.getCurrentUserId();
+    if (!currentId) return null;
+    return this.getProfileById(currentId);
+  }
+
   public getProfileById(id: string): Profile | null {
     const profiles = this.getProfiles();
     return profiles.find((p) => p.id === id) || null;
