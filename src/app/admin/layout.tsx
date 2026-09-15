@@ -83,13 +83,7 @@ export default async function AdminLayout({
 
   // Strictly block unauthorized users who are not administrators
   if (!isAdmin) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-zinc-950">
-        <div className="p-8 text-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow text-red-600 font-bold">
-          Admin Access Restricted
-        </div>
-      </div>
-    );
+    redirect('/');
   }
 
   return (

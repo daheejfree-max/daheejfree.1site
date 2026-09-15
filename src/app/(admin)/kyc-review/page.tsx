@@ -38,6 +38,33 @@ export default function AdminKYCReviewPage() {
         currentProfile.wali_email === 'hasnainkhan3177@gmail.com')
   );
 
+  // ALL HOOKS UNCONDITIONALLY AT THE TOP BEFORE ANY RETURN (fixes React Error #310)
+  const pendingProfiles = useMemo(() => {
+    return allProfiles.filter((p) => {
+      const isReviewCandidate = p.kyc_status === 'pending' || p.kyc_status === 'unverified';
+      if (!isReviewCandidate) return false;
+
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase();
+        return (
+          p.full_name.toLowerCase().includes(q) ||
+          p.profession?.toLowerCase().includes(q) ||
+          p.location?.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [allProfiles, searchTerm]);
+
+  const verifiedCount = useMemo(
+    () => allProfiles.filter((p) => p.kyc_status === 'verified').length,
+    [allProfiles]
+  );
+  const bannedCount = useMemo(
+    () => allProfiles.filter((p) => p.kyc_status === 'banned').length,
+    [allProfiles]
+  );
+
   // 1. Loading state: Never render Restricted UI while evaluating credentials
   if (isLoading) {
     return (
@@ -65,27 +92,6 @@ export default function AdminKYCReviewPage() {
       </div>
     );
   }
-
-  // Filter pending or unverified profiles
-  const pendingProfiles = useMemo(() => {
-    return allProfiles.filter((p) => {
-      const isReviewCandidate = p.kyc_status === 'pending' || p.kyc_status === 'unverified';
-      if (!isReviewCandidate) return false;
-
-      if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase();
-        return (
-          p.full_name.toLowerCase().includes(q) ||
-          p.profession?.toLowerCase().includes(q) ||
-          p.location?.toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
-  }, [allProfiles, searchTerm]);
-
-  const verifiedCount = allProfiles.filter((p) => p.kyc_status === 'verified').length;
-  const bannedCount = allProfiles.filter((p) => p.kyc_status === 'banned').length;
 
   const handleApprove = (profileId: string) => {
     daheejStore.updateKYCStatus(profileId, 'verified');

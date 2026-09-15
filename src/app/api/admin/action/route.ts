@@ -42,10 +42,19 @@ export async function POST(req: Request) {
     else if (action === 'unban_user') updateData = { ...updateData, is_active: true };
     else return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
-    const { error } = await adminClient.from('profiles').update(updateData).eq('id', targetUserId);
+    const { data: updatedProfile, error } = await adminClient
+      .from('profiles')
+      .update(updateData)
+      .eq('id', targetUserId)
+      .select()
+      .single();
     if (error) throw error;
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      message: `Action '${action}' executed successfully.`,
+      profile: updatedProfile,
+    });
   } catch (err: any) {
     console.error("API Error:", err);
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
