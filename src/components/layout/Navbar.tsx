@@ -55,6 +55,7 @@ interface NavbarProps {
   pendingRequestsCount?: number;
   acceptedMatchesCount?: number;
   hideMobileNav?: boolean;
+  isNavigationLocked?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -73,6 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   pendingRequestsCount = 0,
   acceptedMatchesCount = 0,
   hideMobileNav = false,
+  isNavigationLocked = false,
 }) => {
   const router = useRouter();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -269,6 +271,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const handleNavClick = (tab: string) => {
+    if (isNavigationLocked && tab !== 'onboarding') {
+      return;
+    }
     setCurrentTab(tab);
     setMobileMenuOpen(false);
   };
@@ -292,13 +297,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Logo
               size="md"
               showSubtitle={true}
-              onClick={() => handleNavClick(currentProfile ? 'matches' : 'landing')}
+              onClick={() => handleNavClick(currentProfile ? (isNavigationLocked ? 'onboarding' : 'matches') : 'landing')}
             />
           </div>
 
           {/* Center: Desktop Navigation Links */}
           <nav className="hidden md:flex items-center gap-1.5">
-            {currentProfile ? (
+            {isNavigationLocked ? (
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-semibold">
+                <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Mandatory Legal Agreements & Profile Onboarding</span>
+              </div>
+            ) : currentProfile ? (
               /* Authenticated User Core Navigation */
               <>
                 {/* 1. Discover */}
@@ -416,20 +426,41 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             )}
 
-            {/* Admin Console Tab */}
-            {currentProfile && (currentProfile.id === 'admin' || currentProfile.wali_email === 'admin@daheejfree.com' || (currentProfile as any as any).role === 'admin') && (
-              <button
-                id="nav-tab-admin-kyc"
-                onClick={() => handleNavClick('admin-kyc')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                  currentTab === 'admin-kyc'
-                    ? 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800'
-                    : 'text-red-600 dark:text-red-400/90 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40'
-                }`}
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>KYC Queue</span>
-              </button>
+            {/* Admin Console Tabs */}
+            {currentProfile && (
+              currentProfile.id === 'admin' ||
+              (currentProfile as any).is_admin === true ||
+              (currentProfile as any).role === 'admin' ||
+              currentProfile.wali_email === 'admin@daheejfree.com' ||
+              currentProfile.wali_email === 'behumble7860@gmail.com' ||
+              currentProfile.wali_email === 'hasnainkhan3177@gmail.com'
+            ) && (
+              <>
+                <button
+                  id="nav-tab-admin-godmode"
+                  onClick={() => handleNavClick('admin')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                    currentTab === 'admin'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
+                      : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800/60'
+                  }`}
+                >
+                  <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Admin God Mode</span>
+                </button>
+                <button
+                  id="nav-tab-admin-kyc"
+                  onClick={() => handleNavClick('admin-kyc')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                    currentTab === 'admin-kyc'
+                      ? 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800'
+                      : 'text-red-600 dark:text-red-400/90 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40'
+                  }`}
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>KYC Queue</span>
+                </button>
+              </>
             )}
           </nav>
 
@@ -1035,15 +1066,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
 
                 {/* Admin Console shortcut if applicable */}
-                {currentProfile && (currentProfile.id === 'admin' || currentProfile.wali_email === 'admin@daheejfree.com' || (currentProfile as any as any).role === 'admin') && (
-                  <button
-                    type="button"
-                    onClick={() => handleNavClick('admin-kyc')}
-                    className="w-full px-3.5 py-2 rounded-xl text-xs font-bold bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60 flex items-center gap-2"
-                  >
-                    <Shield className="w-4 h-4" />
-                    <span>Admin KYC Verification Queue</span>
-                  </button>
+                {currentProfile && (
+                  currentProfile.id === 'admin' ||
+                  (currentProfile as any).is_admin === true ||
+                  (currentProfile as any).role === 'admin' ||
+                  currentProfile.wali_email === 'admin@daheejfree.com' ||
+                  currentProfile.wali_email === 'behumble7860@gmail.com' ||
+                  currentProfile.wali_email === 'hasnainkhan3177@gmail.com'
+                ) && (
+                  <div className="space-y-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('admin')}
+                      className="w-full px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-800/60 flex items-center gap-2 hover:bg-emerald-900/60 transition-colors"
+                    >
+                      <Shield className="w-4 h-4 text-emerald-400" />
+                      <span>God Mode Admin Dashboard</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('admin-kyc')}
+                      className="w-full px-3.5 py-2 rounded-xl text-xs font-bold bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60 flex items-center gap-2"
+                    >
+                      <Shield className="w-4 h-4" />
+                      <span>Admin KYC Verification Queue</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

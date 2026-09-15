@@ -138,7 +138,7 @@ export function usePhotoConsent(currentUserId: string | null) {
       }
     }, 2500);
 
-    // Supabase Realtime listener on photo_permissions
+    // Supabase Realtime listeners on photo_permissions and photo_access_requests
     const channelId = `photo_perm_sub_${currentUserId}_${Date.now()}`;
     const channel = supabase
       .channel(channelId)
@@ -148,6 +148,19 @@ export function usePhotoConsent(currentUserId: string | null) {
           event: '*',
           schema: 'public',
           table: 'photo_permissions',
+        },
+        () => {
+          if (isMounted) {
+            fetchRemotePhotoPermissions();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'photo_access_requests',
         },
         () => {
           if (isMounted) {
@@ -198,7 +211,7 @@ export function usePhotoConsent(currentUserId: string | null) {
     const req = daheejStore.sendConsentRequest(currentUserId, targetProfileId);
     refreshRequests();
 
-    // 2. Sync to Supabase photo_permissions table
+    // 2. Sync to Supabase photo_permissions & photo_access_requests tables
     try {
       await supabase.from('photo_permissions').upsert(
         {
@@ -210,7 +223,19 @@ export function usePhotoConsent(currentUserId: string | null) {
         { onConflict: 'requestor_id,target_id' }
       );
     } catch (e) {
-      console.warn('[usePhotoConsent] Supabase upsert note:', e);
+      console.warn('[usePhotoConsent] Supabase photo_permissions upsert note:', e);
+    }
+
+    try {
+      await supabase.from('photo_access_requests').insert({
+        grantee_id: currentUserId,
+        grantor_id: targetProfileId,
+        requestor_id: currentUserId,
+        target_id: targetProfileId,
+        status: 'pending',
+      });
+    } catch (e) {
+      console.warn('[usePhotoConsent] Supabase photo_access_requests insert note:', e);
     }
 
     // 3. Fallback via backend API
@@ -252,6 +277,11 @@ export function usePhotoConsent(currentUserId: string | null) {
           .from('photo_permissions')
           .update({ status: 'approved', updated_at: new Date().toISOString() })
           .or(`and(requestor_id.eq.${requesterId},target_id.eq.${currentUserId}),and(requester_id.eq.${requesterId},target_user_id.eq.${currentUserId})`);
+
+        await supabase
+          .from('photo_access_requests')
+          .update({ status: 'approved', updated_at: new Date().toISOString() })
+          .or(`and(grantee_id.eq.${requesterId},grantor_id.eq.${currentUserId}),and(requestor_id.eq.${requesterId},target_id.eq.${currentUserId})`);
       }
     } catch (e) {
       console.warn('[usePhotoConsent] Supabase update photo_permissions fallback:', e);

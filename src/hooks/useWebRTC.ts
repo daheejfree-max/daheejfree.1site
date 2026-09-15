@@ -54,8 +54,12 @@ export function useWebRTC(currentUserId: string | null) {
         video: wantsVideo,
         audio: true,
         userLabel: 'You',
-        timeoutMs: 3000,
+        timeoutMs: 7000,
       });
+
+      if (result.diagnostic) {
+        setMediaError(result.diagnostic.message);
+      }
 
       const stream = result.stream;
       console.info('[WebRTC] Local media stream captured successfully (synthetic:', result.isSynthetic, ')');
@@ -74,7 +78,7 @@ export function useWebRTC(currentUserId: string | null) {
         setLocalStream(fallbackRes.stream);
         return fallbackRes.stream;
       } catch (e) {
-        setMediaError('Hardware access failed');
+        setMediaError('Hardware camera or microphone access failed (device in use or permission denied).');
         return null;
       }
     } finally {
@@ -191,7 +195,14 @@ export function useWebRTC(currentUserId: string | null) {
         console.info('[WebRTC] P2P Media Connection Active & Healthy!');
         setCallStatus('connected');
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        console.warn(`[WebRTC] Connection status dropped to: ${pc.connectionState}`);
+        console.warn(`[WebRTC] Connection status dropped to: ${pc.connectionState}. Triggering ICE restart...`);
+        if (typeof (pc as any).restartIce === 'function') {
+          try {
+            (pc as any).restartIce();
+          } catch (iceErr) {
+            console.warn('[WebRTC] pc.restartIce() error:', iceErr);
+          }
+        }
       }
     };
 
@@ -199,6 +210,15 @@ export function useWebRTC(currentUserId: string | null) {
       console.info(`[WebRTC] ICE State: ${pc.iceConnectionState}`);
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         setCallStatus('connected');
+      } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        console.warn(`[WebRTC] ICE status dropped to: ${pc.iceConnectionState}. Triggering ICE restart...`);
+        if (typeof (pc as any).restartIce === 'function') {
+          try {
+            (pc as any).restartIce();
+          } catch (iceErr) {
+            console.warn('[WebRTC] pc.restartIce() error:', iceErr);
+          }
+        }
       }
     };
 
@@ -207,7 +227,7 @@ export function useWebRTC(currentUserId: string | null) {
 
   // 3. Supabase Realtime Signaling Listener
   const setupRealtimeSignaling = (callId: string, partnerId: string, stream: MediaStream | null) => {
-    const channelName = `call_${callId}`;
+    const channelName = `call_webrtc_${callId}`;
     console.info(`[WebRTC] Connecting signaling channel: ${channelName}`);
 
     if (channelRef.current) {

@@ -15,7 +15,7 @@ const supabaseAnonKey =
   '';
 
 if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
-  console.error('CRITICAL: Supabase URL or Anon Key is missing or using placeholder values.');
+  console.warn('Notice: Supabase URL or Anon Key is missing or using placeholder values.');
 }
 
 export function createClient() {

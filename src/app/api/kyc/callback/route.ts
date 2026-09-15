@@ -71,6 +71,7 @@ export async function POST(request: Request): Promise<Response> {
             kyc_status: 'verified',
             id_verified: true,
             selfie_verified: true,
+            selfie_verified_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
           .eq('id', String(vendorDataUserId));
@@ -133,6 +134,7 @@ export async function GET(request: Request): Promise<Response> {
             kyc_status: 'verified',
             id_verified: true,
             selfie_verified: true,
+            selfie_verified_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
           .eq('id', String(vendorDataUserId));

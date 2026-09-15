@@ -46,6 +46,7 @@ export interface Profile {
   is_verified?: boolean;
   id_verified?: boolean;
   is_active?: boolean;
+  is_admin?: boolean;
   is_online?: boolean;
   last_seen?: string;
   subscription_tier: SubscriptionTier;
@@ -76,6 +77,7 @@ export interface Profile {
   covenant_signed_at?: string;
   terms_accepted?: boolean;
   privacy_accepted?: boolean;
+  privacy_policy_accepted?: boolean;
   policies_accepted?: boolean;
   is_onboarded?: boolean;
   city?: string;

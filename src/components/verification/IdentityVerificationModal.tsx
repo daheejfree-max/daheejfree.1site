@@ -259,7 +259,7 @@ export const IdentityVerificationModal: React.FC<IdentityVerificationModalProps>
                 ) : (
                   <>
                     <ExternalLink className="w-4 h-4" />
-                    <span>Start Verification on Didit</span>
+                    <span>Start Government ID Verification</span>
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </>
                 )}
@@ -274,12 +274,12 @@ export const IdentityVerificationModal: React.FC<IdentityVerificationModalProps>
                 className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-60"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isCheckingStatus ? 'animate-spin' : ''}`} />
-                <span>Refresh Verification Status</span>
+                <span>Check Verification Status</span>
               </button>
             </div>
 
             <p className="text-[11px] text-center text-zinc-500 dark:text-zinc-400">
-              Completed verification in Didit tab? Click "Refresh Verification Status" to sync your badge.
+              Completed verification in Didit tab? Click "Check Verification Status" to sync your badge.
             </p>
           </>
         )}

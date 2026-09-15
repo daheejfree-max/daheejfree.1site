@@ -34,8 +34,6 @@ import {
 import { Profile, SubscriptionTier } from '../../types';
 import { supabase } from '../../lib/supabase/client';
 import { daheejStore } from '../../lib/supabase/store';
-import { SelfieVerificationModal } from '../verification/SelfieVerificationModal';
-import { GovtIdVerificationModal } from '../verification/GovtIdVerificationModal';
 import { AIBioAssistantModal } from '../ai/AIBioAssistantModal';
 import { LanguageSelector } from '../common/LanguageSelector';
 import { compressImageFile } from '../../lib/imageCompressor';
@@ -449,7 +447,7 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
                 ) : (
                   <>
                     <Shield className="w-5 h-5 text-white" />
-                    Verify Identity via Didit.me
+                    Start Government ID Verification
                     <ExternalLink className="w-4 h-4 opacity-80" />
                   </>
                 )}
@@ -463,7 +461,7 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
                 className="px-5 py-3.5 rounded-2xl text-xs sm:text-sm font-semibold border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${isRefreshingStatus ? 'animate-spin' : ''}`} />
-                <span>Refresh Status</span>
+                <span>Check Verification Status</span>
               </button>
             </div>
           </div>
@@ -945,41 +943,6 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
           </div>
         </div>
       )}
-      {/* Modal: Live Biometric Selfie KYC Verification */}
-      <SelfieVerificationModal
-        isOpen={isSelfieModalOpen}
-        onClose={() => setIsSelfieModalOpen(false)}
-        userId={profile.id}
-        onVerificationComplete={() => {
-          onUpdateProfile({
-            selfie_verified: true,
-            kyc_status: 'verified',
-            is_verified: true,
-          });
-          daheejStore.updateProfile(profile.id, {
-            selfie_verified: true,
-            kyc_status: 'verified',
-            is_verified: true,
-          });
-        }}
-      />
-
-      {/* Modal: Government ID Document Verification */}
-      <GovtIdVerificationModal
-        isOpen={isGovtIdModalOpen}
-        onClose={() => setIsGovtIdModalOpen(false)}
-        userId={profile.id}
-        onVerificationComplete={() => {
-          onUpdateProfile({
-            kyc_status: 'verified',
-            is_verified: true,
-          });
-          daheejStore.updateProfile(profile.id, {
-            kyc_status: 'verified',
-            is_verified: true,
-          });
-        }}
-      />
 
       {/* Modal: AI Halal Bio & Icebreaker Generator */}
       <AIBioAssistantModal

@@ -70,12 +70,26 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
     setLocalConsentStatus(consentStatus);
   }, [consentStatus]);
 
-  // Fetch initial status and subscribe to realtime photo_permissions updates
+  // Fetch initial status and subscribe to realtime photo_access_requests and photo_permissions updates
   React.useEffect(() => {
     if (isSelf || !viewerProfile?.id || !profile.id) return;
 
     const fetchStatus = async () => {
       try {
+        // 1. Try photo_access_requests table first
+        const { data: accessData } = await supabase
+          .from('photo_access_requests')
+          .select('status, grantee_id, grantor_id, requestor_id, target_id')
+          .or(`and(grantee_id.eq.${viewerProfile.id},grantor_id.eq.${profile.id}),and(grantee_id.eq.${profile.id},grantor_id.eq.${viewerProfile.id}),and(requestor_id.eq.${viewerProfile.id},target_id.eq.${profile.id})`)
+          .limit(1);
+
+        if (accessData && accessData.length > 0) {
+          const s = accessData[0].status;
+          setLocalConsentStatus(s === 'approved' ? 'approved' : s);
+          return;
+        }
+
+        // 2. Fallback to photo_permissions
         const { data, error } = await supabase
           .from('photo_permissions')
           .select('status, requestor_id, target_id, requester_id, target_user_id')
@@ -84,7 +98,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
 
         if (data && data.length > 0 && !error) {
           const s = data[0].status;
-          setLocalConsentStatus(s === 'approved' ? 'accepted' : s);
+          setLocalConsentStatus(s === 'approved' ? 'approved' : s);
         }
       } catch (err) {
         console.warn('Failed to fetch photo permission:', err);
@@ -93,7 +107,34 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
 
     fetchStatus();
 
-    const channel = supabase.channel(`photo_updates_${profile.id}_${viewerProfile.id}`)
+    // Channel for photo_access_requests
+    const channelAccess = supabase.channel(`photo_access_req_${profile.id}_${viewerProfile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'photo_access_requests',
+        },
+        (payload) => {
+          const record = (payload.new || payload.old) as any;
+          if (record) {
+            const grantee = record.grantee_id || record.requestor_id;
+            const grantor = record.grantor_id || record.target_id;
+            if (
+              (grantee === viewerProfile.id && grantor === profile.id) ||
+              (grantee === profile.id && grantor === viewerProfile.id)
+            ) {
+              const s = record.status;
+              setLocalConsentStatus(s === 'approved' ? 'approved' : s);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // Channel for photo_permissions
+    const channelPerm = supabase.channel(`photo_updates_${profile.id}_${viewerProfile.id}`)
       .on(
         'postgres_changes',
         {
@@ -111,7 +152,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
               (req === profile.id && tgt === viewerProfile.id)
             ) {
               const s = record.status;
-              setLocalConsentStatus(s === 'approved' ? 'accepted' : s);
+              setLocalConsentStatus(s === 'approved' ? 'approved' : s);
             }
           }
         }
@@ -119,7 +160,8 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channelAccess);
+      supabase.removeChannel(channelPerm);
     };
   }, [viewerProfile?.id, profile.id, isSelf]);
 
@@ -318,31 +360,49 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
 
         {/* Photo Consent Action */}
         {!isSelf && !isPhotoUnlocked && (
-          <div className="mt-2.5">
+          <div className="mt-2.5 flex flex-col items-center gap-1.5 w-full">
             {localConsentStatus === 'pending' ? (
-              <button
-                disabled
-                type="button"
-                className="text-[11px] text-amber-700 dark:text-amber-400 font-medium inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/50 px-3 py-1 rounded-lg border border-amber-300 dark:border-amber-800/40 cursor-not-allowed opacity-90"
-              >
-                <Clock className="w-3 h-3 text-amber-600" />
-                Photo Request Sent
-              </button>
+              <>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                  <Clock className="w-3 h-3 text-amber-400" />
+                  Photo Access Requested (Pending Approval)
+                </span>
+                <button
+                  disabled
+                  type="button"
+                  className="w-full py-1.5 px-3 rounded-xl text-xs font-semibold bg-zinc-800/80 text-zinc-400 border border-zinc-700 flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Request Sent</span>
+                </button>
+              </>
             ) : (
               <button
                 id={`btn-request-photo-${profile.id}`}
-                onClick={() => {
+                onClick={async () => {
                   if (!viewerIsKYCVerified) {
                     setGateNotice('KYC Verification Required: You must verify your identity with Didit before requesting photo consent.');
                     setTimeout(() => setGateNotice(null), 3500);
                     return;
                   }
+                  setLocalConsentStatus('pending');
+                  try {
+                    await supabase.from('photo_access_requests').insert({
+                      grantee_id: viewerProfile.id,
+                      grantor_id: profile.id,
+                      requestor_id: viewerProfile.id,
+                      target_id: profile.id,
+                      status: 'pending',
+                    });
+                  } catch (e) {
+                    console.warn('[ProfileCard] insert photo_access_requests note:', e);
+                  }
                   onSendConsentRequest(profile.id);
                 }}
-                className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-700/60 px-3 py-1 rounded-lg transition-colors inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                className="w-full py-1.5 px-3 rounded-xl text-xs font-bold text-emerald-300 hover:text-emerald-200 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/30 transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Eye className="w-3.5 h-3.5" />
-                Request Photo Consent
+                <span>Request Photo Access</span>
               </button>
             )}
           </div>

@@ -124,6 +124,196 @@ app.post('/api/auth/log-ip', async (req, res) => {
 });
 
 // ==============================================================================
+// ADMIN GOD-MODE CONTROLS API: /api/admin/action
+// Protected with SUPABASE_SERVICE_ROLE_KEY & Strict Admin Identity Verification
+// ==============================================================================
+app.post('/api/admin/action', async (req, res) => {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const supabaseServiceKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      '';
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return res.status(500).json({ success: false, error: 'Supabase configuration missing on server.' });
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // 1. Extract Bearer token from Authorization header or cookie
+    const authHeader = req.headers.authorization || (req.headers as any).Authorization;
+    let token = '';
+
+    if (typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')) {
+      token = authHeader.substring(7).trim();
+    }
+
+    if (!token && req.headers.cookie) {
+      const cookieHeader = req.headers.cookie;
+      const tokenMatch =
+        cookieHeader.match(/sb-[^;]+-auth-token=([^;]+)/) ||
+        cookieHeader.match(/supabase-auth-token=([^;]+)/) ||
+        cookieHeader.match(/sb-access-token=([^;]+)/);
+      if (tokenMatch && tokenMatch[1]) {
+        try {
+          const decoded = decodeURIComponent(tokenMatch[1]);
+          const parsed = JSON.parse(decoded);
+          token = Array.isArray(parsed) ? parsed[0] : parsed.access_token || parsed;
+        } catch {
+          token = decodeURIComponent(tokenMatch[1]);
+        }
+      }
+    }
+
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Missing Bearer authentication token.' });
+    }
+
+    // 2. Verify token
+    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !authData?.user) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Invalid or expired session token.' });
+    }
+
+    const requesterUserId = authData.user.id;
+    const requesterEmail = authData.user.email?.toLowerCase();
+
+    // 3. Query public.profiles to verify is_admin
+    const { data: requesterProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('id, is_admin, full_name')
+      .eq('id', requesterUserId)
+      .maybeSingle();
+
+    const isDesignatedEmail =
+      requesterEmail === 'behumble7860@gmail.com' ||
+      requesterEmail === 'hasnainkhan3177@gmail.com';
+
+    const isVerifiedAdmin = Boolean(requesterProfile?.is_admin || isDesignatedEmail);
+
+    if (!isVerifiedAdmin) {
+      console.warn(`[Express Admin API] Unauthorized attempt by ${requesterUserId} (${requesterEmail})`);
+      return res.status(403).json({ success: false, error: 'Forbidden: Administrator privileges required.' });
+    }
+
+    // Auto-sync is_admin in database if designated superadmin
+    if (isDesignatedEmail && !requesterProfile?.is_admin) {
+      await supabaseAdmin
+        .from('profiles')
+        .update({ is_admin: true, is_active: true })
+        .eq('id', requesterUserId);
+    }
+
+    // 4. Validate payload
+    const { action, targetUserId, payload } = req.body;
+    if (!action || !targetUserId) {
+      return res.status(400).json({ success: false, error: 'Missing required parameters: action and targetUserId' });
+    }
+
+    const { data: targetProfile, error: targetFindError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, kyc_status, is_active, subscription_tier')
+      .eq('id', targetUserId)
+      .maybeSingle();
+
+    if (targetFindError || !targetProfile) {
+      return res.status(404).json({ success: false, error: `Target user with ID '${targetUserId}' does not exist.` });
+    }
+
+    // 5. Execute action
+    let updateFields: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    let successMessage = '';
+
+    switch (action) {
+      case 'verify_kyc':
+        updateFields = {
+          ...updateFields,
+          kyc_verified: true,
+          kyc_status: 'verified',
+          id_verified: true,
+          is_verified: true,
+          selfie_verified: true,
+        };
+        successMessage = `KYC verified successfully for user ${targetProfile.full_name || targetUserId}.`;
+        break;
+
+      case 'grant_subscription': {
+        const rawTier = typeof payload === 'string' ? payload : payload?.tier;
+        const targetTier = String(rawTier || 'gold').toLowerCase().trim();
+        const allowedTiers = ['free', 'gold', 'diamond', 'platinum'];
+
+        if (!allowedTiers.includes(targetTier)) {
+          return res.status(400).json({
+            success: false,
+            error: `Invalid subscription tier '${targetTier}'. Allowed: ${allowedTiers.join(', ')}`,
+          });
+        }
+
+        updateFields = {
+          ...updateFields,
+          subscription_tier: targetTier,
+          membership_tier: targetTier,
+          subscription_status: 'active',
+        };
+        successMessage = `Subscription tier updated to '${targetTier}' for user ${targetProfile.full_name || targetUserId}.`;
+        break;
+      }
+
+      case 'ban_user':
+        updateFields = {
+          ...updateFields,
+          is_active: false,
+          kyc_status: 'banned',
+        };
+        successMessage = `User ${targetProfile.full_name || targetUserId} has been banned and suspended.`;
+        break;
+
+      case 'unban_user':
+        updateFields = {
+          ...updateFields,
+          is_active: true,
+          kyc_status: targetProfile.kyc_status === 'banned' ? 'verified' : targetProfile.kyc_status,
+        };
+        successMessage = `User ${targetProfile.full_name || targetUserId} has been unbanned and reactivated.`;
+        break;
+
+      default:
+        return res.status(400).json({
+          success: false,
+          error: `Unsupported admin action '${action}'. Supported: verify_kyc, grant_subscription, ban_user, unban_user.`,
+        });
+    }
+
+    const { data: updatedData, error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update(updateFields)
+      .eq('id', targetUserId)
+      .select('*')
+      .single();
+
+    if (updateError) {
+      console.error('[Express Admin Action Error] DB Update failed:', updateError);
+      return res.status(500).json({ success: false, error: updateError.message });
+    }
+
+    return res.json({
+      success: true,
+      message: successMessage,
+      action,
+      targetUserId,
+      profile: updatedData,
+    });
+  } catch (err: any) {
+    console.error('[Express Admin API Exception]:', err);
+    return res.status(500).json({ success: false, error: err?.message || 'Internal server error' });
+  }
+});
+
+// ==============================================================================
 // ==============================================================================
 // 1. DODO PAYMENTS: CREATE CHECKOUT SESSION (LIVE PRODUCTION MODE)
 // ==============================================================================
@@ -505,9 +695,9 @@ app.post(['/api/webhooks/razorpay', '/api/razorpay/webhook'], async (req, res) =
 app.all('/api/kyc/create-session', async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
-  // 1. Ensure it reads process.env.DIDIT_API_KEY securely on the server
-  if (!process.env.DIDIT_API_KEY) {
-    return res.status(500).json({ error: 'KYC configuration missing on server.' });
+  // 1. Ensure it reads process.env.DIDIT_API_KEY and process.env.DIDIT_WORKFLOW_ID securely on the server
+  if (!process.env.DIDIT_API_KEY || !process.env.DIDIT_WORKFLOW_ID) {
+    return res.status(500).json({ error: 'KYC configuration missing on server (DIDIT_API_KEY or DIDIT_WORKFLOW_ID).' });
   }
 
   const userId =
@@ -533,16 +723,17 @@ app.all('/api/kyc/create-session', async (req, res) => {
   const callbackUrl = `${siteUrl}/api/kyc/callback`;
 
   try {
-    // 2. Call Didit's v2 session API
-    const diditRes = await fetch('https://apx.didit.me/auth/v2/session/', {
+    // 2. Call Didit's v3 hosted verification session API
+    const diditRes = await fetch('https://verification.didit.me/v3/session/', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.DIDIT_API_KEY.trim()}`,
+        'x-api-key': process.env.DIDIT_API_KEY.trim(),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        callback: callbackUrl,
+        workflow_id: process.env.DIDIT_WORKFLOW_ID.trim(),
         vendor_data: String(userId),
+        callback: callbackUrl,
       }),
     });
 
@@ -552,12 +743,14 @@ app.all('/api/kyc/create-session', async (req, res) => {
     try {
       data = JSON.parse(rawText);
     } catch {
-      return res.status(502).json({ error: 'Invalid response from Didit gateway', raw: rawText.slice(0, 300) });
+      return res.status(502).json({ error: 'Gateway error', status: diditRes.status, raw: rawText.slice(0, 300) });
     }
 
     if (!diditRes.ok) {
-      return res.status(diditRes.status).json({
-        error: data?.error || data?.message || 'Failed to create KYC session with Didit gateway',
+      return res.status(502).json({
+        error: 'Gateway error',
+        status: diditRes.status,
+        raw: rawText.slice(0, 300),
         details: data,
       });
     }
@@ -632,6 +825,7 @@ app.all('/api/kyc/callback', async (req, res) => {
           kyc_status: 'verified',
           id_verified: true,
           selfie_verified: true,
+          selfie_verified_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', String(vendorDataUserId));

@@ -87,7 +87,8 @@ export async function createClient(cookieStore?: {
  * Bypasses RLS for secure webhook fulfillment and background system jobs
  */
 export function createAdminClient() {
-  return createSupabaseClient(supabaseUrl, supabaseServiceRoleKey, {
+  const keyToUse = supabaseServiceRoleKey || supabaseAnonKey;
+  return createSupabaseClient(supabaseUrl, keyToUse, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

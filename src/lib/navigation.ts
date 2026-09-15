@@ -26,6 +26,14 @@ export function navigateTo(url: string, replace = false) {
   window.dispatchEvent(new CustomEvent('app:navigate', { detail: { path: cleanUrl, tab: cleanPath } }));
 }
 
+export function redirect(url: string): never {
+  navigateTo(url, true);
+  // Throw standard redirection control flow signal
+  const err = new Error(`NEXT_REDIRECT:${url}`);
+  (err as any).digest = `NEXT_REDIRECT;replace;${url};307;`;
+  throw err;
+}
+
 export function useRouter() {
   return {
     push: (url: string) => {

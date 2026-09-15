@@ -18,10 +18,9 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { Logo } from '../brand/Logo';
-import { SelfieVerificationModal } from '../verification/SelfieVerificationModal';
-import { GovtIdVerificationModal } from '../verification/GovtIdVerificationModal';
 import { Profile } from '../../types/database';
 import { daheejStore } from '../../lib/supabase/store';
+import { supabase } from '../../lib/supabase/client';
 
 interface HardKYCGateProps {
   currentProfile: Profile;
@@ -39,8 +38,6 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
   const [isStartingDidit, setIsStartingDidit] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSelfieModalOpen, setIsSelfieModalOpen] = useState(false);
-  const [isGovtIdModalOpen, setIsGovtIdModalOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const isSelfieVerified = Boolean(currentProfile.selfie_verified);
@@ -102,49 +99,48 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
     }
   };
 
-  // Poll / Refresh verification status from backend & database
+  // Poll / Refresh verification status from backend & database (direct public.profiles query)
   const handleRefreshStatus = async () => {
     setIsRefreshing(true);
     setError(null);
     setStatusMessage(null);
 
     try {
-      // 1. If user has a pending session ID, query the decision endpoint
-      if (currentProfile.kyc_session_id) {
-        const response = await fetch('/api/kyc/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            profileId: currentProfile.id,
-            sessionId: currentProfile.kyc_session_id,
-          }),
+      const { data, error: dbErr } = await supabase
+        .from('profiles')
+        .select('kyc_verified, kyc_status, id_verified, selfie_verified, is_verified')
+        .eq('id', currentProfile.id)
+        .single();
+
+      if (dbErr) {
+        console.warn('[HardKYCGate] Profile query warning:', dbErr);
+      }
+
+      const isVerified =
+        data?.kyc_verified === true ||
+        data?.kyc_status === 'verified' ||
+        data?.is_verified === true;
+
+      if (isVerified) {
+        daheejStore.updateProfile(currentProfile.id, {
+          kyc_status: 'verified',
+          kyc_verified: true,
+          is_verified: true,
+          id_verified: true,
+          selfie_verified: true,
         });
-
-        let data: any = null;
-        try {
-          const responseText = await response.text();
-          data = JSON.parse(responseText);
-        } catch {
-          console.warn('[HardKYCGate] Non-JSON decision response');
-        }
-
-        if (data && (data.verified || data.status === 'verified')) {
-          daheejStore.updateProfile(currentProfile.id, {
+        if (onUpdateProfile) {
+          onUpdateProfile({
             kyc_status: 'verified',
             kyc_verified: true,
             is_verified: true,
+            id_verified: true,
+            selfie_verified: true,
           });
-          if (onUpdateProfile) {
-            onUpdateProfile({
-              kyc_status: 'verified',
-              kyc_verified: true,
-              is_verified: true,
-            });
-          }
-          setStatusMessage('Identity successfully verified. Redirecting to platform...');
-          await onRefreshProfile();
-          return;
         }
+        setStatusMessage('Identity successfully verified. Redirecting to platform...');
+        await onRefreshProfile();
+        return;
       }
 
       await onRefreshProfile();
@@ -155,17 +151,6 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
     } finally {
       setIsRefreshing(false);
     }
-  };
-
-  const handleVerificationCompleted = async () => {
-    if (onUpdateProfile) {
-      onUpdateProfile({
-        kyc_status: 'verified',
-        kyc_verified: true,
-        is_verified: true,
-      });
-    }
-    await onRefreshProfile();
   };
 
   return (
@@ -198,59 +183,6 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
           </p>
         </div>
 
-        {/* Verification Status Matrix (Interactive) */}
-        <div className="grid grid-cols-2 gap-3 text-left">
-          <button
-            type="button"
-            onClick={() => setIsSelfieModalOpen(true)}
-            className={`p-3.5 rounded-2xl border text-left transition-all hover:scale-[1.02] cursor-pointer ${
-              isSelfieVerified 
-                ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300' 
-                : 'bg-zinc-950/60 border-zinc-800/80 hover:border-emerald-500/50 text-zinc-300'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1.5">
-                <Camera className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-bold">Live Biometrics</span>
-              </div>
-              {isSelfieVerified ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold">Instant</span>
-              )}
-            </div>
-            <span className="text-[11px] text-zinc-400 block">
-              {isSelfieVerified ? 'Biometric check verified' : 'Webcam liveness check'}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsGovtIdModalOpen(true)}
-            className={`p-3.5 rounded-2xl border text-left transition-all hover:scale-[1.02] cursor-pointer ${
-              isDocVerified 
-                ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300' 
-                : 'bg-zinc-950/60 border-zinc-800/80 hover:border-emerald-500/50 text-zinc-300'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1.5">
-                <FileCheck className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-bold">Government ID</span>
-              </div>
-              {isDocVerified ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 font-semibold">Upload</span>
-              )}
-            </div>
-            <span className="text-[11px] text-zinc-400 block">
-              {isDocVerified ? 'Document verified' : 'Passport / National ID'}
-            </span>
-          </button>
-        </div>
-
         {/* Dynamic Alerts */}
         {error && (
           <div className="p-3.5 rounded-2xl bg-rose-950/60 border border-rose-800/50 text-rose-300 text-xs flex items-start gap-2 text-left animate-fade-in">
@@ -258,7 +190,7 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
             <div className="flex-1 space-y-1">
               <p className="font-semibold">{error}</p>
               <p className="text-[11px] text-rose-400">
-                You can also complete verification instantly using the <strong>Live Biometrics</strong> or <strong>Government ID</strong> options above.
+                Please ensure you complete the official Didit hosted verification link on your smartphone or browser.
               </p>
             </div>
           </div>
@@ -273,7 +205,7 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
 
         {/* Primary Action Controls */}
         <div className="space-y-3 pt-2">
-          {/* Didit.me Gateway Trigger */}
+          {/* Primary Action Button: Start Government ID Verification */}
           <button
             id="btn-hard-gate-didit"
             type="button"
@@ -282,29 +214,9 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
             className="w-full py-4 px-4 rounded-2xl text-sm sm:text-base font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 shadow-xl shadow-emerald-900/30 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-50"
           >
             <ShieldCheck className="w-5 h-5 text-white" />
-            <span>{isStartingDidit ? 'Connecting to Didit Identity Gateway...' : 'Verify Identity with Didit.me'}</span>
+            <span>{isStartingDidit ? 'Connecting to Identity Gateway...' : 'Start Government ID Verification'}</span>
             <ExternalLink className="w-4 h-4 opacity-80" />
           </button>
-
-          {/* Alternative Direct Verification Buttons */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setIsSelfieModalOpen(true)}
-              className="py-2.5 px-3 rounded-xl text-xs font-semibold bg-zinc-800/90 hover:bg-zinc-700 text-emerald-300 border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Camera className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Live Biometric Selfie</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsGovtIdModalOpen(true)}
-              className="py-2.5 px-3 rounded-xl text-xs font-semibold bg-zinc-800/90 hover:bg-zinc-700 text-teal-300 border border-teal-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <FileCheck className="w-3.5 h-3.5 text-teal-400" />
-              <span>Upload Govt ID</span>
-            </button>
-          </div>
 
           {/* Status Poll & Sign Out row */}
           <div className="flex items-center justify-between gap-3 pt-2 border-t border-zinc-800/80">
@@ -331,28 +243,6 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Live Selfie Biometric Verification Modal */}
-      <SelfieVerificationModal
-        isOpen={isSelfieModalOpen}
-        onClose={() => setIsSelfieModalOpen(false)}
-        userId={currentProfile.id}
-        onVerificationComplete={async () => {
-          setIsSelfieModalOpen(false);
-          await handleVerificationCompleted();
-        }}
-      />
-
-      {/* Government ID Document Verification Modal */}
-      <GovtIdVerificationModal
-        isOpen={isGovtIdModalOpen}
-        onClose={() => setIsGovtIdModalOpen(false)}
-        userId={currentProfile.id}
-        onVerificationComplete={async () => {
-          setIsGovtIdModalOpen(false);
-          await handleVerificationCompleted();
-        }}
-      />
     </div>
   );
 };

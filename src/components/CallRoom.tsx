@@ -55,11 +55,7 @@ const ICE_SERVERS: RTCConfiguration = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
   ],
-  iceCandidatePoolSize: 10,
 };
 
 export default function CallRoom({
@@ -697,17 +693,24 @@ export default function CallRoom({
       let stream: MediaStream | null = null;
       let mediaSuccess = false;
 
-      // 1. Resilient Hardware & Synthetic Media Acquisition (Never hangs)
+      // 1. Resilient Hardware & Synthetic Media Acquisition (7s timeout race with audio-only fallback)
       try {
         const mediaResult = await acquireMediaWithFallback({
           video: videoMode,
           audio: true,
           userLabel: 'You',
-          timeoutMs: 30000,
+          timeoutMs: 7000,
         });
 
         stream = mediaResult.stream;
         mediaSuccess = Boolean(stream && stream.getTracks().length > 0);
+
+        if (mediaResult.diagnostic && (mediaResult.diagnostic.code === 'permission_denied' || mediaResult.diagnostic.code === 'device_in_use')) {
+          setPermissionError({
+            name: mediaResult.diagnostic.code,
+            message: mediaResult.diagnostic.message,
+          });
+        }
 
         if (mediaResult.isAudioOnly || mediaResult.isSynthetic) {
           if (!videoMode) setIsCameraOff(true);
@@ -842,7 +845,14 @@ export default function CallRoom({
               });
             }
           } else if (state === 'failed' || state === 'disconnected') {
-            // Attempt ICE restart if caller
+            console.warn(`[CallRoom] Connection state dropped to ${state}. Triggering ICE restart...`);
+            if (typeof (pc as any).restartIce === 'function') {
+              try {
+                (pc as any).restartIce();
+              } catch (iceRestartErr) {
+                console.warn('[CallRoom] pc.restartIce() error:', iceRestartErr);
+              }
+            }
             if (callerMode && pc.signalingState === 'stable') {
               createAndSendOfferRef.current();
             }
@@ -867,6 +877,18 @@ export default function CallRoom({
               timerRef.current = setInterval(() => {
                 setDuration((prev) => prev + 1);
               }, 1000);
+            }
+          } else if (iceState === 'failed' || iceState === 'disconnected') {
+            console.warn(`[CallRoom] ICE connection state dropped to ${iceState}. Triggering ICE restart...`);
+            if (typeof (pc as any).restartIce === 'function') {
+              try {
+                (pc as any).restartIce();
+              } catch (iceRestartErr) {
+                console.warn('[CallRoom] pc.restartIce() error:', iceRestartErr);
+              }
+            }
+            if (callerMode && pc.signalingState === 'stable') {
+              createAndSendOfferRef.current();
             }
           }
         };

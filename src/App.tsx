@@ -56,6 +56,7 @@ import RegisterPage from './app/(auth)/register/page';
 import ForgotPasswordPage from './app/forgot-password/page';
 import ResetPasswordPage from './app/reset-password/page';
 import AdminKYCReviewPage from './app/(admin)/kyc-review/page';
+import AdminControlPanel from './app/admin/page';
 import KYCPendingPage from './app/(dashboard)/profile/kyc-pending/page';
 import OnboardingPage from './app/onboarding/page';
 import AuthCallbackPage from './app/auth/callback/page';
@@ -67,6 +68,7 @@ import LegalHubPage from './app/legal/page';
 import VerificationDisclaimerPage from './app/disclaimer/page';
 import { sendCallInvite } from './lib/callSignaling';
 import { HardKYCGate } from './components/kyc/HardKYCGate';
+import { OnboardingGuard, hasAcceptedLegalConsent } from './components/auth/OnboardingGuard';
 import { GoogleTranslateBridge } from './components/common/GoogleTranslateBridge';
 import { ProfileSecureView, SubscriptionTier } from './types';
 import { daheejStore } from './lib/supabase/store';
@@ -123,6 +125,7 @@ export default function App() {
         'forgot-password',
         'reset-password',
         'onboarding',
+        'admin',
         'admin-kyc',
         'kyc-pending',
         'terms',
@@ -363,18 +366,27 @@ export default function App() {
     // Prevent premature redirects while session / auth state is still resolving or during auth callback or live call
     if (isLoading || currentTab === 'auth-callback' || currentTab === 'call') return;
 
-    // 1. Mandatory Onboarding Enforcement:
-    // If authenticated but is_onboarded is false, avatar_url is missing, or key details missing -> force to onboarding
+    // 1. Mandatory Legal Consent & Onboarding Enforcement (Module 1):
+    // For all authenticated accounts including Google OAuth users:
+    // Check legal agreement flags: terms_accepted, privacy_policy_accepted, anti_dowry_pledged
+    const isLegalConsentPending =
+      currentUserId &&
+      currentProfile &&
+      (!currentProfile.terms_accepted ||
+        !(currentProfile.privacy_policy_accepted || currentProfile.privacy_accepted) ||
+        !(currentProfile.anti_dowry_pledged || currentProfile.anti_dowry_pledge));
+
     const needsOnboarding =
       currentUserId &&
       currentProfile &&
-      (currentProfile.is_onboarded === false ||
+      (Boolean(isLegalConsentPending) ||
+        currentProfile.is_onboarded === false ||
         !currentProfile.avatar_url ||
         !currentProfile.profession ||
         !currentProfile.wali_name ||
         !currentProfile.wali_phone);
 
-    if (needsOnboarding && currentTab !== 'onboarding') {
+    if (needsOnboarding && currentTab !== 'onboarding' && currentTab !== 'reset-password' && currentTab !== 'auth-callback') {
       setCurrentTab('onboarding');
       return;
     }
@@ -391,9 +403,18 @@ export default function App() {
       setCurrentTab('login');
     }
 
-    // 4. Admin console: strictly restricted to admin role or admin UID
-    const isAdmin = currentProfile && (currentProfile.id === 'admin' || currentProfile.wali_email === 'admin@daheejfree.com' || (currentProfile as any as any).role === 'admin');
-    if (currentTab === 'admin-kyc' && !isAdmin) {
+    // 4. Admin console: strictly restricted to admin role, is_admin flag, or superadmin emails
+    const isAdmin = Boolean(
+      currentProfile && (
+        currentProfile.id === 'admin' ||
+        (currentProfile as any).is_admin === true ||
+        (currentProfile as any).role === 'admin' ||
+        currentProfile.wali_email === 'admin@daheejfree.com' ||
+        currentProfile.wali_email === 'behumble7860@gmail.com' ||
+        currentProfile.wali_email === 'hasnainkhan3177@gmail.com'
+      )
+    );
+    if ((currentTab === 'admin' || currentTab === 'admin-kyc') && !isAdmin) {
       setCurrentTab(currentUserId ? 'matches' : 'login');
     }
   }, [currentUserId, currentProfile, currentTab, isLoading]);
@@ -582,6 +603,15 @@ export default function App() {
   return (
     <div className={`${currentTab === 'messages' || currentTab === 'call' ? 'h-[100dvh] max-h-[100dvh]' : 'min-h-[100dvh]'} overflow-x-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white dark:selection:text-zinc-950 transition-colors duration-200`}>
       <GoogleTranslateBridge />
+      {/* Legal Consent & Onboarding Guard (Module 1) */}
+      <OnboardingGuard
+        currentUserId={currentUserId}
+        currentProfile={currentProfile}
+        currentTab={currentTab}
+        onRedirectToOnboarding={() => setCurrentTab('onboarding')}
+        onProfileUpdated={(updated) => updateCurrentProfile(updated)}
+      />
+
       {/* Top Navigation */}
       <Navbar
         currentTab={currentTab}
@@ -604,6 +634,18 @@ export default function App() {
         pendingRequestsCount={pendingRequestsCount}
         acceptedMatchesCount={acceptedMatchesCount}
         hideMobileNav={currentTab === 'call' || (currentTab === 'messages' && isMobileChatActive)}
+        isNavigationLocked={Boolean(
+          currentUserId &&
+          currentProfile &&
+          (!currentProfile.terms_accepted ||
+            !(currentProfile.privacy_policy_accepted || currentProfile.privacy_accepted) ||
+            !(currentProfile.anti_dowry_pledged || currentProfile.anti_dowry_pledge) ||
+            currentProfile.is_onboarded === false ||
+            !currentProfile.avatar_url ||
+            !currentProfile.profession ||
+            !currentProfile.wali_name ||
+            !currentProfile.wali_phone)
+        )}
       />
 
       {/* Strict Production Hard KYC Wall: un-dismissible full-screen gate for unverified users trying to access protected views */}
@@ -945,6 +987,13 @@ export default function App() {
 
         {/* Tab 7: Admin Compliance & KYC Queue */}
         {currentTab === 'admin-kyc' && <AdminKYCReviewPage />}
+
+        {/* Tab: God Mode Admin Control Panel */}
+        {currentTab === 'admin' && (
+          <div className="min-h-screen bg-zinc-950 text-zinc-100 -m-4 sm:-m-6 md:-m-8 p-4 md:p-8">
+            <AdminControlPanel />
+          </div>
+        )}
 
         {/* Tab 8: KYC Pending Holding Wall */}
         {currentTab === 'kyc-pending' && <KYCPendingPage />}

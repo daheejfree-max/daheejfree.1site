@@ -9,6 +9,10 @@ export interface AcquiredMediaResult {
   isSynthetic: boolean;
   isAudioOnly: boolean;
   error?: string;
+  diagnostic?: {
+    code: 'permission_denied' | 'device_in_use' | 'not_found' | 'timeout' | 'unknown';
+    message: string;
+  };
 }
 
 /**
@@ -136,46 +140,144 @@ export async function acquireMediaWithFallback(options: {
   const wantsVideo = options.video !== false;
   const wantsAudio = options.audio !== false;
   const label = options.userLabel || 'You';
-  const timeout = options.timeoutMs || 3500;
+  const timeout = options.timeoutMs || 7000;
+  let diagnosticInfo: AcquiredMediaResult['diagnostic'] = undefined;
 
-  // 1. Try real hardware getUserMedia with a timeout promise
+  // 1. Try real hardware getUserMedia with a 7-second timeout promise
   if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    // Helper to race a getUserMedia call with timeout
+    const tryGetUserMediaWithTimeout = async (constraints: MediaStreamConstraints, ms: number) => {
+      let timer: any;
+      const timeoutPromise = new Promise<{ stream: null; timedOut: boolean }>((resolve) => {
+        timer = setTimeout(() => resolve({ stream: null, timedOut: true }), ms);
+      });
+
+      try {
+        const streamPromise = navigator.mediaDevices.getUserMedia(constraints).then((stream) => ({
+          stream,
+          timedOut: false,
+        }));
+        const result = await Promise.race([streamPromise, timeoutPromise]);
+        clearTimeout(timer);
+        return result;
+      } catch (err: any) {
+        clearTimeout(timer);
+        throw err;
+      }
+    };
+
     try {
-      const gUMPromise = (async () => {
-        // Attempt full video + audio
-        if (wantsVideo) {
-          try {
-            return await navigator.mediaDevices.getUserMedia({
+      // Step A: Attempt audio + video if video is requested
+      if (wantsVideo) {
+        try {
+          const result = await tryGetUserMediaWithTimeout(
+            {
               audio: wantsAudio ? { echoCancellation: true, noiseSuppression: true } : false,
               video: {
                 width: { ideal: 640, max: 1280 },
                 height: { ideal: 480, max: 720 },
                 facingMode: 'user',
               },
-            });
-          } catch (vidErr) {
-            console.warn('[MediaFallback] Video failed, attempting audio-only:', vidErr);
-            if (wantsAudio) {
-              return await navigator.mediaDevices.getUserMedia({ audio: true });
-            }
-            throw vidErr;
+            },
+            timeout
+          );
+
+          if (result.stream && result.stream.getTracks().length > 0) {
+            return {
+              stream: result.stream,
+              isSynthetic: false,
+              isAudioOnly: false,
+            };
           }
-        } else if (wantsAudio) {
-          return await navigator.mediaDevices.getUserMedia({ audio: true });
+
+          if (result.timedOut) {
+            console.warn('[MediaFallback] Audio+Video acquisition timed out after 7s, falling back to audio-only...');
+            diagnosticInfo = {
+              code: 'timeout',
+              message: 'Camera acquisition timed out after 7 seconds. Retrying audio only.',
+            };
+          }
+        } catch (vidErr: any) {
+          console.warn('[MediaFallback] Video acquisition failed:', vidErr?.name, vidErr?.message);
+          if (vidErr?.name === 'NotAllowedError' || vidErr?.name === 'PermissionDeniedError') {
+            diagnosticInfo = {
+              code: 'permission_denied',
+              message: 'Camera permission denied. Check your browser settings.',
+            };
+          } else if (vidErr?.name === 'NotReadableError' || vidErr?.name === 'TrackStartError') {
+            diagnosticInfo = {
+              code: 'device_in_use',
+              message: 'Camera is currently in use by another application.',
+            };
+          } else if (vidErr?.name === 'NotFoundError' || vidErr?.name === 'DevicesNotFoundError') {
+            diagnosticInfo = {
+              code: 'not_found',
+              message: 'No camera hardware found on this device.',
+            };
+          }
         }
-        return null;
-      })();
 
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeout));
-      const realStream = await Promise.race([gUMPromise, timeoutPromise]);
+        // Step B: Seamlessly fallback to audio-only if video failed or timed out
+        if (wantsAudio) {
+          try {
+            console.info('[MediaFallback] Seamlessly attempting audio-only fallback...');
+            const audioResult = await tryGetUserMediaWithTimeout(
+              { audio: { echoCancellation: true, noiseSuppression: true } },
+              timeout
+            );
 
-      if (realStream && realStream.getTracks().length > 0) {
-        const hasVideo = realStream.getVideoTracks().length > 0;
-        return {
-          stream: realStream,
-          isSynthetic: false,
-          isAudioOnly: !hasVideo,
-        };
+            if (audioResult.stream && audioResult.stream.getTracks().length > 0) {
+              return {
+                stream: audioResult.stream,
+                isSynthetic: false,
+                isAudioOnly: true,
+                error: 'Camera unavailable or timed out. Switched seamlessly to voice-only mode.',
+              };
+            }
+          } catch (audioErr: any) {
+            console.warn('[MediaFallback] Audio-only fallback also failed:', audioErr?.name, audioErr?.message);
+            if (audioErr?.name === 'NotAllowedError' || audioErr?.name === 'PermissionDeniedError') {
+              diagnosticInfo = {
+                code: 'permission_denied',
+                message: 'Microphone permission denied. Please allow microphone access.',
+              };
+            } else if (audioErr?.name === 'NotReadableError' || audioErr?.name === 'TrackStartError') {
+              diagnosticInfo = {
+                code: 'device_in_use',
+                message: 'Microphone is currently in use by another application.',
+              };
+            }
+          }
+        }
+      } else if (wantsAudio) {
+        // Only audio was requested
+        try {
+          const audioResult = await tryGetUserMediaWithTimeout(
+            { audio: { echoCancellation: true, noiseSuppression: true } },
+            timeout
+          );
+
+          if (audioResult.stream && audioResult.stream.getTracks().length > 0) {
+            return {
+              stream: audioResult.stream,
+              isSynthetic: false,
+              isAudioOnly: true,
+            };
+          }
+        } catch (audioErr: any) {
+          console.warn('[MediaFallback] Audio acquisition failed:', audioErr?.name, audioErr?.message);
+          if (audioErr?.name === 'NotAllowedError' || audioErr?.name === 'PermissionDeniedError') {
+            diagnosticInfo = {
+              code: 'permission_denied',
+              message: 'Microphone permission denied. Please allow microphone access.',
+            };
+          } else if (audioErr?.name === 'NotReadableError' || audioErr?.name === 'TrackStartError') {
+            diagnosticInfo = {
+              code: 'device_in_use',
+              message: 'Microphone is currently in use by another application.',
+            };
+          }
+        }
       }
     } catch (err: any) {
       console.warn('[MediaFallback] Hardware media acquisition non-fatal error:', err?.message || err);
@@ -204,10 +306,18 @@ export async function acquireMediaWithFallback(options: {
     }
   }
 
+  const errorMessage =
+    diagnosticInfo?.message ||
+    'Hardware camera or microphone was not immediately accessible (in use, timed out, or permission blocked). Connected with Privacy Stream.';
+
   return {
     stream: syntheticStream,
     isSynthetic: true,
     isAudioOnly: !wantsVideo,
-    error: 'Hardware camera or microphone was not immediately accessible. Connected with Privacy Stream.',
+    error: errorMessage,
+    diagnostic: diagnosticInfo || {
+      code: 'device_in_use',
+      message: errorMessage,
+    },
   };
 }

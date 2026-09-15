@@ -32,6 +32,7 @@ import { WatermarkedImage } from '../privacy/WatermarkedImage';
 import { AICompatibilityModal } from '../ai/AICompatibilityModal';
 import { WaliPortalModal } from '../wali/WaliPortalModal';
 import { getDisplayName } from '../../lib/utils';
+import { supabase } from '../../lib/supabase/client';
 
 interface ProfileEvaluationViewProps {
   profile: ProfileSecureView;
@@ -63,13 +64,84 @@ export const ProfileEvaluationView: React.FC<ProfileEvaluationViewProps> = ({
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isWaliModalOpen, setIsWaliModalOpen] = useState(false);
   const [gateNotice, setGateNotice] = useState<string | null>(null);
+  const [localConsentStatus, setLocalConsentStatus] = useState<ConsentStatus | 'none'>(consentStatus);
 
   const isSelf = profile.id === viewerProfile.id;
   const isMatched = connectionPairStatus === 'accepted';
 
-  // Exclusive Photo Privacy: Being a "Match" does NOT grant photo access.
-  // Photos are unlocked ONLY if viewing self or if an approved/accepted photo request exists.
-  const isPhotoUnlocked = isSelf || consentStatus === 'accepted' || (consentStatus as string) === 'approved';
+  // Sync prop changes
+  React.useEffect(() => {
+    setLocalConsentStatus(consentStatus);
+  }, [consentStatus]);
+
+  // Realtime subscription for photo_access_requests and photo_permissions
+  React.useEffect(() => {
+    if (isSelf || !viewerProfile?.id || !profile.id) return;
+
+    const fetchStatus = async () => {
+      try {
+        const { data: accessData } = await supabase
+          .from('photo_access_requests')
+          .select('status, grantee_id, grantor_id, requestor_id, target_id')
+          .or(`and(grantee_id.eq.${viewerProfile.id},grantor_id.eq.${profile.id}),and(grantee_id.eq.${profile.id},grantor_id.eq.${viewerProfile.id}),and(requestor_id.eq.${viewerProfile.id},target_id.eq.${profile.id})`)
+          .limit(1);
+
+        if (accessData && accessData.length > 0) {
+          const s = accessData[0].status;
+          setLocalConsentStatus(s === 'approved' ? 'approved' : s);
+          return;
+        }
+
+        const { data: permData } = await supabase
+          .from('photo_permissions')
+          .select('status, requestor_id, target_id')
+          .or(`and(requestor_id.eq.${viewerProfile.id},target_id.eq.${profile.id}),and(requestor_id.eq.${profile.id},target_id.eq.${viewerProfile.id})`)
+          .limit(1);
+
+        if (permData && permData.length > 0) {
+          const s = permData[0].status;
+          setLocalConsentStatus(s === 'approved' ? 'approved' : s);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch photo consent status:', err);
+      }
+    };
+
+    fetchStatus();
+
+    const channelAccess = supabase.channel(`photo_access_eval_${profile.id}_${viewerProfile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'photo_access_requests',
+        },
+        (payload) => {
+          const record = (payload.new || payload.old) as any;
+          if (record) {
+            const grantee = record.grantee_id || record.requestor_id;
+            const grantor = record.grantor_id || record.target_id;
+            if (
+              (grantee === viewerProfile.id && grantor === profile.id) ||
+              (grantee === profile.id && grantor === viewerProfile.id)
+            ) {
+              const s = record.status;
+              setLocalConsentStatus(s === 'approved' ? 'approved' : s);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channelAccess);
+    };
+  }, [viewerProfile?.id, profile.id, isSelf]);
+
+  // Exclusive Photo Privacy: Photos are unlocked ONLY if viewing self or if an approved/accepted photo request exists.
+  const isConsentGranted = isSelf || localConsentStatus === 'accepted' || (localConsentStatus as string) === 'approved';
+  const isPhotoUnlocked = isConsentGranted;
 
   // Real user name resolution with fallback
   const displayName = getDisplayName(profile);
@@ -188,19 +260,44 @@ export const ProfileEvaluationView: React.FC<ProfileEvaluationViewProps> = ({
 
           {/* Photo Request Action (if locked) */}
           {!isSelf && !isPhotoUnlocked && (
-            <div className="mt-3 w-full max-w-[240px]">
-              {consentStatus === 'pending' ? (
-                <div className="w-full py-1.5 px-3 rounded-xl text-xs font-medium bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700/60 text-center">
-                  Photo Request Pending
-                </div>
+            <div className="mt-3 w-full max-w-[240px] flex flex-col items-center gap-1.5">
+              {localConsentStatus === 'pending' ? (
+                <>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                    <Clock className="w-3 h-3 text-amber-400" />
+                    Photo Access Requested (Pending Approval)
+                  </span>
+                  <button
+                    disabled
+                    type="button"
+                    className="w-full py-1.5 px-3 rounded-xl text-xs font-semibold bg-zinc-800/80 text-zinc-400 border border-zinc-700 flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Request Sent</span>
+                  </button>
+                </>
               ) : (
                 <button
                   type="button"
-                  onClick={() => onSendConsentRequest(profile.id)}
-                  className="w-full py-2 px-3 rounded-xl text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950 dark:hover:bg-emerald-900 border border-emerald-300 dark:border-emerald-700/60 flex items-center justify-center gap-1.5 transition-colors"
+                  onClick={async () => {
+                    setLocalConsentStatus('pending');
+                    try {
+                      await supabase.from('photo_access_requests').insert({
+                        grantee_id: viewerProfile.id,
+                        grantor_id: profile.id,
+                        requestor_id: viewerProfile.id,
+                        target_id: profile.id,
+                        status: 'pending',
+                      });
+                    } catch (e) {
+                      console.warn('[ProfileEvaluationView] insert photo_access_requests note:', e);
+                    }
+                    onSendConsentRequest(profile.id);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl text-xs font-bold text-emerald-300 hover:text-emerald-200 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  Request Photo Reveal
+                  <span>Request Photo Access</span>
                 </button>
               )}
             </div>

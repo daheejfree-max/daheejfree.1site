@@ -50,6 +50,8 @@ export default function OnboardingPage({ onSuccess }: OnboardingPageProps) {
   const [waliPhone, setWaliPhone] = useState<string>('');
   const [waliEmail, setWaliEmail] = useState<string>('');
   const [antiDowryPledge, setAntiDowryPledge] = useState<boolean>(true);
+  const [termsAccepted, setTermsAccepted] = useState<boolean>(true);
+  const [privacyAccepted, setPrivacyAccepted] = useState<boolean>(true);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
@@ -260,6 +262,10 @@ export default function OnboardingPage({ onSuccess }: OnboardingPageProps) {
         }
       }
 
+      if (!termsAccepted || !privacyAccepted || !antiDowryPledge) {
+        throw new Error('You must accept the Terms of Service, Privacy Policy, and Anti-Dowry Charter to proceed.');
+      }
+
       if (!uploadedAvatarUrl) {
         throw new Error('Please select and upload a valid profile photo.');
       }
@@ -280,6 +286,9 @@ export default function OnboardingPage({ onSuccess }: OnboardingPageProps) {
         wali_phone: waliPhone.trim(),
         wali_email: waliEmail.trim() || user?.email || userEmail || `${activeId}@daheejfree.site`,
         avatar_url: uploadedAvatarUrl,
+        terms_accepted: true,
+        privacy_policy_accepted: true,
+        privacy_accepted: true,
         anti_dowry_pledge: true,
         anti_dowry_pledged: true,
         is_onboarded: true,
@@ -291,6 +300,18 @@ export default function OnboardingPage({ onSuccess }: OnboardingPageProps) {
       const { error: upsertError } = await supabase
         .from('profiles')
         .upsert(payload, { onConflict: 'id' });
+
+      // Explicit update to guarantee legal consent flags
+      await supabase
+        .from('profiles')
+        .update({
+          terms_accepted: true,
+          privacy_policy_accepted: true,
+          anti_dowry_pledge: true,
+          anti_dowry_pledged: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', activeId);
 
       if (upsertError) {
         console.error('Onboarding Save Error:', upsertError);
@@ -712,10 +733,11 @@ export default function OnboardingPage({ onSuccess }: OnboardingPageProps) {
             <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 space-y-2">
               <label className="flex items-start gap-3 cursor-pointer select-none">
                 <input
+                  id="checkbox-anti-dowry"
                   type="checkbox"
                   checked={antiDowryPledge}
                   onChange={(e) => setAntiDowryPledge(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-zinc-300 dark:border-zinc-700"
+                  className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-zinc-300 dark:border-zinc-700 cursor-pointer"
                 />
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-950 dark:text-emerald-200">
@@ -729,6 +751,40 @@ export default function OnboardingPage({ onSuccess }: OnboardingPageProps) {
               </label>
             </div>
 
+            {/* Mandatory Legal Agreements: Terms of Service & Privacy Policy */}
+            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 space-y-3">
+              <div className="text-xs font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
+                <Scale className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Mandatory Legal Agreements</span>
+              </div>
+              
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  id="checkbox-terms-accepted"
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-zinc-300 dark:border-zinc-700 cursor-pointer"
+                />
+                <span className="text-[11px] text-zinc-700 dark:text-zinc-300 leading-tight">
+                  I agree to the <strong className="text-emerald-600 dark:text-emerald-400">Terms of Service</strong> governing sacred Islamic matrimonial intentions, Wali representation, and community safety.
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  id="checkbox-privacy-accepted"
+                  type="checkbox"
+                  checked={privacyAccepted}
+                  onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-zinc-300 dark:border-zinc-700 cursor-pointer"
+                />
+                <span className="text-[11px] text-zinc-700 dark:text-zinc-300 leading-tight">
+                  I agree to the <strong className="text-emerald-600 dark:text-emerald-400">Privacy Policy</strong>, including 2-way gated photo consent and biometric identity verification safeguards.
+                </span>
+              </label>
+            </div>
+
             {/* Prominent Error Alert Banner Above Submit */}
             {error && (
               <div className="p-3.5 rounded-2xl bg-red-50 dark:bg-red-950/80 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-300 text-xs flex items-center gap-2.5 animate-in fade-in duration-150">
@@ -739,15 +795,16 @@ export default function OnboardingPage({ onSuccess }: OnboardingPageProps) {
 
             {/* Submit Button */}
             <button
+              id="btn-submit-onboarding"
               type="submit"
-              disabled={isSubmitting || !antiDowryPledge}
+              disabled={isSubmitting || !antiDowryPledge || !termsAccepted || !privacyAccepted}
               className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isSubmitting ? (
                 <span>Registering Profile & Charter...</span>
               ) : (
                 <>
-                  <span>Save Profile & Unlock Matches</span>
+                  <span>Accept Agreements & Save Profile</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

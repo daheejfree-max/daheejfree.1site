@@ -16,11 +16,12 @@ const NextResponse = {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    // 1. Secure server-side validation of DIDIT_API_KEY
+    // 1. Secure server-side validation of DIDIT_API_KEY and DIDIT_WORKFLOW_ID
     const diditApiKey = process.env.DIDIT_API_KEY;
-    if (!diditApiKey) {
+    const diditWorkflowId = process.env.DIDIT_WORKFLOW_ID;
+    if (!diditApiKey || !diditWorkflowId) {
       return NextResponse.json(
-        { error: 'KYC configuration missing on server.' },
+        { error: 'KYC configuration missing on server (DIDIT_API_KEY or DIDIT_WORKFLOW_ID).' },
         { status: 500 }
       );
     }
@@ -51,16 +52,17 @@ export async function POST(request: Request): Promise<Response> {
 
     const callbackUrl = `${siteUrl}/api/kyc/callback`;
 
-    // 3. Call Didit's v2 session API to generate a hosted verification link
+    // 3. Call Didit's v3 hosted verification session API
     const diditPayload = {
-      callback: callbackUrl,
+      workflow_id: diditWorkflowId,
       vendor_data: String(userId),
+      callback: callbackUrl,
     };
 
-    const res = await fetch('https://apx.didit.me/auth/v2/session/', {
+    const res = await fetch('https://verification.didit.me/v3/session/', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${diditApiKey}`,
+        'x-api-key': diditApiKey.trim(),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(diditPayload),
@@ -73,15 +75,15 @@ export async function POST(request: Request): Promise<Response> {
       data = JSON.parse(rawText);
     } catch {
       return NextResponse.json(
-        { error: 'Invalid response from Didit gateway', raw: rawText.slice(0, 300) },
+        { error: 'Gateway error', status: res.status, raw: rawText.slice(0, 300) },
         { status: 502 }
       );
     }
 
     if (!res.ok) {
       return NextResponse.json(
-        { error: data?.error || data?.message || 'Failed to create KYC session with Didit gateway', details: data },
-        { status: res.status }
+        { error: 'Gateway error', status: res.status, raw: rawText.slice(0, 300), details: data },
+        { status: 502 }
       );
     }
 

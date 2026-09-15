@@ -10,6 +10,7 @@ export default defineConfig(() => {
       alias: {
         '@': path.resolve(__dirname, '.'),
         'next/navigation': path.resolve(__dirname, 'src/lib/navigation.ts'),
+        'next/headers': path.resolve(__dirname, 'src/lib/headers.ts'),
       },
     },
     server: {
