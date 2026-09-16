@@ -262,20 +262,16 @@ export default function App() {
   }, [currentUserId]);
 
   const isAdmin = useMemo(() => {
+    const verifiedEmail = (sessionUserEmail || (currentProfile as any)?.email || '').toLowerCase().trim();
     const isSuperAdminEmail =
-      sessionUserEmail === 'hasnainkhan3177@gmail.com' ||
-      sessionUserEmail === 'behumble7860@gmail.com' ||
-      sessionUserEmail === 'admin@daheejfree.com';
+      verifiedEmail === 'hasnainkhan3177@gmail.com' ||
+      verifiedEmail === 'behumble7860@gmail.com' ||
+      verifiedEmail === 'admin@daheejfree.com';
 
     if (isSuperAdminEmail) return true;
 
     return Boolean(
-      currentProfile && (
-        (currentProfile as any).is_admin === true ||
-        currentProfile.wali_email === 'admin@daheejfree.com' ||
-        currentProfile.wali_email === 'behumble7860@gmail.com' ||
-        currentProfile.wali_email === 'hasnainkhan3177@gmail.com'
-      )
+      currentProfile && (currentProfile as any).is_admin === true
     );
   }, [currentProfile, sessionUserEmail]);
   const isLocalCovenantSigned = typeof window !== 'undefined' && (
@@ -647,6 +643,7 @@ export default function App() {
           setCurrentTab(tab);
         }}
         currentProfile={currentProfile}
+        isAdmin={isAdmin}
         tier={tier}
         allProfiles={allProfiles}
         onSwitchUser={switchUser}

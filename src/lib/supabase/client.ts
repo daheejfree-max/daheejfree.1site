@@ -4,14 +4,21 @@
 import { createBrowserClient } from '@supabase/ssr';
 import { daheejStore } from './store';
 
+// Direct static references ensure Next.js SWC and Vite bundlers reliably inline environment variables
 const rawUrl =
-  (typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_SUPABASE_URL || process.env?.VITE_SUPABASE_URL : undefined) ||
-  (typeof window !== 'undefined' && (import.meta as any as any).env?.VITE_SUPABASE_URL) ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  (typeof window !== 'undefined' && (window as any)?.__NEXT_DATA__?.env?.NEXT_PUBLIC_SUPABASE_URL) ||
+  (typeof window !== 'undefined' && (import.meta as any)?.env?.VITE_SUPABASE_URL) ||
+  (typeof window !== 'undefined' && (import.meta as any)?.env?.NEXT_PUBLIC_SUPABASE_URL) ||
   '';
 
 const rawAnonKey =
-  (typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env?.VITE_SUPABASE_ANON_KEY : undefined) ||
-  (typeof window !== 'undefined' && (import.meta as any as any).env?.VITE_SUPABASE_ANON_KEY) ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  (typeof window !== 'undefined' && (window as any)?.__NEXT_DATA__?.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+  (typeof window !== 'undefined' && (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY) ||
+  (typeof window !== 'undefined' && (import.meta as any)?.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
   '';
 
 export const isSupabaseConfigured = Boolean(

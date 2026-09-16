@@ -56,6 +56,7 @@ interface NavbarProps {
   acceptedMatchesCount?: number;
   hideMobileNav?: boolean;
   isNavigationLocked?: boolean;
+  isAdmin?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -75,11 +76,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   acceptedMatchesCount = 0,
   hideMobileNav = false,
   isNavigationLocked = false,
+  isAdmin: isAdminProp,
 }) => {
   const router = useRouter();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [localIsAdmin, setLocalIsAdmin] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -90,11 +92,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          if (isMounted) setIsAdmin(false);
+          if (isMounted) setLocalIsAdmin(false);
           return;
         }
 
-        const userEmail = user.email?.toLowerCase() || '';
+        const userEmail = (user.email || '').toLowerCase().trim();
         const isDesignatedSuperadmin =
           userEmail === 'hasnainkhan3177@gmail.com' ||
           userEmail === 'behumble7860@gmail.com' ||
@@ -108,13 +110,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         if (isMounted) {
           if (profile?.is_admin === true || isDesignatedSuperadmin) {
-            setIsAdmin(true);
+            setLocalIsAdmin(true);
           } else {
-            setIsAdmin(false);
+            setLocalIsAdmin(false);
           }
         }
       } catch (err) {
-        if (isMounted) setIsAdmin(false);
+        if (isMounted) setLocalIsAdmin(false);
       }
     };
 
@@ -124,6 +126,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       isMounted = false;
     };
   }, [currentProfile?.id]);
+
+  // isAdmin strictly governed: if passed as prop, prioritize prop; otherwise fallback to local verified check
+  const isAdmin = isAdminProp !== undefined ? Boolean(isAdminProp) : localIsAdmin;
 
   // Dynamic exact count state with real-time Supabase updates & instant decrementing
   const [livePendingRequestsCount, setLivePendingRequestsCount] = useState<number>(pendingRequestsCount);
@@ -1168,127 +1173,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       )}
     </header>
-
-    {/* 4. Mobile Bottom Sticky Navigation Tab Bar (Screens < 768px) - Positioned safely outside header */}
-    {currentProfile && !hideMobileNav && currentTab !== 'call' && (
-      <nav
-        aria-label="Mobile Bottom Navigation"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-200/80 dark:border-zinc-800/80 pb-safe shadow-[0_-4px_24px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.4)] transition-colors"
-      >
-        <div className="grid grid-cols-5 h-16 max-w-lg mx-auto px-1">
-          {/* 1. Discover */}
-          <button
-            id="mobile-tab-discover"
-            type="button"
-            onClick={() => handleNavClick('matches')}
-            className={`min-h-[44px] flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
-              currentTab === 'matches'
-                ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-            }`}
-          >
-            {currentTab === 'matches' && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600 dark:bg-emerald-400" />
-            )}
-            <Compass className={`min-h-[44px] w-5 h-5 ${currentTab === 'matches' ? 'stroke-[2.5]' : 'stroke-2'}`} />
-            <span className="text-[10px] mt-1 truncate">Discover</span>
-          </button>
-
-          {/* 2. Requests */}
-          <button
-            id="mobile-tab-requests"
-            type="button"
-            onClick={() => handleNavClick('requests')}
-            className={`min-h-[44px] flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
-              currentTab === 'requests'
-                ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-            }`}
-          >
-            {currentTab === 'requests' && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600 dark:bg-emerald-400" />
-            )}
-            <div className="relative">
-              <UserCheck className={`min-h-[44px] w-5 h-5 ${currentTab === 'requests' ? 'stroke-[2.5]' : 'stroke-2'}`} />
-              {livePendingRequestsCount > 0 && (
-                <span className="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-rose-600 text-white text-[9px] font-extrabold flex items-center justify-center animate-pulse shadow-xs">
-                  {livePendingRequestsCount}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] mt-1 truncate">Requests</span>
-          </button>
-
-          {/* 3. My Matches */}
-          <button
-            id="mobile-tab-my-matches"
-            type="button"
-            onClick={() => handleNavClick('my-matches')}
-            className={`min-h-[44px] flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
-              currentTab === 'my-matches' || currentTab === 'accepted'
-                ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-            }`}
-          >
-            {(currentTab === 'my-matches' || currentTab === 'accepted') && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600 dark:bg-emerald-400" />
-            )}
-            <div className="relative">
-              <HeartHandshake className={`min-h-[44px] w-5 h-5 ${currentTab === 'my-matches' || currentTab === 'accepted' ? 'stroke-[2.5]' : 'stroke-2'}`} />
-              {liveAcceptedMatchesCount > 0 && (
-                <span className="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center shadow-xs">
-                  {liveAcceptedMatchesCount}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] mt-1 truncate">Matches</span>
-          </button>
-
-          {/* 4. Messages */}
-          <button
-            id="mobile-tab-messages"
-            type="button"
-            onClick={() => handleNavClick('messages')}
-            className={`min-h-[44px] flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
-              currentTab === 'messages'
-                ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-            }`}
-          >
-            {currentTab === 'messages' && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600 dark:bg-emerald-400" />
-            )}
-            <div className="relative">
-              <MessageSquare className={`min-h-[44px] w-5 h-5 ${currentTab === 'messages' ? 'stroke-[2.5]' : 'stroke-2'}`} />
-              {liveUnreadMessagesCount > 0 && (
-                <span className="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-emerald-600 text-white text-[9px] font-extrabold flex items-center justify-center animate-pulse shadow-xs">
-                  {liveUnreadMessagesCount}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] mt-1 truncate">Messages</span>
-          </button>
-
-          {/* 5. Profile */}
-          <button
-            id="mobile-tab-profile"
-            type="button"
-            onClick={() => handleNavClick('profile')}
-            className={`min-h-[44px] flex flex-col items-center justify-center min-h-[48px] py-1 transition-all relative ${
-              currentTab === 'profile'
-                ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-            }`}
-          >
-            {currentTab === 'profile' && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600 dark:bg-emerald-400" />
-            )}
-            <User className={`min-h-[44px] w-5 h-5 ${currentTab === 'profile' ? 'stroke-[2.5]' : 'stroke-2'}`} />
-            <span className="text-[10px] mt-1 truncate">Profile</span>
-          </button>
-        </div>
-      </nav>
-    )}
   </>
   );
 };

@@ -83,9 +83,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     <nav
       id="mobile-bottom-navigation"
       aria-label="Mobile Navigation"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border-t border-zinc-200/90 dark:border-zinc-800/90 px-2 py-1 safe-area-bottom shadow-lg"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border-t border-zinc-200/90 dark:border-zinc-800/90 px-2 py-1 pb-safe shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.4)] transition-colors"
     >
-      <div className="flex items-center justify-around max-w-md mx-auto">
+      <div className="flex items-center justify-around max-w-md mx-auto h-14">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -94,9 +94,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               id={`bottom-nav-${item.id}`}
               type="button"
               onClick={() => onNavigate(item.id)}
-              className={`relative flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all duration-150 min-w-[56px] ${
+              className={`relative flex flex-col items-center justify-center min-h-[48px] min-w-[48px] px-2 rounded-xl transition-all duration-150 cursor-pointer active:scale-95 ${
                 item.isActive
-                  ? 'text-emerald-600 dark:text-emerald-400 font-bold scale-105'
+                  ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                   : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
               }`}
             >
@@ -116,7 +116,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   </span>
                 )}
               </div>
-              <span className="text-[10px] tracking-tight mt-1 truncate max-w-[64px]">
+              <span className="text-[10px] tracking-tight mt-1 truncate max-w-[64px] font-medium">
                 {item.label}
               </span>
               {item.isActive && (
@@ -133,7 +133,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             type="button"
             onClick={() => onNavigate('admin')}
             title="Admin Console"
-            className={`relative flex flex-col items-center justify-center py-1.5 px-2 rounded-xl transition-all duration-150 min-w-[48px] ${
+            className={`relative flex flex-col items-center justify-center min-h-[48px] min-w-[48px] px-2 rounded-xl transition-all duration-150 cursor-pointer active:scale-95 ${
               currentTab === 'admin'
                 ? 'text-emerald-500 font-bold'
                 : 'text-zinc-400 hover:text-emerald-400'

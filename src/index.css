@@ -163,7 +163,12 @@ iframe.goog-te-banner-frame {
 
 
 @media (max-width: 768px) {
-  button {
+  /* Ensure navigation items, primary actions, and touch controls meet 44px touch target standards */
+  nav button,
+  button[type="submit"],
+  .touch-target,
+  [role="button"],
+  #mobile-bottom-navigation button {
     min-height: 44px;
     min-width: 44px;
   }
