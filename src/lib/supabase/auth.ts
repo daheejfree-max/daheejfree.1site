@@ -231,6 +231,7 @@ export async function signUpWithEmailSupabase(
       wali_email: data.waliEmail || data.email,
       legal_consent_accepted_at: data.legalConsentAcceptedAt || new Date().toISOString(),
       terms_accepted: true,
+      privacy_policy_accepted: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       subscription_tier: 'free',

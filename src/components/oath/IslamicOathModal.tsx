@@ -104,7 +104,8 @@ export const IslamicOathModal: React.FC<IslamicOathModalProps> = ({
             islamic_oath_date: new Date().toISOString(),
             anti_dowry_pledged: true,
             terms_accepted: true,
-            privacy_accepted: true,
+            privacy_policy_accepted: true,
+            updated_at: new Date().toISOString(),
           })
           .eq('id', targetUserId);
 
@@ -120,7 +121,7 @@ export const IslamicOathModal: React.FC<IslamicOathModalProps> = ({
             islamic_oath_signed: true,
             anti_dowry_pledged: true,
             terms_accepted: true,
-            privacy_accepted: true,
+            privacy_policy_accepted: true,
           });
         } catch (storeErr) {
           // ignore store error

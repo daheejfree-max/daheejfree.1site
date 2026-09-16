@@ -288,8 +288,6 @@ export default function OnboardingPage({ onSuccess }: OnboardingPageProps) {
         avatar_url: uploadedAvatarUrl,
         terms_accepted: true,
         privacy_policy_accepted: true,
-        privacy_accepted: true,
-        anti_dowry_pledge: true,
         anti_dowry_pledged: true,
         is_onboarded: true,
         photo_privacy: true,
@@ -307,7 +305,6 @@ export default function OnboardingPage({ onSuccess }: OnboardingPageProps) {
         .update({
           terms_accepted: true,
           privacy_policy_accepted: true,
-          anti_dowry_pledge: true,
           anti_dowry_pledged: true,
           updated_at: new Date().toISOString(),
         })

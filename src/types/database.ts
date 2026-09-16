@@ -68,7 +68,6 @@ export interface Profile {
   marital_status?: string;
   has_children?: boolean;
   height_cm?: number;
-  anti_dowry_pledge?: boolean;
   anti_dowry_pledged?: boolean;
   dowry_pledge_signed?: boolean;
   islamic_oath_signed?: boolean;
@@ -76,7 +75,6 @@ export interface Profile {
   covenant_signed?: boolean;
   covenant_signed_at?: string;
   terms_accepted?: boolean;
-  privacy_accepted?: boolean;
   privacy_policy_accepted?: boolean;
   policies_accepted?: boolean;
   is_onboarded?: boolean;

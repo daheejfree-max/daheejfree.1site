@@ -208,8 +208,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
 
   const isZeroDowryBadge = Boolean(
     profile.dowry_pledge_signed === true ||
-    profile.anti_dowry_pledged === true ||
-    (profile as any as any).anti_dowry_pledge === true
+    profile.anti_dowry_pledged === true
   );
 
   const isDiamondBadge = Boolean(

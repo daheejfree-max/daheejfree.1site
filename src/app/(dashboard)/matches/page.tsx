@@ -112,8 +112,8 @@ export default function MatchesPage() {
             selfie_verified: Boolean(p.selfie_verified),
             membership_tier: (p.membership_tier as SubscriptionTier) || (p.subscription_tier as SubscriptionTier) || 'free',
             subscription_tier: (p.subscription_tier as SubscriptionTier) || (p.membership_tier as SubscriptionTier) || 'free',
-            dowry_pledge_signed: Boolean(p.dowry_pledge_signed ?? p.anti_dowry_pledged ?? p.anti_dowry_pledge ?? true),
-            anti_dowry_pledged: Boolean(p.dowry_pledge_signed ?? p.anti_dowry_pledged ?? p.anti_dowry_pledge ?? true),
+            dowry_pledge_signed: Boolean(p.dowry_pledge_signed ?? p.anti_dowry_pledged ?? true),
+            anti_dowry_pledged: Boolean(p.dowry_pledge_signed ?? p.anti_dowry_pledged ?? true),
             // Real photo exposed ONLY if photo consent is accepted/approved
             avatar_url: hasPhotoAccess ? (hasRealAvatar ? p.avatar_url : fallbackGenderAvatar) : undefined,
             photo_blur_hash: p.photo_blur_hash || 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',

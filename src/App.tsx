@@ -391,8 +391,8 @@ export default function App() {
       currentUserId &&
       currentProfile &&
       (!currentProfile.terms_accepted ||
-        !(currentProfile.privacy_policy_accepted || currentProfile.privacy_accepted) ||
-        !(currentProfile.anti_dowry_pledged || currentProfile.anti_dowry_pledge));
+        !currentProfile.privacy_policy_accepted ||
+        !currentProfile.anti_dowry_pledged);
 
     const needsOnboarding =
       currentUserId &&
@@ -560,7 +560,7 @@ export default function App() {
         city: p.city || p.location || 'Not Specified',
         kyc_status: p.kyc_status || 'pending',
         subscription_tier: (p.subscription_tier as SubscriptionTier) || 'free',
-        anti_dowry_pledged: Boolean(p.anti_dowry_pledge ?? p.anti_dowry_pledged ?? true),
+        anti_dowry_pledged: Boolean(p.anti_dowry_pledged ?? true),
         avatar_url: p.avatar_url || (normGender === 'female' ? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500&auto=format&fit=crop&q=80' : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&auto=format&fit=crop&q=80'),
         photo_blur_hash: p.photo_blur_hash || 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
         has_photo_consent: hasConsent,
@@ -653,8 +653,8 @@ export default function App() {
           currentUserId &&
           currentProfile &&
           (!currentProfile.terms_accepted ||
-            !(currentProfile.privacy_policy_accepted || currentProfile.privacy_accepted) ||
-            !(currentProfile.anti_dowry_pledged || currentProfile.anti_dowry_pledge) ||
+            !currentProfile.privacy_policy_accepted ||
+            !currentProfile.anti_dowry_pledged ||
             currentProfile.is_onboarded === false ||
             !currentProfile.avatar_url ||
             !currentProfile.profession ||
@@ -1122,7 +1122,7 @@ export default function App() {
               covenant_signed_at: new Date().toISOString(),
               anti_dowry_pledged: true,
               terms_accepted: true,
-              privacy_accepted: true,
+              privacy_policy_accepted: true,
             });
             daheejStore.updateProfile(currentProfile.id, {
               islamic_oath_signed: true,
@@ -1130,7 +1130,7 @@ export default function App() {
               covenant_signed_at: new Date().toISOString(),
               anti_dowry_pledged: true,
               terms_accepted: true,
-              privacy_accepted: true,
+              privacy_policy_accepted: true,
             });
             try {
               localStorage.setItem('covenant_signed', 'true');
@@ -1169,8 +1169,8 @@ export default function App() {
           currentUserId &&
           currentProfile &&
           (!currentProfile.terms_accepted ||
-            !(currentProfile.privacy_policy_accepted || currentProfile.privacy_accepted) ||
-            !(currentProfile.anti_dowry_pledged || currentProfile.anti_dowry_pledge) ||
+            !currentProfile.privacy_policy_accepted ||
+            !currentProfile.anti_dowry_pledged ||
             currentProfile.is_onboarded === false ||
             !currentProfile.avatar_url ||
             !currentProfile.profession ||

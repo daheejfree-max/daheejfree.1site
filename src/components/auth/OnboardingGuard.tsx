@@ -23,14 +23,14 @@ interface OnboardingGuardProps {
 /**
  * Checks if a profile has accepted all required legal agreements:
  * 1. terms_accepted === true
- * 2. privacy_policy_accepted === true (or privacy_accepted === true)
- * 3. anti_dowry_pledged === true (or anti_dowry_pledge === true)
+ * 2. privacy_policy_accepted === true
+ * 3. anti_dowry_pledged === true
  */
 export function hasAcceptedLegalConsent(profile: Profile | null): boolean {
   if (!profile) return false;
   const termsOk = Boolean(profile.terms_accepted);
-  const privacyOk = Boolean(profile.privacy_policy_accepted || profile.privacy_accepted);
-  const dowryOk = Boolean(profile.anti_dowry_pledged || profile.anti_dowry_pledge);
+  const privacyOk = Boolean(profile.privacy_policy_accepted);
+  const dowryOk = Boolean(profile.anti_dowry_pledged);
   return termsOk && privacyOk && dowryOk;
 }
 
@@ -55,7 +55,7 @@ export const OnboardingGuard: React.FC<OnboardingGuardProps> = ({
         // Query public.profiles directly on mount for current user record
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, terms_accepted, privacy_policy_accepted, privacy_accepted, anti_dowry_pledged, anti_dowry_pledge, is_onboarded')
+          .select('id, terms_accepted, privacy_policy_accepted, anti_dowry_pledged, is_onboarded')
           .eq('id', currentUserId)
           .maybeSingle();
 
@@ -63,8 +63,8 @@ export const OnboardingGuard: React.FC<OnboardingGuardProps> = ({
           if (data && !error) {
             const hasConsent =
               Boolean(data.terms_accepted) &&
-              Boolean(data.privacy_policy_accepted || data.privacy_accepted) &&
-              Boolean(data.anti_dowry_pledged || data.anti_dowry_pledge);
+              Boolean(data.privacy_policy_accepted) &&
+              Boolean(data.anti_dowry_pledged);
 
             if (!hasConsent && currentTab !== 'onboarding' && currentTab !== 'auth-callback' && currentTab !== 'reset-password') {
               onRedirectToOnboarding();

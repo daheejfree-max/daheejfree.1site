@@ -159,7 +159,7 @@ export function useAuth() {
         'didit_session_url', 'subscription_id', 'subscription_status', 'photo_privacy',
         'is_photo_private', 'photo_blur_hash', 'photo_privacy_mode', 'selfie_verified',
         'selfie_url', 'selfie_verification_url', 'legal_consent_accepted_at',
-        'terms_accepted', 'icebreakers', 'last_known_ip', 'updated_at'
+        'terms_accepted', 'privacy_policy_accepted', 'icebreakers', 'last_known_ip', 'updated_at'
       ]);
       const cleanUpdates: Record<string, any> = {};
       for (const [k, v] of Object.entries(updates)) {

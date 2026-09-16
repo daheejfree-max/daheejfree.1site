@@ -181,6 +181,7 @@ export default function RegisterPage({ onSuccess, onNavigateLogin }: RegisterPag
           wali_email: waliEmail.trim() || email.trim(),
           legal_consent_accepted_at: consentTimestamp,
           terms_accepted: true,
+          privacy_policy_accepted: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           subscription_tier: 'free',
@@ -207,12 +208,25 @@ export default function RegisterPage({ onSuccess, onNavigateLogin }: RegisterPag
             kyc_status: 'verified',
             legal_consent_accepted_at: consentTimestamp,
             terms_accepted: true,
+            privacy_policy_accepted: true,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }, { onConflict: 'id', ignoreDuplicates: true });
 
           if (dbInsertErr) {
             console.error('[Register] Supabase profile upsert raw error object:', dbInsertErr);
+          }
+
+          // Strict explicit legal consent update using exact column names
+          const { error: updateErr } = await supabase.from('profiles').update({
+            terms_accepted: true,
+            privacy_policy_accepted: true,
+            anti_dowry_pledged: true,
+            updated_at: new Date().toISOString(),
+          }).eq('id', userId);
+
+          if (updateErr) {
+            console.error('[Register] Supabase legal consent update error:', updateErr);
           }
         } catch (dbErr) {
           console.error('[Register] Profile database upsert exception:', dbErr);

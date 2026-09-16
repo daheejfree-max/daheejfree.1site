@@ -99,7 +99,10 @@ export async function GET(request: Request) {
             location: user.user_metadata?.location || 'Hyderabad, TS',
             profession: user.user_metadata?.profession || 'Professional',
             wali_email: user.email,
-            anti_dowry_pledged: true,
+            // Legal consent: do NOT insert null. Let database defaults (false) apply unless explicitly accepted in metadata
+            ...(user.user_metadata?.anti_dowry_pledged === true ? { anti_dowry_pledged: true } : {}),
+            ...(user.user_metadata?.terms_accepted === true ? { terms_accepted: true } : {}),
+            ...(user.user_metadata?.privacy_policy_accepted === true ? { privacy_policy_accepted: true } : {}),
             kyc_status: 'verified',
             last_known_ip: clientIp,
             created_at: new Date().toISOString(),
