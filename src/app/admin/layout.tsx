@@ -38,35 +38,53 @@ export default async function AdminLayout({
   const cookieStore = await cookies();
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      get(name: string) {
-        return cookieStore?.get ? cookieStore.get(name)?.value : undefined;
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
+          // Handled for Server Components
+        }
       },
     },
   });
 
   // 2. Authenticate User Session (redirect strictly OUTSIDE try/catch to avoid Error 310)
-  const { data: authData } = await supabase.auth.getUser();
-  const user = authData?.user;
-
-  if (!user) {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData?.user) {
     redirect('/login');
   }
 
+  const user = authData.user;
   const userEmail = user.email?.toLowerCase() || '';
-
-  // 3. Verify is_admin in public.profiles table (redirect strictly OUTSIDE try/catch)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single();
 
   const isDesignatedSuperadmin =
     userEmail === 'behumble7860@gmail.com' ||
     userEmail === 'hasnainkhan3177@gmail.com' ||
     userEmail === 'admin@daheejfree.com';
 
-  const isAdmin = Boolean(profile?.is_admin || isDesignatedSuperadmin);
+  // 3. Verify is_admin in public.profiles table (redirect strictly OUTSIDE try/catch)
+  let isAdminFromDb = false;
+  try {
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.warn('[AdminLayout] Profile query notice:', profileError.message);
+    }
+    isAdminFromDb = Boolean(profile?.is_admin);
+  } catch (err) {
+    console.error('[AdminLayout] Error fetching profile:', err);
+  }
+
+  const isAdmin = Boolean(isAdminFromDb || isDesignatedSuperadmin);
 
   if (!isAdmin) {
     redirect('/');

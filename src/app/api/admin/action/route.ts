@@ -51,11 +51,15 @@ export async function POST(req: Request) {
       userEmail === 'hasnainkhan3177@gmail.com' ||
       userEmail === 'admin@daheejfree.com';
 
-    const { data: profile } = await adminClient
+    const { data: profile, error: profileErr } = await adminClient
       .from('profiles')
       .select('is_admin')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
+
+    if (profileErr) {
+      console.warn('[api/admin/action] Admin verification notice:', profileErr.message);
+    }
 
     const isAdmin = Boolean(profile?.is_admin || isDesignatedSuperadmin);
     if (!isAdmin) {
@@ -83,9 +87,16 @@ export async function POST(req: Request) {
       .update(updateData)
       .eq('id', targetUserId)
       .select()
-      .single();
+      .maybeSingle();
 
-    if (dbErr) throw dbErr;
+    if (dbErr) {
+      console.error('[api/admin/action] Mutation DB error:', dbErr);
+      return NextResponse.json({ error: dbErr.message }, { status: 500 });
+    }
+
+    if (!updatedProfile) {
+      return NextResponse.json({ error: `User profile with ID ${targetUserId} not found` }, { status: 404 });
+    }
 
     return NextResponse.json({
       success: true,

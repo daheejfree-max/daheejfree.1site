@@ -20,29 +20,53 @@ export default async function AdminKycLayout({
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      get(name: string) {
-        return cookieStore?.get ? cookieStore.get(name)?.value : undefined;
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
+          // Handled for Server Components
+        }
       },
     },
   });
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login'); // OUTSIDE try/catch
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData?.user) {
+    redirect('/login'); // OUTSIDE try/catch
+  }
 
+  const user = authData.user;
   const userEmail = user.email?.toLowerCase() || '';
   const isDesignatedSuperadmin =
     userEmail === 'behumble7860@gmail.com' ||
     userEmail === 'hasnainkhan3177@gmail.com' ||
     userEmail === 'admin@daheejfree.com';
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single();
+  let isAdminFromDb = false;
+  try {
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .maybeSingle();
 
-  const isAdmin = Boolean(profile?.is_admin || isDesignatedSuperadmin);
-  if (!isAdmin) redirect('/'); // OUTSIDE try/catch
+    if (profileError) {
+      console.warn('[AdminKycLayout] Profile lookup warning:', profileError.message);
+    }
+    isAdminFromDb = Boolean(profile?.is_admin);
+  } catch (err) {
+    console.error('[AdminKycLayout] Error fetching profile:', err);
+  }
+
+  const isAdmin = Boolean(isAdminFromDb || isDesignatedSuperadmin);
+  if (!isAdmin) {
+    redirect('/'); // OUTSIDE try/catch
+  }
 
   return <>{children}</>;
 }

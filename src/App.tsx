@@ -46,9 +46,6 @@ import { GlobalCallPopup } from './components/GlobalCallPopup';
 import { GlobalNotificationListener } from './components/notifications/GlobalNotificationListener';
 import { PrivacyAntiScreenshotGuard } from './components/privacy/PrivacyAntiScreenshotGuard';
 import { IslamicOathModal } from './components/oath/IslamicOathModal';
-import { PrayerTimeWidget } from './components/prayer/PrayerTimeWidget';
-import { PrayerTimeModal } from './components/prayer/PrayerTimeModal';
-import { PrayerQuickBanner } from './components/prayer/PrayerQuickBanner';
 import LandingGatewayPage from './app/page';
 import WebRTCCallsRoutePage from './app/calls/page';
 import LoginPage from './app/(auth)/login/page';
@@ -118,8 +115,6 @@ export default function App() {
         'pricing',
         'pledge',
         'profile',
-        'prayer',
-        'prayer-times',
         'login',
         'signup',
         'register',
@@ -241,7 +236,6 @@ export default function App() {
   const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all');
   const [kycOnly, setKycOnly] = useState<boolean>(false);
   const [isPricingOpen, setIsPricingOpen] = useState<boolean>(false);
-  const [isPrayerModalOpen, setIsPrayerModalOpen] = useState<boolean>(false);
   const [activeWaliProfile, setActiveWaliProfile] = useState<ProfileSecureView | null>(null);
   const [activeConsentProfile, setActiveConsentProfile] = useState<ProfileSecureView | null>(null);
   const [activeChatProfile, setActiveChatProfile] = useState<ProfileSecureView | null>(null);
@@ -650,7 +644,6 @@ export default function App() {
         onOpenPricing={() => setIsPricingOpen(true)}
         onOpenLogin={() => setCurrentTab('login')}
         onOpenRegister={() => setCurrentTab('signup')}
-        onOpenPrayerTimes={() => setIsPrayerModalOpen(true)}
         pendingConsentCount={pendingInboundCount}
         unreadMessagesCount={unreadMessagesCount}
         pendingRequestsCount={pendingRequestsCount}
@@ -782,12 +775,6 @@ export default function App() {
         {/* Tab 1: Nikah Matches (Explorer) */}
         {currentTab === 'matches' && (
           <div className="space-y-6">
-            {/* Islamic Prayer Times Ambient Quick Banner */}
-            <PrayerQuickBanner
-              userCity={currentProfile?.city || currentProfile?.location}
-              onOpenFullWidget={() => setIsPrayerModalOpen(true)}
-            />
-
             {/* Search & Filter Bar */}
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-3.5 sm:p-5 shadow-sm dark:shadow-xl transition-colors">
               <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
@@ -997,16 +984,6 @@ export default function App() {
           />
         )}
 
-        {/* Tab: Islamic Prayer Times & Qibla Direction */}
-        {(currentTab === 'prayer' || currentTab === 'prayer-times') && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <PrayerTimeWidget
-              initialCity={currentProfile?.city || currentProfile?.location || 'Karachi'}
-              initialCountry={(currentProfile as any)?.country || 'Location Unknown'}
-            />
-          </div>
-        )}
-
         {/* Tab 7: Admin Compliance & KYC Queue */}
         {currentTab === 'admin-kyc' && (
           isAdmin ? (
@@ -1172,14 +1149,6 @@ export default function App() {
           }}
         />
       )}
-
-      {/* Islamic Prayer Times & Qibla Direction Global Modal */}
-      <PrayerTimeModal
-        isOpen={isPrayerModalOpen}
-        onClose={() => setIsPrayerModalOpen(false)}
-        initialCity={currentProfile?.city || currentProfile?.location || 'Karachi'}
-        initialCountry={(currentProfile as any)?.country || 'Location Unknown'}
-      />
 
       {/* Footer */}
       {currentTab !== 'messages' && currentTab !== 'call' && (

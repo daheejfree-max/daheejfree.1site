@@ -111,7 +111,7 @@ export const IdentityVerificationModal: React.FC<IdentityVerificationModalProps>
         .from('profiles')
         .select('kyc_verified, kyc_status, id_verified, selfie_verified, is_verified')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.warn('[IdentityVerification] Profile query notice:', error);

@@ -6,7 +6,8 @@ import { cookies } from 'next/headers';
 
 /**
  * Next.js Server Action for executing admin actions securely.
- * Bypasses environmental routing issues (/api/admin/action 405) by executing directly on the server.
+ * Authenticates caller via cookies / token, verifies admin clearance,
+ * and performs mutations strictly using the elevated Supabase Service Role client.
  */
 export async function executeAdminAction(
   targetUserId: string,
@@ -35,40 +36,52 @@ export async function executeAdminAction(
       };
     }
 
-    // 1. Authenticate the caller session
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore?.get ? cookieStore.get(name)?.value : undefined;
-          },
+    // 1. Authenticate the caller session with full cookie forwarding
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
         },
-      }
-    );
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Handled if invoked in context where cookie setting is constrained
+          }
+        },
+      },
+    });
 
     let user: any = null;
-    // Authenticate via cookies first
+    // Authenticate via forwarded cookies first
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      user = authData?.user;
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      if (!authErr && authData?.user) {
+        user = authData.user;
+      }
     } catch (e) {
       console.warn('[executeAdminAction] getUser error:', e);
     }
 
-    // If cookies were not present, cryptographically verify token from client session
+    // Cryptographically verify token from client session if cookie session was missing
     if (!user && payload?.token) {
       try {
-        const { data: tokenAuth } = await supabase.auth.getUser(payload.token);
-        user = tokenAuth?.user;
+        const { data: tokenAuth, error: tokenErr } = await supabase.auth.getUser(payload.token);
+        if (!tokenErr && tokenAuth?.user) {
+          user = tokenAuth.user;
+        }
       } catch (e) {
         console.warn('[executeAdminAction] token auth error:', e);
       }
     }
 
     if (!user) {
-      throw new Error('Unauthorized: No active verified user session');
+      return {
+        success: false,
+        error: 'Unauthorized: No active verified user session found.',
+      };
     }
 
     const userEmail = user.email?.toLowerCase() || '';
@@ -77,40 +90,39 @@ export async function executeAdminAction(
       userEmail === 'hasnainkhan3177@gmail.com' ||
       userEmail === 'admin@daheejfree.com';
 
-    // 2. Verify caller is an admin
-    let dbClient: any = supabase;
-
-    if (serviceRoleKey) {
-      const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-
-      const { data: profile } = await adminClient
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single();
-
-      const isAdmin = Boolean(profile?.is_admin || isDesignatedSuperadmin);
-      if (!isAdmin) {
-        throw new Error('Forbidden: Caller does not possess admin clearance');
-      }
-
-      dbClient = adminClient;
-    } else {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single();
-
-      const isAdmin = Boolean(profile?.is_admin || isDesignatedSuperadmin);
-      if (!isAdmin) {
-        throw new Error('Forbidden: Caller does not possess admin clearance');
-      }
+    // 2. Verify caller possesses admin status
+    // Use service role client if available to bypass RLS during admin verification
+    if (!serviceRoleKey) {
+      console.error('[executeAdminAction] Missing SUPABASE_SERVICE_ROLE_KEY');
+      return {
+        success: false,
+        error: 'Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is required for admin mutations.',
+      };
     }
 
-    // 3. Execute Mutation
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const { data: profile, error: profileErr } = await adminClient
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profileErr) {
+      console.warn('[executeAdminAction] Profile lookup notice:', profileErr.message);
+    }
+
+    const isAdmin = Boolean(profile?.is_admin || isDesignatedSuperadmin);
+    if (!isAdmin) {
+      return {
+        success: false,
+        error: 'Forbidden: Caller does not possess admin clearance.',
+      };
+    }
+
+    // 3. Execute Mutation via elevated Service Role Client (strictly bypassing RLS)
     let updateData: any = { updated_at: new Date().toISOString() };
     if (action === 'verify_kyc') {
       updateData = {
@@ -135,18 +147,32 @@ export async function executeAdminAction(
         is_active: true,
       };
     } else {
-      throw new Error(`Invalid action: ${action}`);
+      return {
+        success: false,
+        error: `Invalid admin action requested: ${action}`,
+      };
     }
 
-    const { data: updatedProfile, error: dbError } = await dbClient
+    const { data: updatedProfile, error: dbError } = await adminClient
       .from('profiles')
       .update(updateData)
       .eq('id', targetUserId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (dbError) {
-      throw new Error(dbError.message);
+      console.error('[executeAdminAction Mutation Error]:', dbError);
+      return {
+        success: false,
+        error: `Database mutation failed: ${dbError.message}`,
+      };
+    }
+
+    if (!updatedProfile) {
+      return {
+        success: false,
+        error: `Target user profile ${targetUserId} not found or update returned no rows.`,
+      };
     }
 
     return {

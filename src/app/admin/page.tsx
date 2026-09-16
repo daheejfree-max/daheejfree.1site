@@ -65,11 +65,15 @@ export default function AdminControlPanel() {
           (currentLocal as any)?.is_admin === true;
 
         if (user && isSupabaseConfigured) {
-          const { data: profile } = await supabase
+          const { data: profile, error: profileErr } = await supabase
             .from('profiles')
             .select('is_admin')
             .eq('id', user.id)
-            .single();
+            .maybeSingle();
+
+          if (profileErr) {
+            console.warn('[AdminPage] Admin verification lookup notice:', profileErr.message);
+          }
 
           setIsAdmin(Boolean(profile?.is_admin || isDesignated));
         } else {
@@ -261,7 +265,7 @@ export default function AdminControlPanel() {
             .update(updateData)
             .eq('id', targetUserId)
             .select()
-            .single();
+            .maybeSingle();
 
           if (!fallbackError && updatedProfile) {
             return {

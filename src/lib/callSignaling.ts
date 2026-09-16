@@ -301,7 +301,7 @@ export async function sendCallInvite({
         payload: signalPayload,
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       // Fallback via server API

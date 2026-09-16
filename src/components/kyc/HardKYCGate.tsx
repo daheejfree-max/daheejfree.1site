@@ -110,7 +110,7 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
         .from('profiles')
         .select('kyc_verified, kyc_status, id_verified, selfie_verified, is_verified')
         .eq('id', currentProfile.id)
-        .single();
+        .maybeSingle();
 
       if (dbErr) {
         console.warn('[HardKYCGate] Profile query warning:', dbErr);

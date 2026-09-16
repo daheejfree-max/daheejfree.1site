@@ -27,7 +27,6 @@ import {
   Menu,
   X,
   Compass,
-  Clock,
   Globe,
 } from 'lucide-react';
 import { Profile, SubscriptionTier } from '../../types';
@@ -49,7 +48,6 @@ interface NavbarProps {
   onOpenPricing: () => void;
   onOpenLogin?: () => void;
   onOpenRegister?: () => void;
-  onOpenPrayerTimes?: () => void;
   pendingConsentCount: number;
   unreadMessagesCount?: number;
   pendingRequestsCount?: number;
@@ -69,7 +67,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenPricing,
   onOpenLogin,
   onOpenRegister,
-  onOpenPrayerTimes,
   pendingConsentCount,
   unreadMessagesCount = 0,
   pendingRequestsCount = 0,
@@ -102,11 +99,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           userEmail === 'behumble7860@gmail.com' ||
           userEmail === 'admin@daheejfree.com';
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileErr } = await supabase
           .from('profiles')
           .select('is_admin')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
+
+        if (profileErr) {
+          console.warn('[Navbar] Admin lookup notice:', profileErr.message);
+        }
 
         if (isMounted) {
           if (profile?.is_admin === true || isDesignatedSuperadmin) {
@@ -509,22 +510,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </nav>
 
-          {/* Right: Actions, Theme Toggle, Prayer Times, Tier Badge, Account Menu & Mobile Toggle */}
+          {/* Right: Actions, Theme Toggle, Tier Badge, Account Menu & Mobile Toggle */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Desktop Prayer Times Quick Trigger (visible on xl+ or via menu) */}
-            <button
-              id="btn-nav-prayer-times"
-              onClick={() => {
-                if (onOpenPrayerTimes) onOpenPrayerTimes();
-                else handleNavClick('prayer');
-              }}
-              className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-all cursor-pointer shadow-xs"
-              title="Islamic Prayer Times & Qibla Direction"
-            >
-              <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Prayer Times</span>
-            </button>
-
             {/* Notifications Bell (Desktop & Mobile) */}
             {currentProfile?.id && (
               <div className="flex items-center">
@@ -676,19 +663,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       >
                         <CreditCard className="w-4 h-4 text-amber-500" />
                         <span>Upgrade / Manage Membership</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUserDropdownOpen(false);
-                          if (onOpenPrayerTimes) onOpenPrayerTimes();
-                          else handleNavClick('prayer');
-                        }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 cursor-pointer"
-                      >
-                        <Clock className="w-4 h-4 text-emerald-600" />
-                        <span>Islamic Prayer Times & Qibla</span>
                       </button>
 
                       <button
@@ -998,19 +972,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div className="mt-1.5 space-y-1">
                         <button
                           type="button"
-                          onClick={() => {
-                            setMobileMenuOpen(false);
-                            if (onOpenPrayerTimes) onOpenPrayerTimes();
-                            else handleNavClick('prayer');
-                          }}
-                          className="w-full px-3.5 py-2 rounded-xl text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 flex items-center gap-2.5 transition-colors"
-                        >
-                          <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          <span>Prayer Times & Qibla Direction</span>
-                        </button>
-
-                        <button
-                          type="button"
                           onClick={() => handleNavClick('pledge')}
                           className="w-full px-3.5 py-2 rounded-xl text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 flex items-center gap-2.5 transition-colors"
                         >
@@ -1084,19 +1045,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     >
                       <CreditCard className="w-4 h-4 text-amber-500" />
                       <span>Membership Pricing Plans</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        if (onOpenPrayerTimes) onOpenPrayerTimes();
-                        else handleNavClick('prayer');
-                      }}
-                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
-                    >
-                      <Clock className="w-4 h-4 text-emerald-500" />
-                      <span>Islamic Prayer Times & Qibla</span>
                     </button>
 
                     <button

@@ -39,7 +39,7 @@ export async function sendPhotoPermissionRequest(requestorId: string, targetId: 
       { onConflict: 'requestor_id,target_id' }
     )
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('[PhotoPermission] Failed to request photo unblur:', error);

@@ -50,11 +50,15 @@ export default function AdminKYCReviewPage() {
         }
 
         if (user) {
-          const { data: profile } = await supabase
+          const { data: profile, error: profileErr } = await supabase
             .from('profiles')
             .select('is_admin')
             .eq('id', user.id)
-            .single();
+            .maybeSingle();
+
+          if (profileErr) {
+            console.warn('[KYCReview] Admin check warning:', profileErr.message);
+          }
 
           if (isMounted) {
             setIsAdminState(Boolean(profile?.is_admin || (currentProfile as any)?.is_admin));

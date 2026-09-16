@@ -57,7 +57,7 @@ export const OnboardingGuard: React.FC<OnboardingGuardProps> = ({
           .from('profiles')
           .select('id, terms_accepted, privacy_policy_accepted, privacy_accepted, anti_dowry_pledged, anti_dowry_pledge, is_onboarded')
           .eq('id', currentUserId)
-          .single();
+          .maybeSingle();
 
         if (isMounted) {
           if (data && !error) {

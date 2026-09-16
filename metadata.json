@@ -1,10 +1,9 @@
 {
   "name": "DaheejFree Matrimonial Platform",
-  "description": "Privacy-first, dowry-free Islamic matrimonial platform with real-time prayer times & Qibla finder, WebRTC communications, 2-way photo consent gating, Wali access controls, and subscription management.",
+  "description": "Privacy-first, dowry-free Islamic matrimonial platform with WebRTC communications, 2-way photo consent gating, Wali access controls, and subscription management.",
   "requestFramePermissions": [
     "camera",
-    "microphone",
-    "geolocation"
+    "microphone"
   ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
