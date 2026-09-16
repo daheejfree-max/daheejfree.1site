@@ -329,7 +329,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className={`min-h-[44px] shrink-0 sticky top-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-800 transition-colors shadow-sm ${hideMobileNav ? '!hidden md:!block' : ''}`}>
+      <header className={`min-h-[44px] shrink-0 sticky top-0 z-40 bg-zinc-900/80 backdrop-blur-md border-b border-zinc-800 transition-colors shadow-sm ${hideMobileNav ? '!hidden md:!block' : ''}`}>
       {/* 1. Solemn Islamic Anti-Dowry Pledge Banner */}
       <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 dark:from-emerald-900 dark:via-teal-900 dark:to-emerald-950 px-4 py-1.5 text-center text-xs text-white dark:text-emerald-100 flex items-center justify-center gap-2 border-b border-emerald-600/40 dark:border-emerald-700/40 shadow-inner">
         <Shield className="w-3.5 h-3.5 text-emerald-300 dark:text-emerald-400 flex-shrink-0" />
@@ -477,36 +477,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Admin Console Tabs (strictly guarded by verified database isAdmin state) */}
             {isAdmin && (
-              <>
-                <button
-                  id="nav-tab-admin-godmode"
-                  onClick={() => handleNavClick('admin')}
-                  className={`min-h-[44px] px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                    currentTab === 'admin'
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
-                      : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800/60'
-                  }`}
-                  title="Admin God Mode Control Panel"
-                >
-                  <Shield className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="hidden xl:inline">Admin God Mode</span>
-                  <span className="xl:hidden">Admin</span>
-                </button>
-                <button
-                  id="nav-tab-admin-kyc"
-                  onClick={() => handleNavClick('admin-kyc')}
-                  className={`min-h-[44px] px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                    currentTab === 'admin-kyc'
-                      ? 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800'
-                      : 'text-red-600 dark:text-red-400/90 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40'
-                  }`}
-                  title="KYC Verification Queue"
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  <span className="hidden xl:inline">KYC Queue</span>
-                  <span className="xl:hidden">KYC</span>
-                </button>
-              </>
+              <button
+                id="nav-tab-admin-godmode"
+                onClick={() => handleNavClick('admin')}
+                className={`flex items-center px-4 py-2 text-sm text-emerald-500 font-bold hover:bg-zinc-800 transition-colors rounded-xl shrink-0 ${
+                  currentTab === 'admin'
+                    ? 'bg-zinc-800 ring-1 ring-emerald-500/40 text-emerald-400 shadow-sm'
+                    : ''
+                }`}
+                title="Admin God Mode Control Panel"
+              >
+                <Shield className="w-4 h-4 mr-1.5 text-emerald-400 shrink-0" />
+                <span className="whitespace-nowrap">Admin God Mode</span>
+              </button>
             )}
           </nav>
 
@@ -566,10 +549,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   id="btn-nav-user-menu"
                   type="button"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2 p-1.5 rounded-2xl bg-zinc-100 dark:bg-zinc-800/80 hover:bg-zinc-200 dark:hover:bg-zinc-700/80 border border-zinc-200 dark:border-zinc-700/80 transition-all cursor-pointer"
+                  className="flex items-center gap-2 p-1.5 rounded-2xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer"
                   title="User Account Menu"
                 >
-                  <div className="relative w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/60 border border-emerald-300 dark:border-emerald-500/40 overflow-hidden flex items-center justify-center text-emerald-800 dark:text-emerald-300 font-bold text-xs">
+                  <div className="relative w-8 h-8 rounded-full bg-emerald-950/60 border border-emerald-500/40 overflow-hidden flex items-center justify-center text-emerald-300 font-bold text-xs">
                     {currentProfile?.avatar_url ? (
                       <img
                         src={currentProfile.avatar_url}
@@ -582,26 +565,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                     )}
                   </div>
                   <div className="hidden lg:block text-left pr-1">
-                    <p className="text-xs font-bold text-zinc-900 dark:text-white truncate max-w-[120px]">
+                    <p className="text-xs font-bold text-white truncate max-w-[120px]">
                       {currentProfile?.full_name || 'My Profile'}
                     </p>
-                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 capitalize truncate">
+                    <p className="text-[10px] text-zinc-400 capitalize truncate">
                       {currentProfile?.full_name || 'My Profile'} • {currentProfile?.subscription_tier || 'Free'}
                     </p>
                   </div>
-                  <ChevronDown className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+                  <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
                 </button>
 
                 {/* Dropdown Menu Modal */}
                 {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800">
-                      <p className="text-xs font-bold text-zinc-900 dark:text-white">{currentProfile.full_name}</p>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">{currentProfile.wali_email}</p>
-                      <div className="mt-1.5 flex items-center gap-1.5">
+                  <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-zinc-900 border border-zinc-800 backdrop-blur-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="px-4 py-3 border-b border-zinc-800">
+                      <p className="text-xs font-bold text-white">{currentProfile.full_name}</p>
+                      <p className="text-[11px] text-zinc-400 truncate mt-0.5">{currentProfile.wali_email}</p>
+                      <div className="mt-2 flex items-center gap-1.5">
                         {getTierBadge(tier)}
                         {currentProfile.kyc_verified === true && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                             <CheckCircle className="w-3 h-3" />
                             Verified
                           </span>
@@ -616,9 +599,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           handleNavClick('profile');
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <User className="w-4 h-4 text-emerald-600" />
+                        <User className="w-4 h-4 text-emerald-400" />
                         <span>My Profile & KYC Status</span>
                       </button>
 
@@ -628,10 +611,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           handleNavClick('consent');
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-between cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center justify-between transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5">
-                          <Lock className="w-4 h-4 text-indigo-500" />
+                          <Lock className="w-4 h-4 text-emerald-400" />
                           <span>Photo Privacy Gating</span>
                         </div>
                         {pendingConsentCount > 0 && (
@@ -647,9 +630,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           handleNavClick('calls');
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <PhoneCall className="w-4 h-4 text-teal-500" />
+                        <PhoneCall className="w-4 h-4 text-emerald-400" />
                         <span>WebRTC Video Calling</span>
                       </button>
 
@@ -659,9 +642,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           onOpenPricing();
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <CreditCard className="w-4 h-4 text-amber-500" />
+                        <CreditCard className="w-4 h-4 text-amber-400" />
                         <span>Upgrade / Manage Membership</span>
                       </button>
 
@@ -671,14 +654,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           handleNavClick('pledge');
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <Shield className="w-4 h-4 text-emerald-500" />
+                        <Shield className="w-4 h-4 text-emerald-400" />
                         <span>Anti-Dowry Registry Certificate</span>
                       </button>
                     </div>
 
-                    <div className="border-t border-zinc-100 dark:border-zinc-800 pt-1">
+                    {isAdmin && (
+                      <div className="py-1 border-t border-zinc-800">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserDropdownOpen(false);
+                            handleNavClick('admin');
+                          }}
+                          className="w-full px-4 py-2 text-left text-xs font-bold text-emerald-400 hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Shield className="w-4 h-4 text-emerald-400" />
+                          <span>Admin God Mode</span>
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="border-t border-zinc-800 pt-1">
                       <button
                         type="button"
                         onClick={async () => {
@@ -698,9 +697,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                             }
                           }
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <LogIn className="w-4 h-4 text-zinc-400" />
+                        <LogIn className="w-4 h-4 text-zinc-500" />
                         <span>Sign In with Another Account</span>
                       </button>
 
@@ -710,9 +709,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           await signOutSupabase({ hardRedirect: true });
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2.5 cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-semibold text-red-400 hover:bg-red-950/40 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <LogOut className="w-4 h-4 text-red-500" />
+                        <LogOut className="w-4 h-4 text-red-400" />
                         <span>Sign Out</span>
                       </button>
                     </div>
@@ -750,7 +749,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="btn-mobile-menu-toggle"
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden relative p-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800/90 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-700/80 transition-all cursor-pointer flex items-center justify-center"
+              className="md:hidden relative p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 transition-all cursor-pointer flex items-center justify-center"
               aria-label="Toggle navigation menu"
             >
               {currentProfile?.avatar_url ? (
@@ -767,13 +766,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {currentProfile.full_name?.charAt(0) || 'U'}
                 </div>
               ) : mobileMenuOpen ? (
-                <X className="w-5 h-5 text-zinc-700 dark:text-zinc-200" />
+                <X className="w-5 h-5 text-zinc-200" />
               ) : (
-                <Menu className="w-5 h-5 text-zinc-700 dark:text-zinc-200" />
+                <Menu className="w-5 h-5 text-zinc-200" />
               )}
               {/* Notification indicator on mobile menu button */}
               {(livePendingRequestsCount > 0 || liveUnreadMessagesCount > 0) && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-white dark:border-zinc-900 animate-pulse" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-zinc-900 animate-pulse" />
               )}
             </button>
           </div>
@@ -792,16 +791,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Drawer Panel */}
           <div
             ref={mobileMenuRef}
-            className="relative w-[86vw] max-w-sm h-full bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-zinc-800 shadow-2xl z-10 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-250 pb-safe"
+            className="relative w-[86vw] max-w-sm h-full bg-zinc-950 border-l border-zinc-800 shadow-2xl z-10 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-250 pb-safe"
           >
             {/* Top: Drawer Header */}
             <div>
-              <div className="p-4 border-b border-zinc-100 dark:border-zinc-850 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/80">
+              <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/80">
                 <Logo size="sm" showSubtitle={false} />
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-2 rounded-xl bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
+                  className="p-2 rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
                   aria-label="Close menu"
                 >
                   <X className="w-4 h-4" />
@@ -810,9 +809,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Profile Card / Guest Welcome */}
               {currentProfile ? (
-                <div className="p-4 border-b border-zinc-100 dark:border-zinc-850 bg-emerald-50/50 dark:bg-emerald-950/20">
+                <div className="p-4 border-b border-zinc-800 bg-emerald-950/20">
                   <div className="flex items-center gap-3">
-                    <div className="relative w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900 border-2 border-emerald-400 dark:border-emerald-500 overflow-hidden flex items-center justify-center text-emerald-800 dark:text-emerald-200 font-bold text-base shadow-sm">
+                    <div className="relative w-12 h-12 rounded-2xl bg-emerald-900 border-2 border-emerald-500 overflow-hidden flex items-center justify-center text-emerald-200 font-bold text-base shadow-sm">
                       {currentProfile?.avatar_url ? (
                         <img
                           src={currentProfile.avatar_url}
@@ -826,14 +825,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <h4 className="text-sm font-bold text-zinc-900 dark:text-white truncate">
+                        <h4 className="text-sm font-bold text-white truncate">
                           {currentProfile.full_name}
                         </h4>
                         {currentProfile.kyc_status === 'verified' && (
-                          <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
                         )}
                       </div>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                      <p className="text-xs text-zinc-400 truncate">
                         {currentProfile.wali_email || 'Member'}
                       </p>
                       <div className="mt-1 flex items-center gap-1.5">
@@ -843,11 +842,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="p-4 border-b border-zinc-100 dark:border-zinc-850 bg-emerald-50/50 dark:bg-emerald-950/20">
-                  <h4 className="text-sm font-bold text-zinc-900 dark:text-white">
+                <div className="p-4 border-b border-zinc-800 bg-emerald-950/20">
+                  <h4 className="text-sm font-bold text-white">
                     Welcome to DaheejFree
                   </h4>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  <p className="text-xs text-zinc-400 mt-0.5">
                     100% Dowry-Free Islamic Matrimonial
                   </p>
                   <div className="grid grid-cols-2 gap-2 mt-3">

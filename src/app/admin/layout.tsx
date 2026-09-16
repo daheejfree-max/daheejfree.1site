@@ -91,7 +91,7 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col md:flex-row antialiased selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-screen w-full overflow-x-hidden bg-zinc-950 text-zinc-100 flex flex-col md:flex-row antialiased selection:bg-emerald-500 selection:text-white">
       {/* Fixed Desktop Left Sidebar */}
       <aside className="w-full md:w-64 shrink-0 bg-zinc-900/90 border-b md:border-b-0 md:border-r border-zinc-800/80 flex flex-col justify-between p-5 md:fixed md:inset-y-0 md:left-0 z-30 backdrop-blur-xl">
         {/* Top Branding & Nav */}
