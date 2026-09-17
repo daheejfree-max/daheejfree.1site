@@ -67,9 +67,12 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll to bottom using smooth block: 'nearest' to eliminate browser page dragging
+  // Auto-scroll strictly isolated to the chat container to prevent jumping the outer window
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (chatContainerRef.current) {
+      const { scrollHeight, clientHeight } = chatContainerRef.current;
+      chatContainerRef.current.scrollTop = scrollHeight - clientHeight;
+    }
   }, [messages]);
 
   // Load partner profile
@@ -232,7 +235,7 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
 
   return (
     /* 2. STRICT 3-PART VERTICAL FLEX LAYOUT (No rogue page viewport scroll) */
-    <div className="flex flex-col flex-1 h-full max-h-[100dvh] overflow-hidden relative bg-background bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+    <div className="h-[100dvh] w-full overflow-hidden overscroll-none fixed inset-0 flex flex-col bg-background bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
       
       {/* 1. Chat Header (Fixed Height) */}
       <div className="flex-none h-16 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md px-4 flex items-center justify-between z-10">

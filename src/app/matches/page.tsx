@@ -325,6 +325,7 @@ export default function MatchesPage({
               viewerTier={tier}
               isSelf={p.id === currentUserId}
               consentStatus={getConsentStatus(p.id)}
+              status={getConnectionPairStatus(p.id)}
               connectionPairStatus={getConnectionPairStatus(p.id)}
               onSendConnectionRequest={async (targetId) => {
                 await sendMatchRequest(targetId);

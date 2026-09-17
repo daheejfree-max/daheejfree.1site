@@ -418,15 +418,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   // Auto-scroll strictly isolated to the chat container to prevent jumping the outer window
   useEffect(() => {
     if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    } else {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'nearest',
-      });
+      const { scrollHeight, clientHeight } = chatContainerRef.current;
+      chatContainerRef.current.scrollTop = scrollHeight - clientHeight;
     }
-  }, [messages, isPartnerTyping]);
+  }, [messages]);
 
   const handleInitiateCall = async (callType: 'video' | 'voice') => {
     if (!targetUserId || !currentUserId || isInitiatingCall) return;

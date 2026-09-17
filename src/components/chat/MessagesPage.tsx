@@ -1083,15 +1083,10 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   // Auto-scroll strictly isolated to the chat container to prevent jumping the outer window
   useEffect(() => {
     if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    } else {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'nearest',
-      });
+      const { scrollHeight, clientHeight } = chatContainerRef.current;
+      chatContainerRef.current.scrollTop = scrollHeight - clientHeight;
     }
-  }, [activeMessages, selectedUserId, isPartnerTyping]);
+  }, [activeMessages]);
 
   // Lock the browser window scrolling while on the messages page
   useEffect(() => {
@@ -1348,7 +1343,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   const canCall = viewerTier === 'platinum' || viewerTier === 'diamond';
 
   return (
-    <div className="w-full h-[calc(100vh-140px)] flex flex-col overflow-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3">
+    <div className="h-[100dvh] w-full overflow-hidden overscroll-none fixed inset-0 flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3 z-30">
       {/* Top Banner: Islamic Matrimonial Messaging Charter (Compact on mobile, hidden during active chat on mobile) */}
       <div className={`shrink-0 mb-0 sm:mb-3 bg-gradient-to-r from-emerald-900/90 via-teal-950/90 to-zinc-900 border border-emerald-500/30 rounded-none sm:rounded-2xl p-2.5 sm:p-4 text-white ${!isMobileListOpen ? 'hidden md:flex' : 'flex'} flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 shadow-lg`}>
         <div className="flex items-center gap-3">

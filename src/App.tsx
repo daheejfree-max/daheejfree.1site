@@ -611,7 +611,7 @@ export default function App() {
       <main
         className={
           currentTab === 'messages'
-            ? 'h-[calc(100vh-140px)] flex flex-col overflow-hidden w-full max-w-7xl mx-auto px-0 sm:px-3 py-0 sm:py-1'
+            ? 'h-[100dvh] w-full overflow-hidden overscroll-none fixed inset-0 z-40 bg-zinc-50 dark:bg-zinc-950 flex flex-col'
             : currentTab === 'call'
             ? 'flex-1 min-h-0 w-full flex flex-col overflow-hidden p-0'
             : 'flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-24 md:pb-8'

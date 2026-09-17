@@ -30,13 +30,15 @@ import { WatermarkedImage } from '../privacy/WatermarkedImage';
 import { getDisplayName } from '../../lib/utils';
 import { supabase } from '../../lib/supabase/client';
 import { daheejStore } from '../../lib/supabase/store';
+import { Link } from '../common/Link';
 
-interface ProfileCardProps {
+export interface ProfileCardProps {
   profile: ProfileSecureView;
   viewerTier: SubscriptionTier;
   viewerProfile: ProfileSecureView;
   isSelf: boolean;
   consentStatus: ConsentStatus | 'none';
+  status?: 'none' | 'pending' | 'accepted' | 'rejected' | ConnectionPairStatus;
   connectionPairStatus?: ConnectionPairStatus;
   onSendConnectionRequest?: (targetId: string) => void;
   onRespondConnection?: (targetId: string, status: 'accepted' | 'rejected') => void;
@@ -53,6 +55,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   viewerProfile,
   isSelf,
   consentStatus,
+  status,
   connectionPairStatus = 'none',
   onSendConnectionRequest,
   onRespondConnection,
@@ -64,6 +67,92 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
 }) => {
   const [gateNotice, setGateNotice] = useState<string | null>(null);
   const [localConsentStatus, setLocalConsentStatus] = useState<ConsentStatus | 'none'>(consentStatus);
+
+  // Evaluate relationship status across status prop, connectionPairStatus prop, store, and database
+  const [internalStatus, setInternalStatus] = useState<'none' | 'pending' | 'accepted' | 'rejected' | ConnectionPairStatus>(() => {
+    if (status && status !== 'none') return status;
+    if (connectionPairStatus && connectionPairStatus !== 'none') return connectionPairStatus;
+    if (viewerProfile?.id && profile?.id) {
+      return daheejStore.getConnectionPairStatus(viewerProfile.id, profile.id);
+    }
+    return 'none';
+  });
+
+  React.useEffect(() => {
+    if (status) {
+      setInternalStatus(status);
+    } else if (connectionPairStatus) {
+      setInternalStatus(connectionPairStatus);
+    }
+  }, [status, connectionPairStatus]);
+
+  // Query relationships table (connections) to audit relationship status between auth.uid() and displayed profile
+  React.useEffect(() => {
+    if (isSelf || !viewerProfile?.id || !profile.id) return;
+    let isMounted = true;
+
+    const checkDirectRelationship = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('connections')
+          .select('id, sender_id, receiver_id, status')
+          .or(`and(sender_id.eq.${viewerProfile.id},receiver_id.eq.${profile.id}),and(sender_id.eq.${profile.id},receiver_id.eq.${viewerProfile.id})`)
+          .maybeSingle();
+
+        if (!error && data && isMounted) {
+          daheejStore.setConnectionFromRemote(data as any, false);
+          if (data.status === 'accepted') {
+            setInternalStatus('accepted');
+          } else if (data.status === 'pending') {
+            setInternalStatus(data.sender_id === viewerProfile.id ? 'pending_sent' : 'pending_received');
+          } else if (data.status === 'rejected') {
+            setInternalStatus('rejected');
+          }
+        }
+      } catch (err) {
+        // quiet fallback
+      }
+    };
+
+    checkDirectRelationship();
+
+    const channel = supabase
+      .channel(`card_conn_${viewerProfile.id}_${profile.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'connections' },
+        (payload) => {
+          if (!isMounted) return;
+          const rec = (payload.new || payload.old) as any;
+          if (rec) {
+            if (
+              (rec.sender_id === viewerProfile.id && rec.receiver_id === profile.id) ||
+              (rec.sender_id === profile.id && rec.receiver_id === viewerProfile.id)
+            ) {
+              if (rec.status === 'accepted') {
+                setInternalStatus('accepted');
+              } else if (rec.status === 'pending') {
+                setInternalStatus(rec.sender_id === viewerProfile.id ? 'pending_sent' : 'pending_received');
+              } else if (rec.status === 'rejected') {
+                setInternalStatus('rejected');
+              }
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [viewerProfile?.id, profile.id, isSelf]);
+
+  const isMatched =
+    status === 'accepted' ||
+    internalStatus === 'accepted' ||
+    connectionPairStatus === 'accepted' ||
+    (viewerProfile?.id ? daheejStore.hasAcceptedConnection(viewerProfile.id, profile.id) : false);
 
   // Sync prop changes to local state
   React.useEffect(() => {
@@ -164,8 +253,6 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
       supabase.removeChannel(channelPerm);
     };
   }, [viewerProfile?.id, profile.id, isSelf]);
-
-  const isMatched = connectionPairStatus === 'accepted';
   
   // Exclusive Photo Privacy: Photos are unlocked if viewing self or if an approved photo consent exists
   const viewerIsKYCVerified = Boolean(
@@ -351,161 +438,140 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
       {/* Actions Container - Pushed cleanly to card bottom */}
       {!isSelf && (
         <div className="w-full mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-col gap-2">
-          {/* Primary Action Button: Modernized Send Match Request */}
-          {connectionPairStatus === 'none' && onSendConnectionRequest && (
-            <button
-              id={`btn-send-match-${profile.id}`}
-              type="button"
-              onClick={() => onSendConnectionRequest(profile.id)}
-              className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 mt-auto transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Send Match Request</span>
-            </button>
-          )}
-
-          {connectionPairStatus === 'pending_sent' && (
-            <button
-              disabled
-              type="button"
-              className="w-full rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 font-semibold py-3 mt-auto flex items-center justify-center gap-2 cursor-not-allowed opacity-95"
-            >
-              <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <span>Proposal Pending</span>
-            </button>
-          )}
-
-          {connectionPairStatus === 'pending_received' && onRespondConnection && (
-            <div className="grid grid-cols-2 gap-2 mt-auto">
-              <button
-                id={`btn-accept-match-${profile.id}`}
-                type="button"
-                onClick={() => onRespondConnection(profile.id, 'accepted')}
-                className="py-3 px-3 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <UserCheck className="w-4 h-4" />
-                <span>Accept Match</span>
-              </button>
-              <button
-                id={`btn-decline-match-${profile.id}`}
-                type="button"
-                onClick={() => onRespondConnection(profile.id, 'rejected')}
-                className="py-3 px-3 rounded-xl font-semibold text-xs bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <XCircle className="w-4 h-4" />
-                <span>Decline</span>
-              </button>
+          {/* If status === 'accepted' (or if they are matched), DO NOT show the "Proposal Pending" or "Contact Guardian" buttons.
+              Instead, render a single, prominent primary button: */}
+          {isMatched ? (
+            <div className="w-full space-y-2 mt-auto">
+              <Link href="/messages" className="w-full block">
+                <button
+                  id={`btn-message-candidate-${profile.id}`}
+                  type="button"
+                  onClick={() => onOpenChat?.(profile)}
+                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Message Candidate</span>
+                </button>
+              </Link>
             </div>
-          )}
+          ) : (
+            <>
+              {/* Primary Action Button: Modernized Send Match Request */}
+              {internalStatus === 'none' && onSendConnectionRequest && (
+                <button
+                  id={`btn-send-match-${profile.id}`}
+                  type="button"
+                  onClick={() => onSendConnectionRequest(profile.id)}
+                  className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 mt-auto transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Send Match Request</span>
+                </button>
+              )}
 
-          {connectionPairStatus === 'accepted' && (
-            <div className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center gap-1.5">
-              <Heart className="w-3.5 h-3.5 fill-emerald-600 text-emerald-600" />
-              <span>Mutual Match Confirmed</span>
-            </div>
-          )}
-
-          {/* Photo Access Request if Locked */}
-          {!isPhotoUnlocked && (
-            <div className="w-full">
-              {localConsentStatus === 'pending' ? (
+              {(internalStatus === 'pending_sent' || internalStatus === 'pending') && (
                 <button
                   disabled
                   type="button"
-                  className="w-full py-2 px-3 rounded-xl text-xs font-medium bg-zinc-100 dark:bg-zinc-800/80 text-zinc-400 border border-zinc-200 dark:border-zinc-700/60 flex items-center justify-center gap-1.5 cursor-not-allowed"
+                  className="w-full rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 font-semibold py-3 mt-auto flex items-center justify-center gap-2 cursor-not-allowed opacity-95"
                 >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Photo Consent Pending</span>
-                </button>
-              ) : (
-                <button
-                  id={`btn-request-photo-${profile.id}`}
-                  type="button"
-                  onClick={async () => {
-                    if (!viewerIsKYCVerified) {
-                      setGateNotice('KYC Verification Required: You must verify your identity with Didit before requesting photo consent.');
-                      setTimeout(() => setGateNotice(null), 3500);
-                      return;
-                    }
-                    setLocalConsentStatus('pending');
-                    try {
-                      await supabase.from('photo_access_requests').insert({
-                        grantee_id: viewerProfile.id,
-                        grantor_id: profile.id,
-                        requestor_id: viewerProfile.id,
-                        target_id: profile.id,
-                        status: 'pending',
-                      });
-                    } catch (e) {
-                      console.warn('[ProfileCard] insert photo_access_requests note:', e);
-                    }
-                    onSendConsentRequest(profile.id);
-                  }}
-                  className="w-full py-2 px-3 rounded-xl text-xs font-semibold text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Eye className="w-3.5 h-3.5 text-zinc-500" />
-                  <span>Request Photo Access</span>
+                  <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>Proposal Pending</span>
                 </button>
               )}
-            </div>
-          )}
 
-          {/* Wali & Chat Actions */}
-          <div className="space-y-2 mt-1">
-            {viewerHasDiamondWaliAccess ? (
-              <button
-                id={`btn-view-wali-${profile.id}`}
-                onClick={() => onOpenWaliModal(profile)}
-                className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                <span>Contact Guardian / Wali</span>
-              </button>
-            ) : (
-              <button
-                id={`btn-unlock-wali-${profile.id}`}
-                onClick={onOpenPricing}
-                className="w-full py-2 px-3 rounded-xl text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                <span>Wali Access (Diamond Tier)</span>
-              </button>
-            )}
-
-            {isMatched && (
-              <div className="space-y-1.5">
-                {onOpenChat && (
+              {internalStatus === 'pending_received' && onRespondConnection && (
+                <div className="grid grid-cols-2 gap-2 mt-auto">
                   <button
-                    id={`btn-chat-${profile.id}`}
-                    onClick={() => onOpenChat(profile)}
-                    className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    id={`btn-accept-match-${profile.id}`}
+                    type="button"
+                    onClick={() => onRespondConnection(profile.id, 'accepted')}
+                    className="py-3 px-3 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>Open Encrypted Chat</span>
-                  </button>
-                )}
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    id={`btn-voice-call-${profile.id}`}
-                    onClick={() => onStartCall(profile.id, 'voice')}
-                    className="py-2 px-2.5 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Phone className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>Voice</span>
+                    <UserCheck className="w-4 h-4" />
+                    <span>Accept Match</span>
                   </button>
                   <button
-                    id={`btn-video-call-${profile.id}`}
-                    onClick={() => onStartCall(profile.id, 'video')}
-                    className="py-2 px-2.5 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    id={`btn-decline-match-${profile.id}`}
+                    type="button"
+                    onClick={() => onRespondConnection(profile.id, 'rejected')}
+                    className="py-3 px-3 rounded-xl font-semibold text-xs bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Video className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>Video</span>
+                    <XCircle className="w-4 h-4" />
+                    <span>Decline</span>
                   </button>
                 </div>
+              )}
+
+              {/* Photo Access Request if Locked */}
+              {!isPhotoUnlocked && (
+                <div className="w-full">
+                  {localConsentStatus === 'pending' ? (
+                    <button
+                      disabled
+                      type="button"
+                      className="w-full py-2 px-3 rounded-xl text-xs font-medium bg-zinc-100 dark:bg-zinc-800/80 text-zinc-400 border border-zinc-200 dark:border-zinc-700/60 flex items-center justify-center gap-1.5 cursor-not-allowed"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Photo Consent Pending</span>
+                    </button>
+                  ) : (
+                    <button
+                      id={`btn-request-photo-${profile.id}`}
+                      type="button"
+                      onClick={async () => {
+                        if (!viewerIsKYCVerified) {
+                          setGateNotice('KYC Verification Required: You must verify your identity with Didit before requesting photo consent.');
+                          setTimeout(() => setGateNotice(null), 3500);
+                          return;
+                        }
+                        setLocalConsentStatus('pending');
+                        try {
+                          await supabase.from('photo_access_requests').insert({
+                            grantee_id: viewerProfile.id,
+                            grantor_id: profile.id,
+                            requestor_id: viewerProfile.id,
+                            target_id: profile.id,
+                            status: 'pending',
+                          });
+                        } catch (e) {
+                          console.warn('[ProfileCard] insert photo_access_requests note:', e);
+                        }
+                        onSendConsentRequest(profile.id);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl text-xs font-semibold text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-zinc-500" />
+                      <span>Request Photo Access</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Wali & Chat Actions */}
+              <div className="space-y-2 mt-1">
+                {viewerHasDiamondWaliAccess ? (
+                  <button
+                    id={`btn-view-wali-${profile.id}`}
+                    onClick={() => onOpenWaliModal(profile)}
+                    className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Contact Guardian / Wali</span>
+                  </button>
+                ) : (
+                  <button
+                    id={`btn-unlock-wali-${profile.id}`}
+                    onClick={onOpenPricing}
+                    className="w-full py-2 px-3 rounded-xl text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Wali Access (Diamond Tier)</span>
+                  </button>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       )}
     </div>
