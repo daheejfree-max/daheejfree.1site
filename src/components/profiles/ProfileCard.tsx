@@ -224,337 +224,293 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between relative">
-      {/* Top Banner / KYC & Anti-Dowry Badges */}
-      <div className="p-5 pb-0 flex items-start justify-between gap-2">
+    <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/60 dark:border-zinc-800 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col relative">
+      {/* Compact Badges Row (Consolidated small elegant tags) */}
+      <div className="flex items-center justify-between gap-1.5 mb-3">
         <div className="flex flex-wrap items-center gap-1.5">
           {isVerifiedBadge && (
             <span
-              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/80 text-blue-800 dark:text-blue-400 border border-blue-200 dark:border-blue-700/60 shadow-xs cursor-help"
+              className="inline-flex items-center gap-1 text-[10px] uppercase font-bold tracking-wide px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-400 border border-blue-200/80 dark:border-blue-800/60"
               title="Identity cryptographically verified via Didit protocol"
             >
-              <BadgeCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              Didit Verified
+              <BadgeCheck className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+              Verified
             </span>
           )}
 
           {isZeroDowryBadge && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700/40">
-              <HeartHandshake className="w-3 h-3" />
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase font-bold tracking-wide px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60">
+              <HeartHandshake className="w-3 h-3 text-emerald-600" />
               Zero Dowry
             </span>
           )}
 
           {hasWaliOverseen && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/40">
-              <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase font-bold tracking-wide px-2 py-1 rounded-md bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/60">
+              <ShieldCheck className="w-3 h-3 text-teal-600" />
               Wali Overseen
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {isDiamondBadge && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/50 shadow-xs">
-              <Crown className="w-3 h-3 text-amber-500" />
-              DIAMOND
+        {isDiamondBadge && (
+          <span className="inline-flex items-center gap-1 text-[10px] uppercase font-bold tracking-wide px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 shrink-0">
+            <Crown className="w-3 h-3 text-amber-500" />
+            Diamond
+          </span>
+        )}
+      </div>
+
+      {/* Profile Image (Full width of card's inner padding with Haya Mode overlay) */}
+      <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+        <WatermarkedImage
+          src={profile.avatar_url}
+          alt={displayName}
+          fallbackInitial={displayName?.charAt(0)?.toUpperCase()}
+          viewerId={viewerProfile?.id || ''}
+          isUnlocked={isPhotoUnlocked}
+          blurMessage={
+            profile.photo_privacy
+              ? 'Haya Mode: Photo Protected'
+              : 'Private Photo'
+          }
+          className="w-full h-full object-cover"
+        />
+
+        {/* Floating Photo Privacy Status Badge when unlocked */}
+        {isPhotoUnlocked && profile.avatar_url && (
+          <div
+            className="absolute bottom-2.5 right-2.5 bg-black/60 backdrop-blur-md border border-white/20 text-emerald-300 px-2.5 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 shadow-sm"
+            title="Photo Privacy Unlocked"
+          >
+            <Eye className="w-3 h-3" />
+            <span>Unlocked</span>
+          </div>
+        )}
+      </div>
+
+      {/* Name & Demographics with bold typography and muted secondary details */}
+      <div className="mt-4 text-left">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xl font-bold text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+            <span>{displayName}</span>
+            {isSelf && (
+              <span className="text-xs font-normal text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
+                (You)
+              </span>
+            )}
+          </h3>
+          {profile.age && (
+            <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 shrink-0">
+              {profile.age} yrs
             </span>
           )}
         </div>
-      </div>
 
-      {/* Main Avatar Section with Forensic Watermarked Anti-Screenshot Image */}
-      <div className="p-5 flex flex-col items-center text-center">
-        <div className="relative w-28 h-28 mx-auto rounded-2xl overflow-hidden mb-3 border border-neutral-800 bg-neutral-900/90 flex items-center justify-center shadow-inner group">
-          <WatermarkedImage
-            src={profile.avatar_url}
-            alt={displayName}
-            fallbackInitial={displayName?.charAt(0)?.toUpperCase()}
-            viewerId={viewerProfile?.id || ''}
-            isUnlocked={isPhotoUnlocked}
-            blurMessage={
-              profile.photo_privacy
-                ? 'Haya Mode: Blurred'
-                : 'Private Photo'
-            }
-            className="w-full h-full object-cover"
-          />
-
-          {isPhotoUnlocked && profile.avatar_url && (
-            <div
-              className="absolute bottom-1.5 right-1.5 bg-emerald-950/85 backdrop-blur-sm border border-emerald-500/60 text-emerald-300 p-1 rounded-full text-[9px] shadow-sm"
-              title="Photo Privacy Unlocked"
-            >
-              <Eye className="w-3 h-3" />
-            </div>
-          )}
-        </div>
-
-        {/* Name & Demographics */}
-        <h3 className="text-lg font-bold text-zinc-900 dark:text-neutral-100 tracking-tight flex items-center gap-1.5 justify-center">
-          <span>{displayName}</span>
-          {isSelf && <span className="text-xs text-emerald-600 dark:text-emerald-400 font-normal">(You)</span>}
-        </h3>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-          {profile.age ? `${profile.age} yrs • ` : ''}{candidateRole}{` • ${sanitizedProfession}`}
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 truncate">
+          {candidateRole} • {sanitizedProfession}
         </p>
 
-        {/* Mutual Match Status or Primary CTA */}
-        {!isSelf && (
-          <div className="w-full mt-3">
-            {connectionPairStatus === 'none' && onSendConnectionRequest && (
-              <button
-                id={`btn-send-match-${profile.id}`}
-                type="button"
-                onClick={() => onSendConnectionRequest(profile.id)}
-                className="w-full py-2 px-4 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md hover:shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>Send Match Request</span>
-              </button>
-            )}
+        <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5 flex items-center gap-1 truncate">
+          <MapPin className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+          <span className="truncate">{sanitizedLocation}</span>
+        </p>
+      </div>
 
-            {connectionPairStatus === 'pending_sent' && (
-              <button
-                disabled
-                type="button"
-                className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 flex items-center justify-center gap-2 cursor-not-allowed opacity-90"
-              >
-                <Clock className="w-3.5 h-3.5 text-amber-600" />
-                <span>Proposal Pending</span>
-              </button>
-            )}
-
-            {connectionPairStatus === 'pending_received' && onRespondConnection && (
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  id={`btn-accept-match-${profile.id}`}
-                  type="button"
-                  onClick={() => onRespondConnection(profile.id, 'accepted')}
-                  className="py-2 px-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center justify-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  Accept Match
-                </button>
-                <button
-                  id={`btn-decline-match-${profile.id}`}
-                  type="button"
-                  onClick={() => onRespondConnection(profile.id, 'rejected')}
-                  className="py-2 px-3 rounded-xl text-xs font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <XCircle className="w-3.5 h-3.5" />
-                  Decline
-                </button>
-              </div>
-            )}
-
-            {connectionPairStatus === 'accepted' && (
-              <div className="w-full py-1.5 px-3 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 flex items-center justify-center gap-1.5">
-                <Heart className="w-3.5 h-3.5 fill-emerald-600 text-emerald-600" />
-                <span>Mutual Match Confirmed</span>
-              </div>
-            )}
+      {/* Matrimonial Highlights */}
+      <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/80 space-y-1.5 text-xs text-zinc-600 dark:text-zinc-400 text-left">
+        {profile.prayer_frequency && (
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="truncate">{profile.prayer_frequency}</span>
           </div>
         )}
 
-        {/* Photo Consent Action */}
-        {!isSelf && !isPhotoUnlocked && (
-          <div className="mt-2.5 flex flex-col items-center gap-1.5 w-full">
-            {localConsentStatus === 'pending' ? (
-              <>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                  <Clock className="w-3 h-3 text-amber-400" />
-                  Photo Access Requested (Pending Approval)
-                </span>
+        {profile.sect && (
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="truncate">Sect: {profile.sect}</span>
+          </div>
+        )}
+
+        {profile.bio && (
+          <p className="text-zinc-500 dark:text-zinc-400 text-xs line-clamp-2 mt-1 italic">
+            "{profile.bio}"
+          </p>
+        )}
+      </div>
+
+      {/* Gate Alert Banner */}
+      {gateNotice && (
+        <div className="w-full mt-3 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/80 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-xs text-left flex items-start gap-2 shadow-xs">
+          <Lock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <span>{gateNotice}</span>
+        </div>
+      )}
+
+      {/* Actions Container - Pushed cleanly to card bottom */}
+      {!isSelf && (
+        <div className="w-full mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-col gap-2">
+          {/* Primary Action Button: Modernized Send Match Request */}
+          {connectionPairStatus === 'none' && onSendConnectionRequest && (
+            <button
+              id={`btn-send-match-${profile.id}`}
+              type="button"
+              onClick={() => onSendConnectionRequest(profile.id)}
+              className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 mt-auto transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Send Match Request</span>
+            </button>
+          )}
+
+          {connectionPairStatus === 'pending_sent' && (
+            <button
+              disabled
+              type="button"
+              className="w-full rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 font-semibold py-3 mt-auto flex items-center justify-center gap-2 cursor-not-allowed opacity-95"
+            >
+              <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <span>Proposal Pending</span>
+            </button>
+          )}
+
+          {connectionPairStatus === 'pending_received' && onRespondConnection && (
+            <div className="grid grid-cols-2 gap-2 mt-auto">
+              <button
+                id={`btn-accept-match-${profile.id}`}
+                type="button"
+                onClick={() => onRespondConnection(profile.id, 'accepted')}
+                className="py-3 px-3 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>Accept Match</span>
+              </button>
+              <button
+                id={`btn-decline-match-${profile.id}`}
+                type="button"
+                onClick={() => onRespondConnection(profile.id, 'rejected')}
+                className="py-3 px-3 rounded-xl font-semibold text-xs bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <XCircle className="w-4 h-4" />
+                <span>Decline</span>
+              </button>
+            </div>
+          )}
+
+          {connectionPairStatus === 'accepted' && (
+            <div className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center gap-1.5">
+              <Heart className="w-3.5 h-3.5 fill-emerald-600 text-emerald-600" />
+              <span>Mutual Match Confirmed</span>
+            </div>
+          )}
+
+          {/* Photo Access Request if Locked */}
+          {!isPhotoUnlocked && (
+            <div className="w-full">
+              {localConsentStatus === 'pending' ? (
                 <button
                   disabled
                   type="button"
-                  className="w-full py-1.5 px-3 rounded-xl text-xs font-semibold bg-zinc-800/80 text-zinc-400 border border-zinc-700 flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
+                  className="w-full py-2 px-3 rounded-xl text-xs font-medium bg-zinc-100 dark:bg-zinc-800/80 text-zinc-400 border border-zinc-200 dark:border-zinc-700/60 flex items-center justify-center gap-1.5 cursor-not-allowed"
                 >
                   <Clock className="w-3.5 h-3.5" />
-                  <span>Request Sent</span>
+                  <span>Photo Consent Pending</span>
                 </button>
-              </>
-            ) : (
-              <button
-                id={`btn-request-photo-${profile.id}`}
-                onClick={async () => {
-                  if (!viewerIsKYCVerified) {
-                    setGateNotice('KYC Verification Required: You must verify your identity with Didit before requesting photo consent.');
-                    setTimeout(() => setGateNotice(null), 3500);
-                    return;
-                  }
-                  setLocalConsentStatus('pending');
-                  try {
-                    await supabase.from('photo_access_requests').insert({
-                      grantee_id: viewerProfile.id,
-                      grantor_id: profile.id,
-                      requestor_id: viewerProfile.id,
-                      target_id: profile.id,
-                      status: 'pending',
-                    });
-                  } catch (e) {
-                    console.warn('[ProfileCard] insert photo_access_requests note:', e);
-                  }
-                  onSendConsentRequest(profile.id);
-                }}
-                className="w-full py-1.5 px-3 rounded-xl text-xs font-bold text-emerald-300 hover:text-emerald-200 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/30 transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Request Photo Access</span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Gate Alert Banner */}
-        {gateNotice && (
-          <div className="w-full mt-3 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-[11px] text-left flex items-start gap-2 animate-fade-in shadow-sm">
-            <Lock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-            <span>{gateNotice}</span>
-          </div>
-        )}
-
-        {/* Key Matrimonial Highlights */}
-        <div className="w-full text-left mt-4 pt-3 border-t border-zinc-200 dark:border-zinc-800 space-y-2 text-xs text-zinc-700 dark:text-zinc-300">
-          {profile.prayer_frequency && (
-            <div className="flex items-center gap-2">
-              <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-              <span className="truncate">{profile.prayer_frequency}</span>
+              ) : (
+                <button
+                  id={`btn-request-photo-${profile.id}`}
+                  type="button"
+                  onClick={async () => {
+                    if (!viewerIsKYCVerified) {
+                      setGateNotice('KYC Verification Required: You must verify your identity with Didit before requesting photo consent.');
+                      setTimeout(() => setGateNotice(null), 3500);
+                      return;
+                    }
+                    setLocalConsentStatus('pending');
+                    try {
+                      await supabase.from('photo_access_requests').insert({
+                        grantee_id: viewerProfile.id,
+                        grantor_id: profile.id,
+                        requestor_id: viewerProfile.id,
+                        target_id: profile.id,
+                        status: 'pending',
+                      });
+                    } catch (e) {
+                      console.warn('[ProfileCard] insert photo_access_requests note:', e);
+                    }
+                    onSendConsentRequest(profile.id);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl text-xs font-semibold text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5 text-zinc-500" />
+                  <span>Request Photo Access</span>
+                </button>
+              )}
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <Briefcase className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-            <span className="truncate">{sanitizedProfession}</span>
-          </div>
-
-          <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
-            <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-            <span className="truncate">{sanitizedLocation}</span>
-          </div>
-
-          {profile.bio && (
-            <p className="text-zinc-600 dark:text-zinc-400 text-xs line-clamp-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-800/40 italic">
-              "{profile.bio}"
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Sensitive Wali Gating Section */}
-      <div className="p-4 bg-zinc-50 dark:bg-zinc-950/80 border-t border-zinc-200 dark:border-zinc-800 flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            Guardian / Wali:
-          </span>
-
-          {viewerHasDiamondWaliAccess ? (
-            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-              Diamond Unlocked
-            </span>
-          ) : (
-            <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1">
-              <Crown className="w-3 h-3 text-amber-500" />
-              Requires Diamond
-            </span>
-          )}
-        </div>
-
-        {/* Wali Access based on viewer's tier */}
-        {viewerHasDiamondWaliAccess ? (
-          <button
-            id={`btn-view-wali-${profile.id}`}
-            onClick={() => onOpenWaliModal(profile)}
-            className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
-          >
-            <Mail className="w-3.5 h-3.5" />
-            Contact Guardian / Wali
-          </button>
-        ) : (
-          <button
-            id={`btn-unlock-wali-${profile.id}`}
-            onClick={onOpenPricing}
-            className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-amber-50 hover:bg-amber-100 dark:bg-zinc-900 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-600/40 flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
-          >
-            <Lock className="w-3.5 h-3.5 text-amber-600" />
-            Upgrade to Diamond for Wali Access
-          </button>
-        )}
-
-        {/* Feature Gated WebRTC Video, Voice & Message Actions */}
-        {!isSelf && (
+          {/* Wali & Chat Actions */}
           <div className="space-y-2 mt-1">
-            {isMatched ? (
-              onOpenChat && (
-                <button
-                  id={`btn-chat-${profile.id}`}
-                  onClick={() => onOpenChat(profile)}
-                  className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>Open Encrypted Chat</span>
-                </button>
-              )
+            {viewerHasDiamondWaliAccess ? (
+              <button
+                id={`btn-view-wali-${profile.id}`}
+                onClick={() => onOpenWaliModal(profile)}
+                className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                <span>Contact Guardian / Wali</span>
+              </button>
             ) : (
               <button
-                type="button"
-                onClick={() => triggerGatedNotice('Chat & Messaging')}
-                className="w-full py-1.5 px-3 rounded-xl text-xs font-medium bg-zinc-100 dark:bg-zinc-800/60 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700/60 flex items-center justify-center gap-1.5 cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                id={`btn-unlock-wali-${profile.id}`}
+                onClick={onOpenPricing}
+                className="w-full py-2 px-3 rounded-xl text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
-                <Lock className="w-3.5 h-3.5 text-zinc-400" />
-                <span>Chat Locked (Match Required)</span>
+                <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Wali Access (Diamond Tier)</span>
               </button>
             )}
 
-            <div className="grid grid-cols-2 gap-2">
-              {isMatched ? (
-                <>
+            {isMatched && (
+              <div className="space-y-1.5">
+                {onOpenChat && (
+                  <button
+                    id={`btn-chat-${profile.id}`}
+                    onClick={() => onOpenChat(profile)}
+                    className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>Open Encrypted Chat</span>
+                  </button>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     id={`btn-voice-call-${profile.id}`}
                     onClick={() => onStartCall(profile.id, 'voice')}
-                    className="py-1.5 px-2.5 rounded-xl text-xs font-semibold bg-white dark:bg-zinc-900 hover:bg-emerald-50 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-700 flex items-center justify-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                    className="py-2 px-2.5 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Phone className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    Voice Call
+                    <span>Voice</span>
                   </button>
-
                   <button
                     id={`btn-video-call-${profile.id}`}
                     onClick={() => onStartCall(profile.id, 'video')}
-                    className="py-1.5 px-2.5 rounded-xl text-xs font-semibold bg-white dark:bg-zinc-900 hover:bg-emerald-50 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-700 flex items-center justify-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                    className="py-2 px-2.5 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Video className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    Video Call
+                    <span>Video</span>
                   </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => triggerGatedNotice('Voice Calling')}
-                    className="py-1.5 px-2.5 rounded-xl text-xs font-medium bg-zinc-100 dark:bg-zinc-800/40 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center gap-1.5 cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                  >
-                    <Lock className="w-3 h-3 text-zinc-400" />
-                    Voice
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => triggerGatedNotice('Video Calling')}
-                    className="py-1.5 px-2.5 rounded-xl text-xs font-medium bg-zinc-100 dark:bg-zinc-800/40 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center gap-1.5 cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                  >
-                    <Lock className="w-3 h-3 text-zinc-400" />
-                    Video
-                  </button>
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
+
+export const MatchCard = ProfileCard;
 

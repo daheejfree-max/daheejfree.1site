@@ -203,15 +203,15 @@ export default function MatchesPage({
   }, [profiles, currentUserId, genderFilter, kycOnly, searchTerm]);
 
   return (
-    <div className="py-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6">
-      {/* Header & Filter Bar */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 sm:p-6 shadow-sm transition-colors">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
+      {/* Liberated Page Header */}
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
               Discover Nikah Matches
             </h1>
-            <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1.5 max-w-2xl">
               Verified Muslim candidates adhering to 100% Dowry-Free Islamic covenant.
             </p>
           </div>
@@ -223,7 +223,7 @@ export default function MatchesPage({
               onClick={handleManualRefresh}
               disabled={isRefreshing || loading}
               title="Refresh Discovery Feed"
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 transition-colors cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 shadow-sm transition-all cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-500' : ''}`} />
               <span>Refresh</span>
@@ -231,30 +231,30 @@ export default function MatchesPage({
           </div>
         </div>
 
-        {/* Search & Filter Controls */}
-        <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-          {/* Search Input */}
-          <div className="relative flex-1 max-w-lg">
-            <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        {/* Floating Search Bar & Seamless Filter Pills */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+          {/* Floating Pill Search Input */}
+          <div className="relative flex-1 max-w-xl">
+            <Search className="w-4 h-4 text-zinc-400 absolute left-5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               id="match-search-input"
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by name, profession, city, sect..."
-              className="w-full bg-zinc-50 dark:bg-zinc-950 text-xs text-zinc-900 dark:text-zinc-200 pl-10 pr-4 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-800 focus:outline-none focus:border-emerald-500 transition-colors"
+              className="w-full bg-white dark:bg-zinc-900 rounded-full shadow-sm border border-zinc-200 dark:border-zinc-800 pl-12 pr-6 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
             />
           </div>
 
-          {/* Segmented Gender & KYC Filter */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-1 flex items-center gap-1 text-xs">
+          {/* Seamless Segmented Control & Sleek KYC Filter Badge */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="bg-zinc-100 dark:bg-zinc-900/90 p-1.5 rounded-full border border-zinc-200/80 dark:border-zinc-800 flex items-center shadow-xs">
               <button
                 type="button"
                 onClick={() => setGenderFilter('all')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                   genderFilter === 'all'
-                    ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                    ? 'bg-emerald-600 text-white shadow-sm font-bold'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
                 }`}
               >
@@ -263,9 +263,9 @@ export default function MatchesPage({
               <button
                 type="button"
                 onClick={() => setGenderFilter('female')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                   genderFilter === 'female'
-                    ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                    ? 'bg-emerald-600 text-white shadow-sm font-bold'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
                 }`}
               >
@@ -274,9 +274,9 @@ export default function MatchesPage({
               <button
                 type="button"
                 onClick={() => setGenderFilter('male')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                   genderFilter === 'male'
-                    ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                    ? 'bg-emerald-600 text-white shadow-sm font-bold'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
                 }`}
               >
@@ -287,10 +287,10 @@ export default function MatchesPage({
             <button
               type="button"
               onClick={() => setKycOnly(!kycOnly)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-colors cursor-pointer ${
+              className={`px-4 py-2.5 rounded-full text-xs font-semibold border flex items-center gap-2 transition-all cursor-pointer shadow-xs ${
                 kycOnly
-                  ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 shadow-xs'
-                  : 'bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-bold'
+                  : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200'
               }`}
             >
               <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />

@@ -366,11 +366,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => handleNavClick('matches')}
                   className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer ${
                     currentTab === 'matches'
-                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 shadow-xs'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
                   }`}
                 >
-                  <Compass className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <Compass className={`w-4 h-4 ${currentTab === 'matches' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
                   <span>Discover</span>
                 </button>
 
@@ -380,11 +380,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => handleNavClick('requests')}
                   className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
                     currentTab === 'requests'
-                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 shadow-xs'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
                   }`}
                 >
-                  <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <UserCheck className={`w-4 h-4 ${currentTab === 'requests' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
                   <span>Requests</span>
                   {livePendingRequestsCount > 0 && (
                     <span className="min-w-5 h-5 px-1.5 rounded-full bg-rose-600 text-white text-[11px] font-extrabold flex items-center justify-center animate-pulse">
@@ -399,14 +399,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => handleNavClick('my-matches')}
                   className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
                     currentTab === 'my-matches'
-                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 shadow-xs'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
                   }`}
                 >
-                  <HeartHandshake className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <HeartHandshake className={`w-4 h-4 ${currentTab === 'my-matches' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
                   <span>My Matches</span>
                   {liveAcceptedMatchesCount > 0 && (
-                    <span className="min-w-5 h-5 px-1.5 rounded-full bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center">
+                    <span className={`min-w-5 h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center ${currentTab === 'my-matches' ? 'bg-white text-emerald-700' : 'bg-emerald-600 text-white'}`}>
                       {liveAcceptedMatchesCount}
                     </span>
                   )}
@@ -418,14 +418,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => handleNavClick('messages')}
                   className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
                     currentTab === 'messages'
-                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 shadow-xs'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
                   }`}
                 >
-                  <MessageSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <MessageSquare className={`w-4 h-4 ${currentTab === 'messages' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
                   <span>Messages</span>
                   {liveUnreadMessagesCount > 0 && (
-                    <span className="min-w-5 h-5 px-1.5 rounded-full bg-emerald-600 dark:bg-emerald-500 text-white dark:text-zinc-950 text-[11px] font-extrabold flex items-center justify-center animate-pulse">
+                    <span className={`min-w-5 h-5 px-1.5 rounded-full text-[11px] font-extrabold flex items-center justify-center animate-pulse ${currentTab === 'messages' ? 'bg-white text-emerald-700' : 'bg-emerald-600 text-white'}`}>
                       {liveUnreadMessagesCount}
                     </span>
                   )}
@@ -439,11 +439,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => handleNavClick('landing')}
                   className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     currentTab === 'landing'
-                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-semibold'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
                   }`}
                 >
-                  <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <Sparkles className={`w-4 h-4 ${currentTab === 'landing' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
                   <span>Trust Pillars</span>
                 </button>
 
@@ -452,11 +452,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => handleNavClick('pricing')}
                   className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     currentTab === 'pricing'
-                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-semibold'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
                   }`}
                 >
-                  <CreditCard className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <CreditCard className={`w-4 h-4 ${currentTab === 'pricing' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`} />
                   <span>Pricing Plans</span>
                 </button>
 
@@ -465,11 +465,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => handleNavClick('pledge')}
                   className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     currentTab === 'pledge'
-                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-semibold'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
                   }`}
                 >
-                  <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <Shield className={`w-4 h-4 ${currentTab === 'pledge' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
                   <span>Anti-Dowry Registry</span>
                 </button>
               </>
@@ -480,14 +480,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="nav-tab-admin-godmode"
                 onClick={() => handleNavClick('admin')}
-                className={`flex items-center px-4 py-2 text-sm text-emerald-500 font-bold hover:bg-zinc-800 transition-colors rounded-xl shrink-0 ${
+                className={`px-4 py-2 rounded-full font-semibold text-sm transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                   currentTab === 'admin'
-                    ? 'bg-zinc-800 ring-1 ring-emerald-500/40 text-emerald-400 shadow-sm'
-                    : ''
+                    ? 'bg-emerald-600 text-white shadow-sm border border-transparent'
+                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
                 }`}
                 title="Admin God Mode Control Panel"
               >
-                <Shield className="w-4 h-4 mr-1.5 text-emerald-400 shrink-0" />
+                <Shield className="w-4 h-4 shrink-0" />
                 <span className="whitespace-nowrap">Admin God Mode</span>
               </button>
             )}
