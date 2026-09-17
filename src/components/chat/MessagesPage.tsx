@@ -1386,7 +1386,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   const canCall = viewerTier === 'platinum' || viewerTier === 'diamond';
 
   return (
-    <div className={`w-full overflow-hidden overscroll-none flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3 ${!isMobileListOpen && selectedUserId ? 'h-[100dvh] fixed inset-0 z-40 md:relative md:inset-auto md:z-auto md:h-full' : 'h-[calc(100dvh-5rem)] md:h-full flex-1'}`}>
+    <div className="h-[100dvh] w-full overflow-hidden overscroll-none flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3 fixed inset-0 z-40 md:relative md:inset-auto md:z-auto md:h-full">
       {/* Top Banner: Islamic Matrimonial Messaging Charter (Desktop only to maximize mobile conversation viewport) */}
       <div className="shrink-0 mb-0 sm:mb-3 bg-gradient-to-r from-emerald-900/90 via-teal-950/90 to-zinc-900 border border-emerald-500/30 rounded-none sm:rounded-2xl p-2.5 sm:p-4 text-white hidden md:flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 shadow-lg">
         <div className="flex items-center gap-3">

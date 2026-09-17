@@ -102,10 +102,16 @@ export const NotificationsBell: React.FC<{ currentUserId: string }> = ({ current
       </button>
 
       {isOpen && (
-        <div 
-          id="notifications-bell-dropdown"
-          className="absolute right-0 mt-2 w-80 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 z-50 space-y-2 animate-in fade-in"
-        >
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 sm:hidden animate-in fade-in"
+            onClick={() => setIsOpen(false)}
+            aria-hidden="true"
+          />
+          <div 
+            id="notifications-bell-dropdown"
+            className="fixed inset-x-3 top-16 sm:inset-auto sm:absolute sm:right-0 sm:top-full sm:mt-2 sm:w-80 max-w-sm mx-auto sm:mx-0 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 z-50 space-y-2 animate-in fade-in"
+          >
           <div className="flex items-center justify-between px-2 py-1 border-b border-zinc-100 dark:border-zinc-800">
             <span className="text-xs font-bold text-zinc-900 dark:text-white">Photo Access Requests</span>
             <span className="text-[10px] text-zinc-500">{requests.length} pending</span>
@@ -160,6 +166,7 @@ export const NotificationsBell: React.FC<{ currentUserId: string }> = ({ current
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );

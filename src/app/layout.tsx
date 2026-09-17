@@ -51,7 +51,7 @@ export default function RootLayout({
           {/* Global Realtime Notification & Message Toast Alerts */}
           <GlobalNotificationListener currentUserId={currentUserId} />
           
-          <main className="min-h-screen w-full overflow-x-hidden">
+          <main className="min-h-screen w-full overflow-x-hidden pb-24 md:pb-0">
             {children}
           </main>
         </ThemeProvider>

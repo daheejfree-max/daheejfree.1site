@@ -38,8 +38,8 @@ export interface ProfileCardProps {
   viewerProfile: ProfileSecureView;
   isSelf: boolean;
   consentStatus: ConsentStatus | 'none';
-  status?: 'none' | 'pending' | 'accepted' | 'rejected' | ConnectionPairStatus;
-  connectionPairStatus?: ConnectionPairStatus;
+  status?: 'none' | 'pending' | 'accepted' | 'rejected' | 'matched' | ConnectionPairStatus | string;
+  connectionPairStatus?: ConnectionPairStatus | 'matched' | string;
   onSendConnectionRequest?: (targetId: string) => void;
   onRespondConnection?: (targetId: string, status: 'accepted' | 'rejected') => void;
   onSendConsentRequest: (targetId: string) => void;
@@ -69,7 +69,14 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   const [localConsentStatus, setLocalConsentStatus] = useState<ConsentStatus | 'none'>(consentStatus);
 
   // Evaluate relationship status across status prop, connectionPairStatus prop, store, and database
-  const [internalStatus, setInternalStatus] = useState<'none' | 'pending' | 'accepted' | 'rejected' | ConnectionPairStatus>(() => {
+  const [internalStatus, setInternalStatus] = useState<'none' | 'pending' | 'accepted' | 'rejected' | 'matched' | ConnectionPairStatus | string>(() => {
+    if (status === 'accepted' || status === 'matched') return 'accepted';
+    if (connectionPairStatus === 'accepted' || connectionPairStatus === 'matched') return 'accepted';
+    if (viewerProfile?.id && profile?.id) {
+      if (daheejStore.hasAcceptedConnection(viewerProfile.id, profile.id)) return 'accepted';
+      const pair = daheejStore.getConnectionPairStatus(viewerProfile.id, profile.id);
+      if (pair === 'accepted') return 'accepted';
+    }
     if (status && status !== 'none') return status;
     if (connectionPairStatus && connectionPairStatus !== 'none') return connectionPairStatus;
     if (viewerProfile?.id && profile?.id) {
@@ -79,7 +86,9 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   });
 
   React.useEffect(() => {
-    if (status) {
+    if (status === 'accepted' || status === 'matched' || connectionPairStatus === 'accepted' || connectionPairStatus === 'matched') {
+      setInternalStatus('accepted');
+    } else if (status) {
       setInternalStatus(status);
     } else if (connectionPairStatus) {
       setInternalStatus(connectionPairStatus);
@@ -100,9 +109,10 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
 
         if (!error && data && data.length > 0 && isMounted) {
           data.forEach((connRec: any) => daheejStore.setConnectionFromRemote(connRec, false));
-          const acceptedRec = data.find((d: any) => d.status === 'accepted');
+          const acceptedRec = data.find((d: any) => d.status === 'accepted' || d.status === 'matched');
           if (acceptedRec) {
             setInternalStatus('accepted');
+            daheejStore.setConnectionFromRemote(acceptedRec, true);
           } else {
             const latest = [...data].sort((a: any, b: any) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())[0];
             if (latest.status === 'pending') {
@@ -132,8 +142,9 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
               (rec.sender_id === viewerProfile.id && rec.receiver_id === profile.id) ||
               (rec.sender_id === profile.id && rec.receiver_id === viewerProfile.id)
             ) {
-              if (rec.status === 'accepted') {
+              if (rec.status === 'accepted' || rec.status === 'matched') {
                 setInternalStatus('accepted');
+                daheejStore.setConnectionFromRemote(rec, true);
               } else if (rec.status === 'pending') {
                 setInternalStatus(rec.sender_id === viewerProfile.id ? 'pending_sent' : 'pending_received');
               } else if (rec.status === 'rejected') {
@@ -151,11 +162,18 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
     };
   }, [viewerProfile?.id, profile.id, isSelf]);
 
-  const isMatched =
+  const isMatched = Boolean(
     status === 'accepted' ||
+    status === 'matched' ||
     internalStatus === 'accepted' ||
+    internalStatus === 'matched' ||
     connectionPairStatus === 'accepted' ||
-    (viewerProfile?.id ? daheejStore.hasAcceptedConnection(viewerProfile.id, profile.id) : false);
+    connectionPairStatus === 'matched' ||
+    (viewerProfile?.id && profile?.id
+      ? (daheejStore.hasAcceptedConnection(viewerProfile.id, profile.id) ||
+         daheejStore.getConnectionPairStatus(viewerProfile.id, profile.id) === 'accepted')
+      : false)
+  );
 
   // Sync prop changes to local state
   React.useEffect(() => {
@@ -441,81 +459,31 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
       {/* Actions Container - Pushed cleanly to card bottom */}
       {!isSelf && (
         <div className="w-full mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-col gap-2">
-          {/* Mutual Match Status */}
+          {/* Mutual Match Status: Single Message Candidate Button */}
           {isMatched ? (
-            <div className="space-y-2 w-full mt-auto">
-              <div className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center gap-1.5 shadow-xs">
-                <Heart className="w-3.5 h-3.5 fill-emerald-600 text-emerald-600" />
-                <span>Mutual Match Confirmed</span>
-              </div>
-
-              {/* Wali Contact */}
-              {viewerHasDiamondWaliAccess ? (
+            <div className="w-full mt-auto">
+              {onOpenChat ? (
                 <button
-                  id={`btn-view-wali-${profile.id}`}
-                  onClick={() => onOpenWaliModal(profile)}
-                  className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  id={`btn-chat-${profile.id}`}
+                  type="button"
+                  onClick={() => onOpenChat(profile)}
+                  className="w-full py-3 px-4 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >
-                  <Mail className="w-3.5 h-3.5" />
-                  <span>Contact Guardian / Wali</span>
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Message Candidate</span>
                 </button>
               ) : (
-                <button
-                  id={`btn-unlock-wali-${profile.id}`}
-                  onClick={onOpenPricing}
-                  className="w-full py-2 px-3 rounded-xl text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                  <span>Wali Access (Diamond Tier)</span>
-                </button>
+                <Link href={`/messages?userId=${profile.id}`} className="w-full block">
+                  <button
+                    id={`btn-chat-link-${profile.id}`}
+                    type="button"
+                    className="w-full py-3 px-4 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Message Candidate</span>
+                  </button>
+                </Link>
               )}
-
-              {/* Chat & Call options */}
-              <div className="space-y-1.5 w-full">
-                {onOpenChat ? (
-                  <button
-                    id={`btn-chat-${profile.id}`}
-                    type="button"
-                    onClick={() => onOpenChat(profile)}
-                    className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>Open Encrypted Chat</span>
-                  </button>
-                ) : (
-                  <Link href="/messages" className="w-full block">
-                    <button
-                      id={`btn-chat-link-${profile.id}`}
-                      type="button"
-                      className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>Open Encrypted Chat</span>
-                    </button>
-                  </Link>
-                )}
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    id={`btn-voice-call-${profile.id}`}
-                    type="button"
-                    onClick={() => onStartCall(profile.id, 'voice')}
-                    className="py-2 px-2.5 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Phone className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>Voice</span>
-                  </button>
-                  <button
-                    id={`btn-video-call-${profile.id}`}
-                    type="button"
-                    onClick={() => onStartCall(profile.id, 'video')}
-                    className="py-2 px-2.5 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Video className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>Video</span>
-                  </button>
-                </div>
-              </div>
             </div>
           ) : (
             <>

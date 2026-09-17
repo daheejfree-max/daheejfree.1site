@@ -165,7 +165,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
         {/* User Identity & KYC Overview Card */}
         <div className="p-3 mb-2 rounded-xl bg-zinc-50 dark:bg-zinc-900/90 border border-zinc-200/80 dark:border-zinc-800 md:border-0 md:border-b md:border-zinc-200 md:dark:border-zinc-800 md:rounded-none md:bg-transparent md:p-2 md:mb-1">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 md:w-9 md:h-9 rounded-full bg-emerald-950/60 border border-emerald-500/40 overflow-hidden flex items-center justify-center text-emerald-300 font-bold text-sm shrink-0">
+            <div className="w-11 h-11 md:w-9 md:h-9 rounded-full bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 overflow-hidden flex items-center justify-center text-emerald-800 dark:text-emerald-300 font-bold text-sm shrink-0">
               {currentProfile?.avatar_url ? (
                 <img
                   src={currentProfile.avatar_url}

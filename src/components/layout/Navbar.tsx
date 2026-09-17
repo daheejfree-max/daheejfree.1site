@@ -553,7 +553,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="hidden md:flex items-center gap-2 p-1.5 rounded-full border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                   title="User Account Menu"
                 >
-                  <div className="relative w-8 h-8 rounded-full bg-emerald-950/60 border border-emerald-500/40 overflow-hidden flex items-center justify-center text-emerald-300 font-bold text-xs">
+                  <div className="relative w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 overflow-hidden flex items-center justify-center text-emerald-800 dark:text-emerald-300 font-bold text-xs">
                     {currentProfile?.avatar_url ? (
                       <img
                         src={currentProfile.avatar_url}
@@ -649,7 +649,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
               {/* Notification indicator on mobile menu button */}
               {(livePendingRequestsCount > 0 || liveUnreadMessagesCount > 0) && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-zinc-900 animate-pulse" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-zinc-50 dark:border-zinc-900 animate-pulse" />
               )}
             </button>
           </div>
@@ -688,7 +688,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {currentProfile ? (
                 <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-emerald-50/50 dark:bg-emerald-950/20">
                   <div className="flex items-center gap-3">
-                    <div className="relative w-12 h-12 rounded-2xl bg-emerald-900 border-2 border-emerald-500 overflow-hidden flex items-center justify-center text-emerald-200 font-bold text-base shadow-sm">
+                    <div className="relative w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900 border-2 border-emerald-500 overflow-hidden flex items-center justify-center text-emerald-800 dark:text-emerald-200 font-bold text-base shadow-sm">
                       {currentProfile?.avatar_url ? (
                         <img
                           src={currentProfile.avatar_url}
@@ -940,7 +940,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       type="button"
                       onClick={() => handleNavClick('admin')}
-                      className="w-full px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-800/60 flex items-center gap-2 hover:bg-emerald-900/60 transition-colors"
+                      className="w-full px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/60 dark:hover:bg-emerald-900/60 flex items-center gap-2 transition-colors"
                     >
                       <Shield className="w-4 h-4 text-emerald-400" />
                       <span>God Mode Admin Dashboard</span>
