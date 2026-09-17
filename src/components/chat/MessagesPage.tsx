@@ -33,6 +33,7 @@ import {
   Eye,
   X,
   Bell,
+  ArrowDown,
 } from 'lucide-react';
 import { Profile, ProfileSecureView, SubscriptionTier, ChatMessage } from '../../types';
 import { daheejStore } from '../../lib/supabase/store';
@@ -267,6 +268,32 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Smart Chat Scroll State: isolates chat scrolling and preserves user scroll position
+  const isUserScrolledUpRef = useRef<boolean>(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState<boolean>(false);
+  const prevMsgCountRef = useRef<number>(0);
+  const prevPartnerIdRef = useRef<string | null>(null);
+
+  const scrollToBottom = useCallback((smooth = false) => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto',
+      });
+      isUserScrolledUpRef.current = false;
+      setShowScrollToBottom(false);
+    }
+  }, []);
+
+  const handleChatScroll = useCallback(() => {
+    if (!chatContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+    const isUp = distanceFromBottom > 100;
+    isUserScrolledUpRef.current = isUp;
+    setShowScrollToBottom(isUp);
+  }, []);
 
   const stopRingtone = useCallback(() => {
     if (audioRef.current) {
@@ -1080,22 +1107,35 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     }
   };
 
-  // Auto-scroll strictly isolated to the chat container to prevent jumping the outer window
+  // Smart scroll management: isolated to chat container and never dragging down while reading history
   useEffect(() => {
+    if (selectedUserId && selectedUserId !== prevPartnerIdRef.current) {
+      prevPartnerIdRef.current = selectedUserId;
+      isUserScrolledUpRef.current = false;
+      setShowScrollToBottom(false);
+      prevMsgCountRef.current = 0;
+      const timer = setTimeout(() => {
+        scrollToBottom(false);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedUserId, scrollToBottom]);
+
+  useEffect(() => {
+    const currentCount = activeMessages.length;
+    const isInitialLoad = prevMsgCountRef.current === 0 && currentCount > 0;
+    prevMsgCountRef.current = currentCount;
+
+    // If user has intentionally scrolled up to read chat history, DO NOT drag them down
+    if (isUserScrolledUpRef.current && !isInitialLoad) {
+      return;
+    }
+
     if (chatContainerRef.current) {
       const { scrollHeight, clientHeight } = chatContainerRef.current;
       chatContainerRef.current.scrollTop = scrollHeight - clientHeight;
     }
   }, [activeMessages]);
-
-  // Lock the browser window scrolling while on the messages page
-  useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, []);
 
   // Calculate conversations list with preview metadata
   const conversationsList = useMemo(() => {
@@ -1270,7 +1310,10 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       console.warn('[MessagesPage] Supabase remote sync note:', err);
     } finally {
       setIsSending(false);
+      isUserScrolledUpRef.current = false;
+      setShowScrollToBottom(false);
       setTimeout(() => {
+        scrollToBottom(true);
         inputRef.current?.focus();
       }, 50);
     }
@@ -1343,9 +1386,9 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   const canCall = viewerTier === 'platinum' || viewerTier === 'diamond';
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden overscroll-none fixed inset-0 flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3 z-30">
-      {/* Top Banner: Islamic Matrimonial Messaging Charter (Compact on mobile, hidden during active chat on mobile) */}
-      <div className={`shrink-0 mb-0 sm:mb-3 bg-gradient-to-r from-emerald-900/90 via-teal-950/90 to-zinc-900 border border-emerald-500/30 rounded-none sm:rounded-2xl p-2.5 sm:p-4 text-white ${!isMobileListOpen ? 'hidden md:flex' : 'flex'} flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 shadow-lg`}>
+    <div className={`w-full overflow-hidden overscroll-none flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3 ${!isMobileListOpen && selectedUserId ? 'h-[100dvh] fixed inset-0 z-40 md:relative md:inset-auto md:z-auto md:h-full' : 'h-[calc(100dvh-5rem)] md:h-full flex-1'}`}>
+      {/* Top Banner: Islamic Matrimonial Messaging Charter (Desktop only to maximize mobile conversation viewport) */}
+      <div className="shrink-0 mb-0 sm:mb-3 bg-gradient-to-r from-emerald-900/90 via-teal-950/90 to-zinc-900 border border-emerald-500/30 rounded-none sm:rounded-2xl p-2.5 sm:p-4 text-white hidden md:flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 shadow-lg">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0">
             <Shield className="w-5 h-5 text-emerald-400" />
@@ -1535,8 +1578,11 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                   {/* Mobile Back Button */}
                   <button
-                    onClick={() => setIsMobileListOpen(true)}
-                    className="min-w-[40px] min-h-[40px] sm:min-w-[44px] sm:min-h-[44px] p-2 rounded-full md:hidden bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 active:bg-zinc-200 dark:active:bg-zinc-700 flex items-center justify-center cursor-pointer shrink-0"
+                    onClick={() => {
+                      setIsMobileListOpen(true);
+                      setSelectedUserId(null);
+                    }}
+                    className="min-w-[44px] min-h-[44px] p-2 rounded-full md:hidden bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 active:bg-zinc-200 dark:active:bg-zinc-700 flex items-center justify-center cursor-pointer shrink-0"
                     title="Back to conversation list"
                     aria-label="Back to conversation list"
                   >
@@ -1762,7 +1808,8 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
               <div 
                 id="messages-container"
                 ref={chatContainerRef}
-                className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 bg-zinc-100/40 dark:bg-zinc-950/40 min-h-0"
+                onScroll={handleChatScroll}
+                className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 bg-zinc-100/40 dark:bg-zinc-950/40 min-h-0 relative"
               >
                 {activeMessages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center p-4 sm:p-6 space-y-4 max-w-md mx-auto my-auto">
@@ -2050,6 +2097,22 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* Floating "Scroll to latest" button when user is reading past messages */}
+                {showScrollToBottom && (
+                  <div className="sticky bottom-2 flex justify-end pr-2 pointer-events-none z-20">
+                    <button
+                      type="button"
+                      onClick={() => scrollToBottom(true)}
+                      className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-semibold shadow-lg transition-all cursor-pointer animate-in fade-in slide-in-from-bottom-2"
+                      aria-label="Scroll to newest messages"
+                    >
+                      <ArrowDown className="w-3.5 h-3.5 animate-bounce" />
+                      <span>Newest messages</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Auto-scroll anchor point */}
                 <div ref={messagesEndRef} />
               </div>

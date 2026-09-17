@@ -762,13 +762,24 @@ class DaheejFreeStore {
   public getConnectionBetween(userOne: string, userTwo: string): Connection | null {
     if (!userOne || !userTwo) return null;
     const connections = this.getConnections();
-    return (
-      connections.find(
-        (c) =>
-          (c.sender_id === userOne && c.receiver_id === userTwo) ||
-          (c.sender_id === userTwo && c.receiver_id === userOne)
-      ) || null
+    const matching = connections.filter(
+      (c) =>
+        (c.sender_id === userOne && c.receiver_id === userTwo) ||
+        (c.sender_id === userTwo && c.receiver_id === userOne)
     );
+    if (matching.length === 0) return null;
+
+    // CRITICAL: If any connection between these two users is accepted, it takes top precedence
+    const accepted = matching.find((c) => c.status === 'accepted');
+    if (accepted) return accepted;
+
+    // Otherwise pick the most recently updated or created
+    matching.sort((a, b) => {
+      const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
+      const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
+      return timeB - timeA;
+    });
+    return matching[0];
   }
 
   public getConnectionPairStatus(currentUserId: string, targetUserId: string): ConnectionPairStatus {
@@ -789,8 +800,13 @@ class DaheejFreeStore {
   public hasAcceptedConnection(userOne: string, userTwo: string): boolean {
     if (!userOne || !userTwo) return false;
     if (userOne === userTwo) return true;
-    const conn = this.getConnectionBetween(userOne, userTwo);
-    return !!conn && conn.status === 'accepted';
+    const connections = this.getConnections();
+    return connections.some(
+      (c) =>
+        c.status === 'accepted' &&
+        ((c.sender_id === userOne && c.receiver_id === userTwo) ||
+         (c.sender_id === userTwo && c.receiver_id === userOne))
+    );
   }
 
   public getAcceptedConnectionPartnerIds(userId: string): string[] {
@@ -821,6 +837,23 @@ class DaheejFreeStore {
     userTwo: string,
     status: 'accepted' | 'rejected'
   ): Connection | null {
+    const connections = this.getConnections();
+    let updated: Connection | null = null;
+    connections.forEach((c) => {
+      if (
+        (c.sender_id === userOne && c.receiver_id === userTwo) ||
+        (c.sender_id === userTwo && c.receiver_id === userOne)
+      ) {
+        c.status = status;
+        c.updated_at = new Date().toISOString();
+        updated = c;
+      }
+    });
+    if (updated) {
+      localStorage.setItem(STORAGE_KEY_CONNECTIONS, JSON.stringify(connections));
+      this.broadcast('connections', 'UPDATE', updated);
+      return updated;
+    }
     const conn = this.getConnectionBetween(userOne, userTwo);
     if (!conn) return null;
     return this.respondToConnection(conn.id, status);
@@ -876,12 +909,35 @@ class DaheejFreeStore {
   public setConnectionFromRemote(connection: Connection, shouldBroadcast = false): void {
     if (!connection || !connection.id || typeof window === 'undefined') return;
     const connections = this.getConnections();
-    const index = connections.findIndex((c) => c.id === connection.id);
+    const index = connections.findIndex(
+      (c) =>
+        c.id === connection.id ||
+        (c.sender_id === connection.sender_id && c.receiver_id === connection.receiver_id) ||
+        (c.sender_id === connection.receiver_id && c.receiver_id === connection.sender_id)
+    );
     let hasChanged = false;
     if (index !== -1) {
-      if (connections[index].status !== connection.status || connections[index].updated_at !== connection.updated_at) {
-        connections[index] = { ...connections[index], ...connection };
-        hasChanged = true;
+      // If current is accepted and incoming is not accepted, preserve accepted status
+      const resolvedStatus = connections[index].status === 'accepted' && connection.status !== 'accepted'
+        ? 'accepted'
+        : connection.status;
+      
+      connections[index] = {
+        ...connections[index],
+        ...connection,
+        status: resolvedStatus,
+      };
+      hasChanged = true;
+
+      // Clean up any remaining duplicate rows for this pair
+      for (let i = connections.length - 1; i >= 0; i--) {
+        if (
+          i !== index &&
+          ((connections[i].sender_id === connection.sender_id && connections[i].receiver_id === connection.receiver_id) ||
+           (connections[i].sender_id === connection.receiver_id && connections[i].receiver_id === connection.sender_id))
+        ) {
+          connections.splice(i, 1);
+        }
       }
     } else {
       connections.push(connection);

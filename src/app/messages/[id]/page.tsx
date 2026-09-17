@@ -17,6 +17,7 @@ import {
   PhoneMissed,
   Sparkles,
   Lock,
+  ArrowDown,
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { Profile, ChatMessage } from '../../../types';
@@ -67,8 +68,41 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll strictly isolated to the chat container to prevent jumping the outer window
+  // Smart Chat Scroll State: prevents dragging user down when viewing history
+  const isUserScrolledUpRef = useRef<boolean>(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState<boolean>(false);
+  const prevMsgCountRef = useRef<number>(0);
+
+  const scrollToBottom = useCallback((smooth = false) => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto',
+      });
+      isUserScrolledUpRef.current = false;
+      setShowScrollToBottom(false);
+    }
+  }, []);
+
+  const handleChatScroll = useCallback(() => {
+    if (!chatContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+    const isUp = distanceFromBottom > 100;
+    isUserScrolledUpRef.current = isUp;
+    setShowScrollToBottom(isUp);
+  }, []);
+
+  // Auto-scroll strictly isolated: preserve scroll position when user scrolled up
   useEffect(() => {
+    const currentCount = messages.length;
+    const isInitial = prevMsgCountRef.current === 0 && currentCount > 0;
+    prevMsgCountRef.current = currentCount;
+
+    if (isUserScrolledUpRef.current && !isInitial) {
+      return;
+    }
+
     if (chatContainerRef.current) {
       const { scrollHeight, clientHeight } = chatContainerRef.current;
       chatContainerRef.current.scrollTop = scrollHeight - clientHeight;
@@ -219,7 +253,12 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
       console.warn('[DirectChatRoom] Send error:', err);
     } finally {
       setIsSending(false);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      isUserScrolledUpRef.current = false;
+      setShowScrollToBottom(false);
+      setTimeout(() => {
+        scrollToBottom(true);
+        inputRef.current?.focus();
+      }, 50);
     }
   };
 
@@ -317,7 +356,8 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
       <div 
         id="messages-container"
         ref={chatContainerRef} 
-        className="flex-1 overflow-y-auto p-4 space-y-4 overscroll-contain min-h-0"
+        onScroll={handleChatScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-4 overscroll-contain min-h-0 relative"
       >
         {/* Shariah Anti-Dowry Banner */}
         <div className="p-2.5 bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-2 shadow-xs">
@@ -432,6 +472,22 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
             );
           })
         )}
+
+        {/* Floating "Scroll to latest" button when user is reading past messages */}
+        {showScrollToBottom && (
+          <div className="sticky bottom-2 flex justify-end pr-2 pointer-events-none z-20">
+            <button
+              type="button"
+              onClick={() => scrollToBottom(true)}
+              className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-semibold shadow-lg transition-all cursor-pointer animate-in fade-in slide-in-from-bottom-2"
+              aria-label="Scroll to newest messages"
+            >
+              <ArrowDown className="w-3.5 h-3.5 animate-bounce" />
+              <span>Newest messages</span>
+            </button>
+          </div>
+        )}
+
         {/* Auto-scroll target */}
         <div ref={messagesEndRef} />
       </div>

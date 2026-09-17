@@ -465,7 +465,7 @@ export default function RequestsPage({
           status: 'accepted',
           updated_at: new Date().toISOString(),
         })
-        .eq('id', connectionId);
+        .or(`id.eq.${connectionId},and(sender_id.eq.${currentUserId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${currentUserId})`);
 
       if (onNavigateChat) {
         onNavigateChat(receiverId);
