@@ -61,11 +61,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
         onClick={cycleTheme}
         aria-label={`Theme: ${getLabel()} (Click to cycle Light, Dark, System)`}
         title={`Theme: ${getLabel()} (Click to cycle Light, Dark, System)`}
-        className={`relative inline-flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer ${
-          resolvedTheme === 'dark'
-            ? 'bg-zinc-800/90 hover:bg-zinc-700/90 text-zinc-100 border border-zinc-700/80 shadow-sm'
-            : 'bg-zinc-100 hover:bg-zinc-200/90 text-zinc-800 border border-zinc-300/80 shadow-sm'
-        } ${className}`}
+        className={`relative inline-flex items-center justify-center p-2 rounded-full border transition-colors border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer ${className}`}
       >
         <div className="flex items-center gap-1.5">
           {getIcon()}
@@ -83,11 +79,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
         onClick={() => setIsOpen(!isOpen)}
         aria-label={`Current theme: ${getLabel()}`}
         title={`Current theme: ${getLabel()} (Click to change)`}
-        className={`relative inline-flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer ${
-          resolvedTheme === 'dark'
-            ? 'bg-zinc-800/90 hover:bg-zinc-700/90 text-zinc-100 border border-zinc-700/80 shadow-sm'
-            : 'bg-zinc-100 hover:bg-zinc-200/90 text-zinc-800 border border-zinc-300/80 shadow-sm'
-        } ${className}`}
+        className={`relative inline-flex items-center justify-center p-2 rounded-full border transition-colors border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer ${className}`}
       >
         <div className="flex items-center gap-1.5">
           {getIcon()}

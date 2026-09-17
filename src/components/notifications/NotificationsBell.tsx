@@ -89,7 +89,7 @@ export const NotificationsBell: React.FC<{ currentUserId: string }> = ({ current
         type="button"
         id="btn-notifications-bell"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+        className="relative p-2 rounded-full border transition-colors border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 cursor-pointer"
         title="Photo Requests & Notifications"
         aria-label="Notifications"
       >

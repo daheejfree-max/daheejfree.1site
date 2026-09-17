@@ -554,7 +554,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
           type="button"
           translate="no"
           onClick={() => setIsOpen(true)}
-          className="notranslate flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-emerald-300/80 dark:border-emerald-700/60 bg-emerald-50/90 dark:bg-emerald-950/70 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 text-emerald-900 dark:text-emerald-200 text-xs font-semibold transition-all shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+          className="notranslate flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer"
           title="Change Language / زبان منتخب کریں"
           aria-label="Language Selector"
         >
