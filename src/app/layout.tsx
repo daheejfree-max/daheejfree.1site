@@ -43,7 +43,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
       </head>
-      <body className="min-h-screen w-full overflow-x-hidden bg-zinc-950 text-zinc-50 antialiased font-sans transition-colors duration-200">
+      <body className="min-h-screen w-full overflow-x-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 antialiased font-sans transition-colors duration-200">
         <ThemeProvider>
           {/* Global Realtime Incoming Call Popup (High Priority Fullscreen Interruption) */}
           <GlobalCallPopup />

@@ -208,10 +208,10 @@ export default function MatchesPage({
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-4xl font-extrabold text-zinc-100 tracking-tight">
+            <h1 className="text-2xl md:text-4xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
               Discover Nikah Matches
             </h1>
-            <p className="text-sm md:text-base text-zinc-400 mt-1.5 max-w-2xl">
+            <p className="text-sm md:text-base text-zinc-600 dark:text-zinc-400 mt-1.5 max-w-2xl">
               Verified Muslim candidates adhering to 100% Dowry-Free Islamic covenant.
             </p>
           </div>

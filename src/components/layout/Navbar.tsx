@@ -329,9 +329,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className={`min-h-[44px] shrink-0 sticky top-0 z-50 bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800 transition-colors shadow-sm ${hideMobileNav ? '!hidden md:!block' : ''}`}>
+      <header className={`min-h-[44px] shrink-0 sticky top-0 z-50 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 transition-colors shadow-xs ${hideMobileNav ? '!hidden md:!block' : ''}`}>
       {/* 1. Solemn Islamic Anti-Dowry Pledge Banner */}
-      <div className="bg-emerald-700 text-emerald-50 text-xs py-1.5 w-full text-center font-medium tracking-wide flex items-center justify-center gap-2">
+      <div className="bg-emerald-700 text-emerald-50 text-xs py-1.5 w-full text-center font-medium tracking-wide flex items-center justify-center gap-2 shadow-xs">
         <Shield className="w-3.5 h-3.5 text-emerald-200 flex-shrink-0" />
         <span className="truncate max-w-2xl sm:max-w-none">
           <strong>Solemn Islamic Anti-Dowry Pledge:</strong> 100% Dowry-Free (Bila-Daheej) Nikah Platform. No demands, zero extortion, pure Sunnah simplicity.
@@ -353,8 +353,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Center: Desktop Navigation Links */}
           <nav className="hidden md:flex items-center gap-2">
             {isNavigationLocked ? (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm font-semibold">
-                <Lock className="w-3.5 h-3.5 text-amber-400" />
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-sm font-semibold">
+                <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                 <span>Mandatory Legal Agreements & Profile Onboarding</span>
               </div>
             ) : currentProfile ? (
@@ -364,10 +364,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-discover"
                   onClick={() => handleNavClick('matches')}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer ${
                     currentTab === 'matches'
-                      ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
-                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30 font-bold'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900'
                   }`}
                 >
                   <Compass className="w-4 h-4" />
@@ -378,10 +378,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-requests"
                   onClick={() => handleNavClick('requests')}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2 relative cursor-pointer ${
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
                     currentTab === 'requests'
-                      ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
-                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30 font-bold'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900'
                   }`}
                 >
                   <UserCheck className="w-4 h-4" />
@@ -397,10 +397,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-my-matches"
                   onClick={() => handleNavClick('my-matches')}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2 relative cursor-pointer ${
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
                     currentTab === 'my-matches'
-                      ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
-                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30 font-bold'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900'
                   }`}
                 >
                   <HeartHandshake className="w-4 h-4" />
@@ -416,10 +416,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-messages"
                   onClick={() => handleNavClick('messages')}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2 relative cursor-pointer ${
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 relative cursor-pointer ${
                     currentTab === 'messages'
-                      ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
-                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30 font-bold'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900'
                   }`}
                 >
                   <MessageSquare className="w-4 h-4" />
@@ -437,10 +437,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-landing"
                   onClick={() => handleNavClick('landing')}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     currentTab === 'landing'
-                      ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
-                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30 font-bold'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900'
                   }`}
                 >
                   <Sparkles className="w-4 h-4" />
@@ -450,10 +450,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-pricing"
                   onClick={() => handleNavClick('pricing')}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     currentTab === 'pricing'
-                      ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
-                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30 font-bold'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900'
                   }`}
                 >
                   <CreditCard className="w-4 h-4" />
@@ -463,10 +463,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-tab-pledge"
                   onClick={() => handleNavClick('pledge')}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     currentTab === 'pledge'
-                      ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
-                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30 font-bold'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900'
                   }`}
                 >
                   <Shield className="w-4 h-4" />
@@ -480,10 +480,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="nav-tab-admin-godmode"
                 onClick={() => handleNavClick('admin')}
-                className={`flex items-center gap-2 bg-zinc-900 border text-emerald-500 px-4 py-2 rounded-full text-sm font-bold shadow-sm transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold shadow-xs transition-all cursor-pointer ${
                   currentTab === 'admin'
-                    ? 'border-emerald-500/80 bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
-                    : 'border-zinc-700 hover:border-emerald-500/50'
+                    ? 'border-emerald-500/80 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30'
+                    : 'bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-emerald-700 dark:text-emerald-400 hover:border-emerald-500/50 hover:bg-zinc-200 dark:hover:bg-zinc-800'
                 }`}
                 title="Admin God Mode Control Panel"
               >
@@ -549,7 +549,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   id="btn-nav-user-menu"
                   type="button"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2 p-1.5 rounded-2xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer"
+                  className="flex items-center gap-2 p-1.5 rounded-2xl bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer"
                   title="User Account Menu"
                 >
                   <div className="relative w-8 h-8 rounded-full bg-emerald-950/60 border border-emerald-500/40 overflow-hidden flex items-center justify-center text-emerald-300 font-bold text-xs">
@@ -565,26 +565,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                     )}
                   </div>
                   <div className="hidden lg:block text-left pr-1">
-                    <p className="text-xs font-bold text-white truncate max-w-[120px]">
+                    <p className="text-xs font-bold text-zinc-900 dark:text-white truncate max-w-[120px]">
                       {currentProfile?.full_name || 'My Profile'}
                     </p>
-                    <p className="text-[10px] text-zinc-400 capitalize truncate">
+                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 capitalize truncate">
                       {currentProfile?.full_name || 'My Profile'} • {currentProfile?.subscription_tier || 'Free'}
                     </p>
                   </div>
-                  <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+                  <ChevronDown className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
                 </button>
 
                 {/* Dropdown Menu Modal */}
                 {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-zinc-900 border border-zinc-800 backdrop-blur-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="px-4 py-3 border-b border-zinc-800">
-                      <p className="text-xs font-bold text-white">{currentProfile.full_name}</p>
-                      <p className="text-[11px] text-zinc-400 truncate mt-0.5">{currentProfile.wali_email}</p>
+                  <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 backdrop-blur-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+                      <p className="text-xs font-bold text-zinc-900 dark:text-white">{currentProfile.full_name}</p>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{currentProfile.wali_email}</p>
                       <div className="mt-2 flex items-center gap-1.5">
                         {getTierBadge(tier)}
                         {currentProfile.kyc_verified === true && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                             <CheckCircle className="w-3 h-3" />
                             Verified
                           </span>
@@ -599,9 +599,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           handleNavClick('profile');
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <User className="w-4 h-4 text-emerald-400" />
+                        <User className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                         <span>My Profile & KYC Status</span>
                       </button>
 
@@ -611,10 +611,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           handleNavClick('consent');
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center justify-between transition-colors cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-between transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5">
-                          <Lock className="w-4 h-4 text-emerald-400" />
+                          <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                           <span>Photo Privacy Gating</span>
                         </div>
                         {pendingConsentCount > 0 && (
@@ -630,9 +630,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           handleNavClick('calls');
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <PhoneCall className="w-4 h-4 text-emerald-400" />
+                        <PhoneCall className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                         <span>WebRTC Video Calling</span>
                       </button>
 
@@ -642,9 +642,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           onOpenPricing();
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <CreditCard className="w-4 h-4 text-amber-400" />
+                        <CreditCard className="w-4 h-4 text-amber-500" />
                         <span>Upgrade / Manage Membership</span>
                       </button>
 
@@ -654,30 +654,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           handleNavClick('pledge');
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <Shield className="w-4 h-4 text-emerald-400" />
+                        <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                         <span>Anti-Dowry Registry Certificate</span>
                       </button>
                     </div>
 
                     {isAdmin && (
-                      <div className="py-1 border-t border-zinc-800">
+                      <div className="py-1 border-t border-zinc-200 dark:border-zinc-800">
                         <button
                           type="button"
                           onClick={() => {
                             setUserDropdownOpen(false);
                             handleNavClick('admin');
                           }}
-                          className="w-full px-4 py-2 text-left text-xs font-bold text-emerald-400 hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                          className="w-full px-4 py-2 text-left text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                         >
-                          <Shield className="w-4 h-4 text-emerald-400" />
+                          <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                           <span>Admin God Mode</span>
                         </button>
                       </div>
                     )}
 
-                    <div className="border-t border-zinc-800 pt-1">
+                    <div className="border-t border-zinc-200 dark:border-zinc-800 pt-1">
                       <button
                         type="button"
                         onClick={async () => {
@@ -697,7 +697,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             }
                           }
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
                         <LogIn className="w-4 h-4 text-zinc-500" />
                         <span>Sign In with Another Account</span>
@@ -709,9 +709,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           await signOutSupabase({ hardRedirect: true });
                         }}
-                        className="w-full px-4 py-2 text-left text-xs font-semibold text-red-400 hover:bg-red-950/40 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        className="w-full px-4 py-2 text-left text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <LogOut className="w-4 h-4 text-red-400" />
+                        <LogOut className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                         <span>Sign Out</span>
                       </button>
                     </div>
@@ -727,7 +727,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     if (onOpenLogin) onOpenLogin();
                     else handleNavClick('login');
                   }}
-                  className="px-4 py-2 rounded-full text-sm font-semibold text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-full text-sm font-semibold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
                 >
                   Sign In
                 </button>
@@ -749,7 +749,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="btn-mobile-menu-toggle"
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden relative p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 transition-all cursor-pointer flex items-center justify-center"
+              className="md:hidden relative p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 transition-all cursor-pointer flex items-center justify-center"
               aria-label="Toggle navigation menu"
             >
               {currentProfile?.avatar_url ? (
@@ -791,16 +791,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Drawer Panel */}
           <div
             ref={mobileMenuRef}
-            className="relative w-[86vw] max-w-sm h-full bg-zinc-950 border-l border-zinc-800 shadow-2xl z-10 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-250 pb-safe"
+            className="relative w-[86vw] max-w-sm h-full bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-zinc-800 shadow-2xl z-10 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-250 pb-safe"
           >
             {/* Top: Drawer Header */}
             <div>
-              <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/80">
+              <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/80">
                 <Logo size="sm" showSubtitle={false} />
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-2 rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+                  className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                   aria-label="Close menu"
                 >
                   <X className="w-4 h-4" />
@@ -809,7 +809,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Profile Card / Guest Welcome */}
               {currentProfile ? (
-                <div className="p-4 border-b border-zinc-800 bg-emerald-950/20">
+                <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-emerald-50/50 dark:bg-emerald-950/20">
                   <div className="flex items-center gap-3">
                     <div className="relative w-12 h-12 rounded-2xl bg-emerald-900 border-2 border-emerald-500 overflow-hidden flex items-center justify-center text-emerald-200 font-bold text-base shadow-sm">
                       {currentProfile?.avatar_url ? (
@@ -825,14 +825,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <h4 className="text-sm font-bold text-white truncate">
+                        <h4 className="text-sm font-bold text-zinc-900 dark:text-white truncate">
                           {currentProfile.full_name}
                         </h4>
                         {currentProfile.kyc_status === 'verified' && (
-                          <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                         )}
                       </div>
-                      <p className="text-xs text-zinc-400 truncate">
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
                         {currentProfile.wali_email || 'Member'}
                       </p>
                       <div className="mt-1 flex items-center gap-1.5">
@@ -842,11 +842,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="p-4 border-b border-zinc-800 bg-emerald-950/20">
-                  <h4 className="text-sm font-bold text-white">
+                <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-emerald-50/50 dark:bg-emerald-950/20">
+                  <h4 className="text-sm font-bold text-zinc-900 dark:text-white">
                     Welcome to DaheejFree
                   </h4>
-                  <p className="text-xs text-zinc-400 mt-0.5">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
                     100% Dowry-Free Islamic Matrimonial
                   </p>
                   <div className="grid grid-cols-2 gap-2 mt-3">
