@@ -32,6 +32,7 @@ import {
 import { Profile, SubscriptionTier } from '../../types';
 import { Logo } from '../brand/Logo';
 import { ThemeToggle } from './ThemeToggle';
+import { UserMenu } from './UserMenu';
 import { LanguageSelector, openLanguageSelectorModal } from '../common/LanguageSelector';
 import { signOutSupabase } from '../../lib/supabase/auth';
 import { supabase } from '../../lib/supabase/client';
@@ -542,14 +543,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Authenticated User Account Dropdown (Desktop) */}
+            {/* Authenticated User Account Dropdown */}
             {currentProfile ? (
-              <div className="relative hidden md:block" ref={dropdownRef}>
+              <div className="relative" ref={dropdownRef}>
                 <button
                   id="btn-nav-user-menu"
                   type="button"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2 p-1.5 rounded-full border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  className="hidden md:flex items-center gap-2 p-1.5 rounded-full border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                   title="User Account Menu"
                 >
                   <div className="relative w-8 h-8 rounded-full bg-emerald-950/60 border border-emerald-500/40 overflow-hidden flex items-center justify-center text-emerald-300 font-bold text-xs">
@@ -575,148 +576,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <ChevronDown className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
                 </button>
 
-                {/* Dropdown Menu Modal */}
-                {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white border border-zinc-200 text-zinc-800 shadow-xl dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-200 dark:shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-                      <p className="text-xs font-bold text-zinc-900 dark:text-white">{currentProfile.full_name}</p>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{currentProfile.wali_email}</p>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        {getTierBadge(tier)}
-                        {currentProfile.kyc_verified === true && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            <CheckCircle className="w-3 h-3" />
-                            Verified
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="py-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUserDropdownOpen(false);
-                          handleNavClick('profile');
-                        }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
-                      >
-                        <User className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                        <span>My Profile & KYC Status</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUserDropdownOpen(false);
-                          handleNavClick('consent');
-                        }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-between transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          <span>Photo Privacy Gating</span>
-                        </div>
-                        {pendingConsentCount > 0 && (
-                          <span className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center">
-                            {pendingConsentCount}
-                          </span>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUserDropdownOpen(false);
-                          handleNavClick('calls');
-                        }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
-                      >
-                        <PhoneCall className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                        <span>WebRTC Video Calling</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUserDropdownOpen(false);
-                          onOpenPricing();
-                        }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
-                      >
-                        <CreditCard className="w-4 h-4 text-amber-500" />
-                        <span>Upgrade / Manage Membership</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUserDropdownOpen(false);
-                          handleNavClick('pledge');
-                        }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
-                      >
-                        <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                        <span>Anti-Dowry Registry Certificate</span>
-                      </button>
-                    </div>
-
-                    {isAdmin && (
-                      <div className="py-1 border-t border-zinc-200 dark:border-zinc-800">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUserDropdownOpen(false);
-                            handleNavClick('admin');
-                          }}
-                          className="w-full px-4 py-2 text-left text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
-                        >
-                          <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          <span>Admin God Mode</span>
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="border-t border-zinc-200 dark:border-zinc-800 pt-1">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setUserDropdownOpen(false);
-                          try {
-                            await supabase.auth.signOut();
-                            daheejStore.setCurrentUserId(null);
-                          } catch (err) {
-                            console.warn('[Navbar] Sign out error:', err);
-                          }
-                          if (onOpenLogin) onOpenLogin();
-                          try {
-                            router.push('/login');
-                          } catch {
-                            if (typeof window !== 'undefined') {
-                              window.location.href = '/login';
-                            }
-                          }
-                        }}
-                        className="w-full px-4 py-2 text-left text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 transition-colors cursor-pointer"
-                      >
-                        <LogIn className="w-4 h-4 text-zinc-500" />
-                        <span>Sign In with Another Account</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setUserDropdownOpen(false);
-                          await signOutSupabase({ hardRedirect: true });
-                        }}
-                        className="w-full px-4 py-2 text-left text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2.5 transition-colors cursor-pointer"
-                      >
-                        <LogOut className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                        <span>Sign Out</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
+                {/* Responsive Hybrid User Profile Menu (Desktop Dropdown + Mobile Full-Screen Modal) */}
+                <UserMenu
+                  isOpen={userDropdownOpen}
+                  onClose={() => setUserDropdownOpen(false)}
+                  currentProfile={currentProfile}
+                  tier={tier}
+                  isAdmin={isAdmin}
+                  pendingConsentCount={pendingConsentCount}
+                  onNavigate={handleNavClick}
+                  onOpenPricing={onOpenPricing}
+                  onOpenLogin={onOpenLogin}
+                />
               </div>
             ) : (
               /* Public / Guest Action Buttons (Desktop) */
@@ -748,9 +619,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               id="btn-mobile-menu-toggle"
               type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onClick={() => {
+                if (currentProfile) {
+                  setUserDropdownOpen(!userDropdownOpen);
+                } else {
+                  setMobileMenuOpen(!mobileMenuOpen);
+                }
+              }}
               className="md:hidden relative p-2 rounded-full border border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors cursor-pointer flex items-center justify-center"
-              aria-label="Toggle navigation menu"
+              aria-label={currentProfile ? "Toggle profile menu" : "Toggle navigation menu"}
             >
               {currentProfile?.avatar_url ? (
                 <div className="w-7 h-7 rounded-full overflow-hidden border border-emerald-500/50">
