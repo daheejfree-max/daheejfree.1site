@@ -64,6 +64,7 @@ import PrivacyPolicyPage from './app/privacy/page';
 import RefundPolicyPage from './app/refund/page';
 import LegalHubPage from './app/legal/page';
 import VerificationDisclaimerPage from './app/disclaimer/page';
+import MatchesPage from './app/matches/page';
 import { sendCallInvite } from './lib/callSignaling';
 import { HardKYCGate } from './components/kyc/HardKYCGate';
 import { OnboardingGuard, hasAcceptedLegalConsent } from './components/auth/OnboardingGuard';
@@ -232,9 +233,6 @@ export default function App() {
       window.removeEventListener('app:refresh', handleCustomRefresh);
     };
   }, [refreshState]);
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all');
-  const [kycOnly, setKycOnly] = useState<boolean>(false);
   const [isPricingOpen, setIsPricingOpen] = useState<boolean>(false);
   const [activeWaliProfile, setActiveWaliProfile] = useState<ProfileSecureView | null>(null);
   const [activeConsentProfile, setActiveConsentProfile] = useState<ProfileSecureView | null>(null);
@@ -455,9 +453,6 @@ export default function App() {
     respondToMatch,
   } = useConnections(currentUserId);
 
-  const [supabaseProfiles, setSupabaseProfiles] = useState<any[]>([]);
-  const [isMatchesLoading, setIsMatchesLoading] = useState<boolean>(false);
-
   // Initiates high-fidelity WebRTC call via signaling and routes to dedicated Call Room
   const handleStartCall = useCallback(
     async (targetUserId: string, callType: 'voice' | 'video' | 'audio' = 'video') => {
@@ -501,114 +496,6 @@ export default function App() {
     }
     setCurrentTab('call');
   }, []);
-
-  // Fetch live profiles directly from Supabase profiles table
-  useEffect(() => {
-    if (!currentUserId) {
-      setSupabaseProfiles([]);
-      return;
-    }
-
-    let isMounted = true;
-    async function fetchMatches() {
-      setIsMatchesLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .neq('id', currentUserId);
-
-        if (error) {
-          console.error('Error fetching matches from Supabase:', error);
-        } else if (data && isMounted) {
-          setSupabaseProfiles(data);
-        }
-      } catch (err) {
-        console.error('Supabase query error:', err);
-      } finally {
-        if (isMounted) setIsMatchesLoading(false);
-      }
-    }
-
-    fetchMatches();
-    return () => {
-      isMounted = false;
-    };
-  }, [currentUserId, currentProfile?.updated_at, currentProfile?.subscription_tier]);
-
-  // Filter and compute secure profile views based on Supabase database data and opposite gender matching
-  const secureProfiles = useMemo(() => {
-    const effectiveViewerId = currentUserId || '';
-    if (!effectiveViewerId) return [];
-
-    const rawProfiles = supabaseProfiles.length > 0
-      ? supabaseProfiles
-      : daheejStore.getProfiles().filter((p) => p.id !== currentUserId);
-
-    const mapped: ProfileSecureView[] = rawProfiles.map((p) => {
-      const hasConsent = hasPhotoAccess(p.id);
-      const isDiamond = tier === 'diamond';
-      const normGender = (p.gender === 'male' || p.gender === 'Brother') ? 'male' : 'female';
-
-      return {
-        id: p.id,
-        full_name: p.full_name || 'Candidate',
-        gender: normGender,
-        age: p.age || 24,
-        profession: p.profession || 'Not Specified',
-        location: p.city || p.location || 'Not Specified',
-        city: p.city || p.location || 'Not Specified',
-        kyc_status: p.kyc_status || 'pending',
-        subscription_tier: (p.subscription_tier as SubscriptionTier) || 'free',
-        anti_dowry_pledged: Boolean(p.anti_dowry_pledged ?? true),
-        avatar_url: p.avatar_url || (normGender === 'female' ? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500&auto=format&fit=crop&q=80' : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&auto=format&fit=crop&q=80'),
-        photo_blur_hash: p.photo_blur_hash || 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
-        has_photo_consent: hasConsent,
-        is_photo_unlocked: hasConsent || p.photo_privacy === false,
-        photo_access_granted: hasConsent || p.photo_privacy === false,
-        photo_privacy: p.photo_privacy !== undefined ? p.photo_privacy : true,
-        photo_privacy_mode: p.photo_privacy_mode || 'blur_all',
-        wali_name: p.wali_name || null,
-        wali_phone: p.wali_phone || null,
-        wali_email: isDiamond ? (p.wali_email || `${p.id}@daheejfree.org`) : (p.wali_email || null),
-        created_at: p.created_at || new Date().toISOString(),
-        updated_at: p.updated_at || new Date().toISOString(),
-      };
-    });
-
-    const myGender = currentProfile?.gender === 'male' ? 'male' : 'female';
-    const targetGender = myGender === 'male' ? 'female' : 'male';
-
-    return mapped.filter((p) => {
-      // Exclude self and banned profiles
-      if (p.id === currentUserId || p.kyc_status === 'banned') return false;
-
-      // Filter by gender: default 'all' shows opposite gender
-      if (genderFilter === 'all') {
-        if (currentProfile?.gender && p.gender !== targetGender) {
-          return false;
-        }
-      } else {
-        if (p.gender !== genderFilter) return false;
-      }
-
-      // Filter by KYC verification
-      if (kycOnly && p.kyc_status !== 'verified') {
-        return false;
-      }
-
-      // Search term
-      if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase();
-        const matchesName = p.full_name.toLowerCase().includes(query);
-        const matchesProfession = p.profession?.toLowerCase().includes(query) || false;
-        const matchesLocation = p.location?.toLowerCase().includes(query) || false;
-        return matchesName || matchesProfession || matchesLocation;
-      }
-
-      return true;
-    });
-  }, [currentUserId, supabaseProfiles, currentProfile, tier, genderFilter, kycOnly, searchTerm, hasPhotoAccess]);
 
   const pendingInboundCount = inboundRequests.filter((r) => r.status === 'pending').length;
 
@@ -772,107 +659,16 @@ export default function App() {
         {/* Tab - Auth: Reset Password */}
         {currentTab === 'reset-password' && <ResetPasswordPage />}
 
-        {/* Tab 1: Nikah Matches (Explorer) */}
-        {currentTab === 'matches' && (
-          <div className="space-y-6">
-            {/* Search & Filter Bar */}
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-3.5 sm:p-5 shadow-sm dark:shadow-xl transition-colors">
-              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-                {/* Search Input */}
-                <div className="relative w-full lg:w-96">
-                  <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 transform -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search by name, profession, city..."
-                    className="w-full bg-zinc-50 dark:bg-zinc-950 text-xs text-zinc-900 dark:text-zinc-200 pl-10 pr-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-emerald-500 transition-colors"
-                  />
-                </div>
-
-                {/* Filter Controls */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
-                  {/* Gender Filter Segmented Control */}
-                  <div className="bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-1 grid grid-cols-3 gap-1 text-xs">
-                    <button
-                      onClick={() => setGenderFilter('all')}
-                      className={`py-1.5 px-2 rounded-lg font-semibold text-center transition-all ${
-                        genderFilter === 'all' ? 'bg-emerald-600 text-white shadow-xs' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
-                      }`}
-                    >
-                      All
-                    </button>
-                    <button
-                      onClick={() => setGenderFilter('female')}
-                      className={`py-1.5 px-2 rounded-lg font-semibold text-center transition-all ${
-                        genderFilter === 'female' ? 'bg-emerald-600 text-white shadow-xs' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
-                      }`}
-                    >
-                      Sisters (Brides)
-                    </button>
-                    <button
-                      onClick={() => setGenderFilter('male')}
-                      className={`py-1.5 px-2 rounded-lg font-semibold text-center transition-all ${
-                        genderFilter === 'male' ? 'bg-emerald-600 text-white shadow-xs' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
-                      }`}
-                    >
-                      Brothers (Grooms)
-                    </button>
-                  </div>
-
-                  {/* KYC Toggle */}
-                  <button
-                    onClick={() => setKycOnly(!kycOnly)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      kycOnly
-                        ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-600 shadow-xs'
-                        : 'bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200'
-                    }`}
-                  >
-                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>Verified KYC Only</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Profiles View */}
-            {isLoading || isMatchesLoading ? (
-              <ProfileGridSkeleton count={6} />
-            ) : secureProfiles.length === 0 ? (
-              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-12 text-center shadow-sm">
-                <Users className="w-12 h-12 text-zinc-400 dark:text-zinc-600 mx-auto mb-3" />
-                <h3 className="text-base font-bold text-zinc-900 dark:text-white mb-1">No matching profiles found</h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">Try adjusting your search criteria or gender filters.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                {secureProfiles.map((p) => (
-                  <ProfileCard
-                    key={p.id}
-                    profile={p}
-                    viewerTier={tier}
-                    viewerProfile={currentProfile || ({} as any)}
-                    isSelf={p.id === currentUserId}
-                    consentStatus={getConsentStatus(p.id)}
-                    connectionPairStatus={getConnectionPairStatus(p.id)}
-                    onSendConnectionRequest={sendMatchRequest}
-                    onRespondConnection={respondToMatch}
-                    onSendConsentRequest={(targetId) => {
-                      setActiveConsentProfile(p);
-                    }}
-                    onOpenWaliModal={setActiveWaliProfile}
-                    onOpenPricing={() => setIsPricingOpen(true)}
-                    onStartCall={handleStartCall}
-                    onOpenChat={(profile) => {
-                      setSelectedChatUserId(profile.id);
-                      setCurrentTab('messages');
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+        {/* Tab 1: Nikah Matches (Explorer / Discover) */}
+        {(currentTab === 'matches' || currentTab === 'discover') && (
+          <MatchesPage
+            onNavigateChat={(partnerId) => {
+              setSelectedChatUserId(partnerId);
+              setCurrentTab('messages');
+            }}
+            onOpenPricing={() => setIsPricingOpen(true)}
+            onStartCall={handleStartCall}
+          />
         )}
 
         {/* Tab: Real-Time Match Proposals & Requests */}

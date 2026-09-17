@@ -224,7 +224,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between relative">
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between relative">
       {/* Top Banner / KYC & Anti-Dowry Badges */}
       <div className="p-5 pb-0 flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
