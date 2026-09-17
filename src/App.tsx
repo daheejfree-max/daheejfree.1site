@@ -503,7 +503,7 @@ export default function App() {
   // (Moved inside the main router to preserve the unified layout)
 
   return (
-    <div className={`${currentTab === 'messages' || currentTab === 'call' ? 'h-[100dvh] max-h-[100dvh]' : 'min-h-[100dvh]'} overflow-x-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white dark:selection:text-zinc-950 transition-colors duration-200`}>
+    <div className={`${currentTab === 'messages' || currentTab === 'call' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-[100dvh] overflow-x-hidden'} bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white dark:selection:text-zinc-950 transition-colors duration-200`}>
       <GoogleTranslateBridge />
       {/* Legal Consent & Onboarding Guard (Module 1) */}
       <OnboardingGuard
@@ -611,7 +611,7 @@ export default function App() {
       <main
         className={
           currentTab === 'messages'
-            ? 'h-[calc(100vh-130px)] overflow-hidden flex flex-col w-full max-w-7xl mx-auto px-0 sm:px-3 py-0 sm:py-1'
+            ? 'h-[calc(100vh-140px)] flex flex-col overflow-hidden w-full max-w-7xl mx-auto px-0 sm:px-3 py-0 sm:py-1'
             : currentTab === 'call'
             ? 'flex-1 min-h-0 w-full flex flex-col overflow-hidden p-0'
             : 'flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-24 md:pb-8'

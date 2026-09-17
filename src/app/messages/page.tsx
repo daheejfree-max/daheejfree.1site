@@ -131,8 +131,32 @@ export default function RealtimeMessagesPage({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const scrollToBottom = useCallback((_smooth?: boolean) => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const scrollToBottom = useCallback((smooth: boolean = true) => {
+    if (chatContainerRef.current) {
+      if (smooth) {
+        chatContainerRef.current.scrollTo({
+          top: chatContainerRef.current.scrollHeight,
+          behavior: 'smooth',
+        });
+      } else {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+    } else {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'auto',
+        block: 'nearest',
+        inline: 'nearest',
+      });
+    }
+  }, []);
+
+  // Lock the browser window scrolling while on the messages page
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
   }, []);
 
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(() => {
@@ -922,13 +946,21 @@ export default function RealtimeMessagesPage({
 
   const canMakeCalls = tier === 'platinum' || tier === 'diamond';
 
-  // Instantly snap scroll to bottom on messages change
+  // Auto-scroll strictly isolated to the chat container to prevent jumping the outer window
   useEffect(() => {
-    scrollToBottom();
-  }, [messages.length, activeChat?.id, scrollToBottom]);
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    } else {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest',
+      });
+    }
+  }, [messages.length, activeChat?.id]);
 
   return (
-    <div className="w-full h-[calc(100vh-130px)] overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3">
+    <div className="w-full h-[calc(100vh-140px)] flex flex-col overflow-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3">
       {/* Top Banner: Islamic Matrimonial Messaging Charter (Compact on Mobile, hidden when in active mobile chat to give 100% viewport to conversation) */}
       <div className={`shrink-0 mb-0 sm:mb-3 bg-gradient-to-r from-emerald-900/90 via-teal-950/90 to-zinc-900 border border-emerald-500/30 rounded-none sm:rounded-2xl p-2.5 sm:p-4 text-white ${activeChat ? 'hidden sm:flex' : 'flex'} flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 shadow-lg`}>
         <div className="flex items-center gap-3">
@@ -1302,10 +1334,10 @@ export default function RealtimeMessagesPage({
               )}
 
               {/* Shariah Anti-Dowry Guard Banner */}
-              <div className="px-3 sm:px-4 py-1.5 bg-emerald-50/70 dark:bg-emerald-950/40 border-b border-emerald-100 dark:border-emerald-900/40 text-[10px] sm:text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 shrink-0">
+              <div className="px-3 sm:px-4 py-1.5 bg-emerald-50/70 dark:bg-emerald-950/40 border-b border-emerald-100 dark:border-emerald-900/40 text-[10px] md:text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 shrink-0">
                 <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span className="truncate">
-                  <strong>Halal Discussion:</strong> Keep conversations focused on deen, values, and family compatibility.
+                  <strong>Anti-Dowry Protected:</strong> Demanding dowry, cash, or luxury gifts is strictly forbidden.
                 </span>
               </div>
 
@@ -1313,7 +1345,7 @@ export default function RealtimeMessagesPage({
               <div 
                 id="messages-container"
                 ref={chatContainerRef}
-                className="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/20 overscroll-contain min-h-0"
+                className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/20 min-h-0"
               >
                 {isMessagesLoading && messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
@@ -1595,8 +1627,8 @@ export default function RealtimeMessagesPage({
                 </div>
               )}
 
-              {/* Message Input Bar (Pinned securely to bottom with safe area padding) */}
-              <div className="shrink-0 sticky bottom-0 z-20 p-2.5 sm:p-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 pb-safe space-y-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.35)]">
+              {/* Message Input Bar (Locked strictly to the bottom) */}
+              <div className="mt-auto border-t border-zinc-200 dark:border-zinc-800 p-3 bg-white dark:bg-zinc-950 shrink-0 pb-safe space-y-2">
                 {/* Starters Accordion Button */}
                 <div className="flex items-center justify-between px-1">
                   <button
