@@ -95,6 +95,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const myTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const currentUserId = currentProfile?.id || '';
   const targetUserId = targetProfile.id;
@@ -415,10 +416,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   }, [currentUserId, targetUserId, targetProfile.full_name, supabase]);
 
   useEffect(() => {
-    if (chatContainerRef.current) {
-      const { scrollHeight, clientHeight } = chatContainerRef.current;
-      chatContainerRef.current.scrollTop = scrollHeight - clientHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages, isPartnerTyping]);
 
   const handleInitiateCall = async (callType: 'video' | 'voice') => {
@@ -784,8 +782,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {/* Message Thread Stage (Flex-1 scrollable with isolated container-level scrolling) */}
         <div 
+          id="messages-container"
           ref={chatContainerRef}
-          className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-zinc-50 dark:bg-zinc-950/60 transition-colors overscroll-contain min-h-0"
+          className="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-50 dark:bg-zinc-950/60 transition-colors overscroll-contain min-h-0"
         >
           {/* Shariah Anti-Dowry Notice Banner */}
           <div className="p-2.5 sm:p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-500/30 rounded-2xl text-[10px] sm:text-[11px] text-emerald-800 dark:text-emerald-200 flex items-center gap-2 shadow-sm">
@@ -1038,6 +1037,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               </div>
             </div>
           )}
+          {/* Dedicated auto-scroll anchor */}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Moderation Warning Notification */}

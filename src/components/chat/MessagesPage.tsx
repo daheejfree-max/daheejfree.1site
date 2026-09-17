@@ -264,6 +264,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   } | null>(null);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -1079,11 +1080,9 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     }
   };
 
-  // Auto-scroll to bottom of conversation using isolated container-level scrollTop
+  // Auto-scroll to bottom of conversation using smooth block: 'nearest' to eliminate browser page dragging
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [activeMessages, selectedUserId, isPartnerTyping]);
 
   // Calculate conversations list with preview metadata
@@ -1332,7 +1331,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   const canCall = viewerTier === 'platinum' || viewerTier === 'diamond';
 
   return (
-    <div className="w-full h-full min-h-0 flex-1 overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3">
+    <div className="w-full h-[calc(100vh-130px)] overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3">
       {/* Top Banner: Islamic Matrimonial Messaging Charter (Compact on mobile, hidden during active chat on mobile) */}
       <div className={`shrink-0 mb-0 sm:mb-3 bg-gradient-to-r from-emerald-900/90 via-teal-950/90 to-zinc-900 border border-emerald-500/30 rounded-none sm:rounded-2xl p-2.5 sm:p-4 text-white ${!isMobileListOpen ? 'hidden md:flex' : 'flex'} flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 shadow-lg`}>
         <div className="flex items-center gap-3">
@@ -1749,8 +1748,9 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
               {/* Message Feed Area (flex-1 with isolated container-level scrolling) */}
               <div 
+                id="messages-container"
                 ref={chatContainerRef}
-                className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-3 bg-zinc-100/40 dark:bg-zinc-950/40 overscroll-contain min-h-0"
+                className="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-100/40 dark:bg-zinc-950/40 overscroll-contain min-h-0"
               >
                 {activeMessages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center p-4 sm:p-6 space-y-4 max-w-md mx-auto my-auto">
@@ -2038,6 +2038,8 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                     </div>
                   </div>
                 )}
+                {/* Auto-scroll anchor point */}
+                <div ref={messagesEndRef} />
               </div>
 
               {/* Moderation Warning Toast */}

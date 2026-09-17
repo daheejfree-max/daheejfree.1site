@@ -1,7 +1,16 @@
 // ==============================================================================
-// PAYMENT GATEWAY RE-EXPORT (DODO PAYMENTS PRODUCTION MIGRATION)
-// Razorpay has been fully deprecated and replaced by Dodo Payments
+// RAZORPAY INTEGRATION & GATEWAY EXPORTS
+// File: src/lib/razorpay.ts
+// Server-to-Server Razorpay checkout with dynamic client SDK loader
 // ==============================================================================
+
+export {
+  initiateRazorpayCheckout,
+  useRazorpay,
+  loadRazorpayScript,
+  type RazorpayPaymentOptions,
+  type RazorpaySuccessResponse,
+} from '../hooks/useRazorpay';
 
 export {
   SUBSCRIPTION_PLANS,
@@ -10,11 +19,11 @@ export {
   type DodoCheckoutResponse,
 } from './dodoPayments';
 
-import { initiateDodoCheckout } from './dodoPayments';
+import { initiateRazorpayCheckout } from '../hooks/useRazorpay';
 import { SubscriptionTier, BillingCycle } from '../types';
 
 /**
- * Legacy compatibility bridge forwarding to Dodo Payments
+ * Initiates Razorpay payment checkout using server-generated order ID
  */
 export async function initiateRazorpaySubscription(
   tier: SubscriptionTier,
@@ -23,11 +32,11 @@ export async function initiateRazorpaySubscription(
   userEmail?: string,
   userName?: string
 ) {
-  return initiateDodoCheckout({
+  return initiateRazorpayCheckout({
     tier,
     billingCycle,
     profileId,
-    customerEmail: userEmail,
-    customerName: userName,
+    userEmail,
+    userName,
   });
 }

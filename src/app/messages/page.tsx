@@ -128,19 +128,11 @@ export default function RealtimeMessagesPage({
   } | null>(null);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const scrollToBottom = useCallback((smooth?: boolean) => {
-    if (chatContainerRef.current) {
-      if (smooth) {
-        chatContainerRef.current.scrollTo({
-          top: chatContainerRef.current.scrollHeight,
-          behavior: 'smooth',
-        });
-      } else {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-      }
-    }
+  const scrollToBottom = useCallback((_smooth?: boolean) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, []);
 
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(() => {
@@ -936,7 +928,7 @@ export default function RealtimeMessagesPage({
   }, [messages.length, activeChat?.id, scrollToBottom]);
 
   return (
-    <div className="w-full h-full min-h-0 flex-1 overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3">
+    <div className="w-full h-[calc(100vh-130px)] overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 p-0 sm:p-2 md:p-3">
       {/* Top Banner: Islamic Matrimonial Messaging Charter (Compact on Mobile, hidden when in active mobile chat to give 100% viewport to conversation) */}
       <div className={`shrink-0 mb-0 sm:mb-3 bg-gradient-to-r from-emerald-900/90 via-teal-950/90 to-zinc-900 border border-emerald-500/30 rounded-none sm:rounded-2xl p-2.5 sm:p-4 text-white ${activeChat ? 'hidden sm:flex' : 'flex'} flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 shadow-lg`}>
         <div className="flex items-center gap-3">
@@ -1319,8 +1311,9 @@ export default function RealtimeMessagesPage({
 
               {/* Messages Body (Flex-1 scrollable with isolated container-level scrolling) */}
               <div 
+                id="messages-container"
                 ref={chatContainerRef}
-                className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-zinc-50/30 dark:bg-zinc-950/20 overscroll-contain min-h-0"
+                className="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/20 overscroll-contain min-h-0"
               >
                 {isMessagesLoading && messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
@@ -1590,6 +1583,8 @@ export default function RealtimeMessagesPage({
                     );
                   })
                 )}
+                {/* Auto-scroll target */}
+                <div ref={messagesEndRef} />
               </div>
 
               {/* Moderation / Error Banner */}

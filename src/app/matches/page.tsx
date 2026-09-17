@@ -203,15 +203,15 @@ export default function MatchesPage({
   }, [profiles, currentUserId, genderFilter, kycOnly, searchTerm]);
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
+    <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8 pb-24 md:pb-8">
       {/* Liberated Page Header */}
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
+            <h1 className="text-2xl md:text-4xl font-extrabold text-zinc-100 tracking-tight">
               Discover Nikah Matches
             </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1.5 max-w-2xl">
+            <p className="text-sm md:text-base text-zinc-400 mt-1.5 max-w-2xl">
               Verified Muslim candidates adhering to 100% Dowry-Free Islamic covenant.
             </p>
           </div>
@@ -247,12 +247,12 @@ export default function MatchesPage({
           </div>
 
           {/* Seamless Segmented Control & Sleek KYC Filter Badge */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-zinc-100 dark:bg-zinc-900/90 p-1.5 rounded-full border border-zinc-200/80 dark:border-zinc-800 flex items-center shadow-xs">
+          <div className="flex overflow-x-auto hide-scrollbar gap-2 pb-2 w-full lg:w-auto snap-x items-center">
+            <div className="bg-zinc-100 dark:bg-zinc-900/90 p-1.5 rounded-full border border-zinc-200/80 dark:border-zinc-800 flex items-center shrink-0 shadow-xs">
               <button
                 type="button"
                 onClick={() => setGenderFilter('all')}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap snap-start ${
                   genderFilter === 'all'
                     ? 'bg-emerald-600 text-white shadow-sm font-bold'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -263,7 +263,7 @@ export default function MatchesPage({
               <button
                 type="button"
                 onClick={() => setGenderFilter('female')}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap snap-start ${
                   genderFilter === 'female'
                     ? 'bg-emerald-600 text-white shadow-sm font-bold'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -274,7 +274,7 @@ export default function MatchesPage({
               <button
                 type="button"
                 onClick={() => setGenderFilter('male')}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap snap-start ${
                   genderFilter === 'male'
                     ? 'bg-emerald-600 text-white shadow-sm font-bold'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -287,7 +287,7 @@ export default function MatchesPage({
             <button
               type="button"
               onClick={() => setKycOnly(!kycOnly)}
-              className={`px-4 py-2.5 rounded-full text-xs font-semibold border flex items-center gap-2 transition-all cursor-pointer shadow-xs ${
+              className={`px-4 py-2.5 rounded-full text-xs font-semibold border flex items-center gap-2 transition-all cursor-pointer shrink-0 snap-start whitespace-nowrap shadow-xs ${
                 kycOnly
                   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-bold'
                   : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200'

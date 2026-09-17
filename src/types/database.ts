@@ -82,6 +82,7 @@ export interface Profile {
   kyc_document_type?: string;
   kyc_document_url?: string;
   kyc_session_id?: string | null;
+  didit_session_id?: string | null;
   didit_session_url?: string | null;
   subscription_id?: string | null;
   subscription_status?: string | null;

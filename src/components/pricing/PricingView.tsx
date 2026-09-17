@@ -23,6 +23,7 @@ import {
 import confetti from 'canvas-confetti';
 import { SubscriptionTier, BillingCycle, Profile } from '../../types';
 import { SUBSCRIPTION_PLANS, initiateDodoCheckout } from '../../lib/dodoPayments';
+import { initiateRazorpayCheckout } from '../../lib/razorpay';
 
 interface PricingViewProps {
   currentTier: SubscriptionTier;
@@ -38,6 +39,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   onNavigateRegister,
 }) => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
+  const [paymentGateway, setPaymentGateway] = useState<'razorpay' | 'dodo'>('razorpay');
   const [loadingTier, setLoadingTier] = useState<SubscriptionTier | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -57,6 +59,37 @@ export const PricingView: React.FC<PricingViewProps> = ({
     setSuccessMessage(null);
     setErrorMessage(null);
 
+    // Razorpay Flow (Server-to-Server order creation & client modal trigger)
+    if (paymentGateway === 'razorpay' && tierName !== 'free') {
+      const res = await initiateRazorpayCheckout({
+        tier: tierName,
+        billingCycle,
+        profileId: currentProfile.id,
+        userEmail: currentProfile.wali_email || undefined,
+        userName: currentProfile.full_name,
+        onSuccess: () => {
+          onSubscriptionUpdated();
+          setSuccessMessage(`Alhamdulillah! Subscription upgraded to ${SUBSCRIPTION_PLANS[tierName].name}.`);
+          try {
+            confetti({
+              particleCount: 100,
+              spread: 80,
+              origin: { y: 0.5 },
+            });
+          } catch (e) {
+            // ignore
+          }
+        },
+        onFailure: (err) => {
+          setErrorMessage(err);
+        },
+      });
+
+      setLoadingTier(null);
+      return;
+    }
+
+    // Fallback or explicit Dodo / Free Tier Flow
     const res = await initiateDodoCheckout({
       tier: tierName,
       billingCycle,
@@ -86,7 +119,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
         }
       }
     } else {
-      setErrorMessage(res.error || 'Failed to initiate Dodo Payments checkout.');
+      setErrorMessage(res.error || 'Failed to initiate checkout.');
     }
   };
 
@@ -121,12 +154,13 @@ export const PricingView: React.FC<PricingViewProps> = ({
           </div>
         )}
 
-        {/* Billing Cycle Switch */}
-        <div className="flex items-center justify-center pt-2">
+        {/* Billing Cycle & Payment Gateway Controls */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          {/* Billing Cycle Switch */}
           <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-1 rounded-xl flex items-center gap-1 shadow-sm">
             <button
               onClick={() => setBillingCycle('monthly')}
-              className={`px-5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 billingCycle === 'monthly'
                   ? 'bg-emerald-600 text-white shadow-md'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -136,7 +170,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
             </button>
             <button
               onClick={() => setBillingCycle('yearly')}
-              className={`px-5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 billingCycle === 'yearly'
                   ? 'bg-emerald-600 text-white shadow-md'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -146,6 +180,31 @@ export const PricingView: React.FC<PricingViewProps> = ({
               <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-300 dark:border-emerald-800 font-bold">
                 20% OFF
               </span>
+            </button>
+          </div>
+
+          {/* Gateway Selector */}
+          <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-1 rounded-xl flex items-center gap-1 shadow-sm">
+            <button
+              onClick={() => setPaymentGateway('razorpay')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                paymentGateway === 'razorpay'
+                  ? 'bg-emerald-700 text-white shadow-md'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5 text-white/90" />
+              <span>Razorpay (UPI / Cards)</span>
+            </button>
+            <button
+              onClick={() => setPaymentGateway('dodo')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                paymentGateway === 'dodo'
+                  ? 'bg-emerald-700 text-white shadow-md'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              <span>Global (Dodo)</span>
             </button>
           </div>
         </div>
@@ -236,7 +295,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                   </div>
                   {billingCycle === 'yearly' && price > 0 && (
                     <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
-                      Billed annually via Dodo Payments
+                      Billed annually via {paymentGateway === 'razorpay' ? 'Razorpay' : 'Dodo Payments'}
                     </p>
                   )}
                 </div>

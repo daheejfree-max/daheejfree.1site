@@ -415,13 +415,14 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
         ) : (
           <div className="p-6 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 space-y-4">
             <div className="space-y-2">
-              <h4 className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider">
-                Why Complete Identity Verification?
-              </h4>
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                <Lock className="w-3.5 h-3.5" />
+                <span>Privacy-First Decentralized Identity (Didit Protocol)</span>
+              </div>
               <ul className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1.5 list-disc list-inside">
-                <li>Instant trust: Profiles with verified identity receive 4x more mutual match requests.</li>
-                <li>Dowry-Free Security: Verifies candidate authenticity and eliminates duplicate profiles.</li>
-                <li>High-level data privacy: Processed securely via Didit.me programmatic biometric session.</li>
+                <li><strong>Zero Raw ID Storage:</strong> We never store unencrypted PII, passports, or ID card photos on our servers.</li>
+                <li><strong>Decentralized Verification:</strong> Identity and biometric liveness are cryptographically verified through Didit's secure portal.</li>
+                <li><strong>Anti-Dowry Trust:</strong> Verified badges confirm candidate authenticity while strictly eliminating fake profiles and bots.</li>
               </ul>
             </div>
 

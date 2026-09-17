@@ -532,7 +532,7 @@ app.post(['/api/webhooks/dodo', '/api/payments/dodo/webhook'], async (req, res) 
 // ==============================================================================
 // 2.1 RAZORPAY CHECKOUT ORDER INITIALIZATION & SUBSCRIPTION
 // ==============================================================================
-app.post(['/api/checkout/razorpay', '/api/razorpay/subscription'], async (req, res) => {
+app.post(['/api/razorpay/create-order', '/api/checkout/razorpay', '/api/razorpay/subscription'], async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   try {
     const { tier = 'gold', profileId, billingCycle = 'monthly', currency = 'INR' } = req.body || {};
@@ -616,9 +616,12 @@ app.post(['/api/checkout/razorpay', '/api/razorpay/subscription'], async (req, r
     }
     return res.json({
       success: true,
+      order_id: orderData.id,
       orderId: orderData.id,
+      id: orderData.id,
       amount: orderData.amount,
       currency: orderData.currency,
+      key_id: keyId,
       keyId,
       tier,
     });
@@ -1180,7 +1183,7 @@ app.all(['/api/kyc/verify', '/api/kyc/initiate', '/api/kyc/session'], async (req
 // 4. DIDIT.ME KYC WEBHOOK & STATUS SYNC
 // Automatically updates user kyc_status to 'verified' upon approval
 // ==============================================================================
-app.post(['/api/kyc/webhook', '/api/webhooks/didit'], async (req: any, res) => {
+app.post(['/api/kyc/webhook', '/api/webhooks/didit', '/api/kyc/didit-callback'], async (req: any, res) => {
   try {
     const webhookSecret = process.env.DIDIT_WEBHOOK_SECRET;
     
@@ -1342,6 +1345,46 @@ app.post(['/api/kyc/webhook', '/api/webhooks/didit'], async (req: any, res) => {
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal Server Error' });
     }
+  }
+});
+
+// GET browser redirect handler for Didit hosted verification
+app.get('/api/kyc/didit-callback', async (req: any, res) => {
+  try {
+    const sessionId = req.query.session_id || req.query.id;
+    const status = String(req.query.status || req.query.decision || '').toLowerCase();
+    const vendorDataUserId = req.query.vendor_data || req.query.userId;
+
+    const isApproved =
+      status === 'approved' ||
+      status === 'verified' ||
+      status === 'completed' ||
+      status === 'success';
+
+    if (isApproved && vendorDataUserId) {
+      const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+      if (supabaseUrl && serviceRoleKey) {
+        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+        await supabaseAdmin
+          .from('profiles')
+          .update({
+            kyc_status: 'verified',
+            kyc_verified: true,
+            is_verified: true,
+            didit_session_id: sessionId,
+            kyc_session_id: sessionId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', vendorDataUserId);
+      }
+    }
+
+    const redirectPath = isApproved ? '/matches?kyc=verified' : `/matches?kyc_status=${status || 'pending'}`;
+    return res.redirect(redirectPath);
+  } catch (err) {
+    console.error('[Didit Callback GET] Error:', err);
+    return res.redirect('/matches');
   }
 });
 

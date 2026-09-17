@@ -50,7 +50,7 @@ export async function POST(request: Request): Promise<Response> {
       'https://daheejfree.site'
     ).replace(/\/$/, '');
 
-    const callbackUrl = `${siteUrl}/api/kyc/callback`;
+    const callbackUrl = `${siteUrl}/api/kyc/didit-callback`;
 
     // 3. Call Didit's v3 hosted verification session API
     const diditPayload = {

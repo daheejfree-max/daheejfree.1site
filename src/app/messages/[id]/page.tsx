@@ -64,13 +64,12 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
   const [isLoading, setIsLoading] = useState(true);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll to bottom using isolated container-level scrollTop
+  // Auto-scroll to bottom using smooth block: 'nearest' to eliminate browser page dragging
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages]);
 
   // Load partner profile
@@ -313,8 +312,9 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
 
       {/* 2. Message List (Scrollable, takes remaining space, locked inside flex-1) */}
       <div 
+        id="messages-container"
         ref={chatContainerRef} 
-        className="flex-1 overflow-y-auto p-4 space-y-3 overscroll-contain min-h-0"
+        className="flex-1 overflow-y-auto p-4 space-y-4 overscroll-contain min-h-0"
       >
         {/* Shariah Anti-Dowry Banner */}
         <div className="p-2.5 bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-2 shadow-xs">
@@ -429,6 +429,8 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
             );
           })
         )}
+        {/* Auto-scroll target */}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* 3. Chat Input (Fixed at bottom with no rogue padding) */}
