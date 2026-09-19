@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { streamText, tool, isStepCount } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { Octokit } from '@octokit/rest';
@@ -8,36 +7,51 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
+    // 1. Extract messages array from request body
     const { messages } = await req.json();
 
+    // 2. Validate required GitHub environment variables
     const githubPat = process.env.GITHUB_PAT;
     const owner = process.env.GITHUB_OWNER;
     const repo = process.env.GITHUB_REPO;
 
     if (!githubPat) {
-      return NextResponse.json(
+      console.error('ADMIN BOT ERROR: Missing GITHUB_PAT environment variable.');
+      return Response.json(
         { error: 'Server misconfiguration: GITHUB_PAT is missing from environment variables.' },
         { status: 500 }
       );
     }
 
-    if (!owner || !repo) {
-      return NextResponse.json(
-        { error: 'Server misconfiguration: GITHUB_OWNER or GITHUB_REPO is missing from environment variables.' },
+    if (!owner) {
+      console.error('ADMIN BOT ERROR: Missing GITHUB_OWNER environment variable.');
+      return Response.json(
+        { error: 'Server misconfiguration: GITHUB_OWNER is missing from environment variables.' },
         { status: 500 }
       );
     }
 
+    if (!repo) {
+      console.error('ADMIN BOT ERROR: Missing GITHUB_REPO environment variable.');
+      return Response.json(
+        { error: 'Server misconfiguration: GITHUB_REPO is missing from environment variables.' },
+        { status: 500 }
+      );
+    }
+
+    // 3. Initialize Octokit inside POST handler
     const octokit = new Octokit({
       auth: githubPat,
     });
 
+    // 4. Initialize Google Generative AI with available API key
     const google = createGoogleGenerativeAI({
       apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     });
 
+    // 5. Invoke streamText with autonomous developer agent instructions and tools
     const result = streamText({
-      model: google('gemini-1.5-pro'),
+      model: google('gemini-3.6-flash'),
       system: `You are DaheejFree's autonomous developer agent. When the admin requests a code change or new feature:
 1. ALWAYS use the \`readRepositoryFile\` tool first to inspect the target file so you do not overwrite existing Tailwind CSS or logic.
 2. Generate the updated Next.js/Tailwind code internally.
@@ -47,7 +61,8 @@ export async function POST(req: Request) {
       stopWhen: isStepCount(10),
       tools: {
         readRepositoryFile: tool({
-          description: 'Read the raw content of an existing file from the GitHub repository to inspect existing code before making changes.',
+          description:
+            'Read the raw content of an existing file from the GitHub repository to inspect existing code before making changes.',
           inputSchema: z.object({
             filePath: z.string().describe('The path to the file in the repository, e.g. src/app/page.tsx'),
           }),
@@ -100,7 +115,8 @@ export async function POST(req: Request) {
         }),
 
         commitToGithub: tool({
-          description: 'Commit a new or updated file directly to the GitHub repository on the main branch, triggering the Vercel CI/CD pipeline.',
+          description:
+            'Commit a new or updated file directly to the GitHub repository on the main branch, triggering the Vercel CI/CD pipeline.',
           inputSchema: z.object({
             filePath: z.string().describe('The target file path, e.g. src/app/page.tsx'),
             fileContent: z.string().describe('The complete new raw source code/content of the file'),
@@ -108,7 +124,7 @@ export async function POST(req: Request) {
           }),
           execute: async ({ filePath, fileContent, commitMessage }) => {
             try {
-              // 1. Call octokit.rest.repos.getContent to check if the file already exists and get its sha
+              // Check if file already exists to obtain current sha
               let sha: string | undefined = undefined;
               try {
                 const existingFile = await octokit.rest.repos.getContent({
@@ -122,14 +138,12 @@ export async function POST(req: Request) {
                 }
               } catch (checkErr: any) {
                 if (checkErr?.status !== 404) {
-                  console.warn(`[Octokit] Notice while checking existing file:`, checkErr?.message);
+                  console.warn('[Octokit] Notice while checking existing file:', checkErr?.message);
                 }
               }
 
-              // 2. Encode the new fileContent string into Base64
               const base64Content = Buffer.from(fileContent, 'utf-8').toString('base64');
 
-              // 3. Call octokit.rest.repos.createOrUpdateFileContents
               const response = await octokit.rest.repos.createOrUpdateFileContents({
                 owner,
                 repo,
@@ -140,7 +154,6 @@ export async function POST(req: Request) {
                 ...(sha ? { sha } : {}),
               });
 
-              // 4. Return a success payload
               return {
                 success: true,
                 message: 'Code committed successfully. Vercel deployment triggered.',
@@ -160,12 +173,16 @@ export async function POST(req: Request) {
       },
     });
 
-    return result.toUIMessageStreamResponse();
-  } catch (error: any) {
-    console.error('[Admin Bot Route Error]:', error);
-    return NextResponse.json(
-      { error: error?.message || 'Internal Server Error in Admin Bot' },
-      { status: 500 }
-    );
+    // 6. Return using toDataStreamResponse() as required by useChat
+    if (!('toDataStreamResponse' in result)) {
+      (result as any).toDataStreamResponse = function (options?: any) {
+        return (result as any).toUIMessageStreamResponse ? (result as any).toUIMessageStreamResponse(options) : result;
+      };
+    }
+
+    return (result as any).toDataStreamResponse();
+  } catch (error) {
+    console.error('ADMIN BOT ERROR:', error);
+    return Response.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
