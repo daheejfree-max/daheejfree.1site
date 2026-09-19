@@ -772,45 +772,56 @@ app.all('/api/kyc/create-session', async (req, res) => {
 
   try {
     // 2. Call Didit's v3 hosted verification session API
+    const diditPayload: Record<string, any> = {
+      workflow_id: process.env.DIDIT_WORKFLOW_ID.trim(),
+      vendor_data: String(userId).trim(),
+    };
+    if (callbackUrl) {
+      diditPayload.callback = callbackUrl;
+    }
+
     const diditRes = await fetch('https://verification.didit.me/v3/session/', {
       method: 'POST',
       headers: {
         'x-api-key': process.env.DIDIT_API_KEY.trim(),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        workflow_id: process.env.DIDIT_WORKFLOW_ID.trim(),
-        vendor_data: String(userId),
-        reference: String(userId),
-        client_reference: String(userId),
-        customer_id: String(userId),
-        callback: callbackUrl,
-        metadata: {
-          userId: String(userId),
-          user_id: String(userId),
-        },
-      }),
+      body: JSON.stringify(diditPayload),
     });
 
-    // 3. Safe text-parser to prevent JSON parse crashes
+    // 3. Strict error handling: Log await response.text() if Didit API returns 400/500
+    if (!diditRes.ok) {
+      const errorText = await diditRes.text();
+      console.error(`[Didit KYC API Error] Status: ${diditRes.status} ${diditRes.statusText}. Response:`, errorText);
+      let parsedError: any = null;
+      try {
+        parsedError = JSON.parse(errorText);
+      } catch {
+        parsedError = null;
+      }
+      return res.status(diditRes.status >= 400 && diditRes.status < 600 ? diditRes.status : 502).json({
+        success: false,
+        error: parsedError?.message || parsedError?.error || `Didit API rejected session creation with status ${diditRes.status}.`,
+        status: diditRes.status,
+        details: parsedError || errorText,
+      });
+    }
+
+    // 4. Safe text-parser to prevent JSON parse crashes
     const rawText = await diditRes.text();
     let data: any;
     try {
       data = JSON.parse(rawText);
     } catch {
-      return res.status(502).json({ error: 'Gateway error', status: diditRes.status, raw: rawText.slice(0, 300) });
-    }
-
-    if (!diditRes.ok) {
-      return res.status(502).json({
-        error: 'Gateway error',
-        status: diditRes.status,
-        raw: rawText.slice(0, 300),
-        details: data,
-      });
+      console.error('[Didit KYC API Error] Non-JSON response from Didit:', rawText);
+      return res.status(502).json({ success: false, error: 'Gateway error', status: diditRes.status, raw: rawText.slice(0, 300) });
     }
 
     const sessionUrl = data.url || data.session_url || data.verification_url;
+    if (!sessionUrl) {
+      console.error('[Didit KYC API Error] Didit response did not contain verification URL:', data);
+      return res.status(502).json({ success: false, error: 'No verification URL returned by Didit API', details: data });
+    }
 
     // Optional: save session URL to profile if DB available
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
