@@ -354,26 +354,84 @@ export default function App() {
     };
   }, [currentUserId]);
 
-  // Track unread messages count reactively
+  // Track unread messages count reactively with targeted exact count
   useEffect(() => {
     if (!currentUserId) {
       setUnreadMessagesCount(0);
       return;
     }
 
-    const updateCount = () => {
-      const count = daheejStore.getUnreadCountForUser(currentUserId);
-      setUnreadMessagesCount(count);
+    let isMounted = true;
+    const fetchExactUnread = async () => {
+      try {
+        const { count, error } = await supabase
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('receiver_id', currentUserId)
+          .eq('is_read', false);
+
+        if (!error && typeof count === 'number') {
+          if (isMounted) setUnreadMessagesCount(count);
+          return;
+        }
+
+        // Schema fallback for recipient_id
+        const { count: fbCount, error: fbErr } = await supabase
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('recipient_id', currentUserId)
+          .eq('is_read', false);
+
+        if (!fbErr && typeof fbCount === 'number') {
+          if (isMounted) setUnreadMessagesCount(fbCount);
+          return;
+        }
+
+        const localCount = daheejStore.getUnreadCountForUser(currentUserId);
+        if (isMounted) setUnreadMessagesCount(localCount);
+      } catch {
+        const localCount = daheejStore.getUnreadCountForUser(currentUserId);
+        if (isMounted) setUnreadMessagesCount(localCount);
+      }
     };
 
-    updateCount();
+    fetchExactUnread();
+
+    const channelId = `app_unread_${currentUserId}_${Math.random().toString(36).slice(2, 9)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+        },
+        () => {
+          fetchExactUnread();
+        }
+      )
+      .subscribe();
 
     const unsubscribe = daheejStore.subscribeToMessages(() => {
-      updateCount();
+      fetchExactUnread();
     });
 
+    const handleMessagesRead = () => {
+      if (isMounted) fetchExactUnread();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('daheej:messages_read', handleMessagesRead);
+    }
+
     return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
       unsubscribe();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('daheej:messages_read', handleMessagesRead);
+      }
     };
   }, [currentUserId]);
 

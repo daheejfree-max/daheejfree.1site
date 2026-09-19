@@ -397,69 +397,91 @@ export default function RealtimeMessagesPage({
   // PHASE 2: HISTORICAL DATA FETCHING & REAL-TIME SUBSCRIPTION
   // ============================================================================
 
-  // 1. fetchMessages function wrapped in useCallback triggered whenever activeChat.id changes
-  const fetchMessages = useCallback(async () => {
-    if (!currentUserId || !activeChat?.id) {
+  const activeChatId = activeChat?.id;
+
+  // 1. fetchMessages triggered strictly whenever activeChatId or currentUserId changes
+  useEffect(() => {
+    if (!currentUserId || !activeChatId) {
       setMessages([]);
       return;
     }
 
-    const partnerId = activeChat.id;
+    let isMounted = true;
+    const partnerId = activeChatId;
     setIsMessagesLoading(true);
 
-    try {
-      // Query database using Supabase browser client
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .or(
-          `and(sender_id.eq.${currentUserId},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${currentUserId})`
-        )
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.warn('[MessagesPage] Primary messages fetch error, trying recipient_id fallback:', error.message);
-        const { data: fallbackData, error: fallbackError } = await supabase
+    async function loadConversation() {
+      try {
+        // Query database using Supabase browser client
+        const { data, error } = await supabase
           .from('messages')
           .select('*')
           .or(
-            `and(sender_id.eq.${currentUserId},recipient_id.eq.${partnerId}),and(sender_id.eq.${partnerId},recipient_id.eq.${currentUserId})`
+            `and(sender_id.eq.${currentUserId},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${currentUserId})`
           )
           .order('created_at', { ascending: true });
 
-        if (!fallbackError && fallbackData) {
-          setMessages(fallbackData as ChatMessage[]);
-        } else {
-          // Local storage fallback
+        if (!isMounted) return;
+
+        if (error) {
+          console.warn('[MessagesPage] Primary messages fetch error, trying recipient_id fallback:', error.message);
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('messages')
+            .select('*')
+            .or(
+              `and(sender_id.eq.${currentUserId},recipient_id.eq.${partnerId}),and(sender_id.eq.${partnerId},recipient_id.eq.${currentUserId})`
+            )
+            .order('created_at', { ascending: true });
+
+          if (!isMounted) return;
+
+          if (!fallbackError && fallbackData) {
+            setMessages(fallbackData as ChatMessage[]);
+          } else {
+            // Local storage fallback
+            const local = daheejStore.getMessages(currentUserId, partnerId);
+            setMessages(local);
+          }
+        } else if (data) {
+          // On success, strictly set the messages state to this historical data
+          setMessages(data as ChatMessage[]);
+
+          // Mark unread incoming messages as read in Supabase
+          try {
+            await supabase
+              .from('messages')
+              .update({ is_read: true })
+              .eq('sender_id', partnerId)
+              .or(`receiver_id.eq.${currentUserId},recipient_id.eq.${currentUserId}`)
+              .eq('is_read', false);
+
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('daheej:messages_read'));
+            }
+          } catch {
+            // Ignore RLS or schema diff
+          }
+        }
+      } catch (err) {
+        console.error('[MessagesPage] Error fetching messages:', err);
+        if (isMounted) {
           const local = daheejStore.getMessages(currentUserId, partnerId);
           setMessages(local);
         }
-      } else if (data) {
-        // On success, strictly set the messages state to this historical data
-        setMessages(data as ChatMessage[]);
-
-        // Mark unread incoming messages as read in Supabase
-        await supabase
-          .from('messages')
-          .update({ is_read: true })
-          .eq('sender_id', partnerId)
-          .or(`receiver_id.eq.${currentUserId},recipient_id.eq.${currentUserId}`)
-          .eq('is_read', false);
+      } finally {
+        if (isMounted) {
+          setIsMessagesLoading(false);
+          scrollToBottom(false);
+        }
       }
-    } catch (err) {
-      console.error('[MessagesPage] Error fetching messages:', err);
-      const local = daheejStore.getMessages(currentUserId, partnerId);
-      setMessages(local);
-    } finally {
-      setIsMessagesLoading(false);
-      scrollToBottom(false);
     }
-  }, [currentUserId, activeChat?.id, scrollToBottom]);
 
-  // Trigger historical fetch whenever activeChat.id changes
-  useEffect(() => {
-    fetchMessages();
-  }, [fetchMessages]);
+    loadConversation();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUserId, activeChatId]);
 
   // 2. STABLE SUPABASE REALTIME SUBSCRIPTION (The Listen)
   useEffect(() => {
@@ -733,12 +755,35 @@ export default function RealtimeMessagesPage({
       }
     );
 
-    // Continuous 2-second heartbeat polling so messages & calls update without reload
-    const pollInterval = setInterval(() => {
-      if (activeChat?.id) {
-        fetchMessages();
+    // Quiet background polling sync
+    const pollInterval = setInterval(async () => {
+      if (!isMounted || !activeChatId) return;
+      try {
+        const { data } = await supabase
+          .from('messages')
+          .select('*')
+          .or(
+            `and(sender_id.eq.${currentUserId},receiver_id.eq.${activeChatId}),and(sender_id.eq.${activeChatId},receiver_id.eq.${currentUserId})`
+          )
+          .order('created_at', { ascending: true });
+
+        if (data && data.length > 0 && isMounted) {
+          setMessages((prev) => {
+            if (prev.length !== data.length) return data as ChatMessage[];
+            let isSame = true;
+            for (let i = 0; i < prev.length; i++) {
+              if (prev[i].id !== data[i].id || prev[i].read !== data[i].read || prev[i].is_read !== data[i].is_read) {
+                isSame = false;
+                break;
+              }
+            }
+            return isSame ? prev : (data as ChatMessage[]);
+          });
+        }
+      } catch {
+        // Quiet background catch
       }
-    }, 2000);
+    }, 5000);
 
     return () => {
       isMounted = false;
@@ -748,7 +793,7 @@ export default function RealtimeMessagesPage({
       clearInterval(pollInterval);
       stopRingtone();
     };
-  }, [currentUserId, activeChat?.id, supabase, scrollToBottom, fetchMessages]);
+  }, [currentUserId, activeChatId]);
 
   // Handle Call Initiation (Sender Side):
   // 1. Inserts CALL_INVITE message into messages table

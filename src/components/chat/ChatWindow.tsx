@@ -238,6 +238,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           }
         } else if (data) {
           setMessages(data as ChatMessage[]);
+          void supabase
+            .from('messages')
+            .update({ is_read: true })
+            .eq('sender_id', targetUserId)
+            .or(`receiver_id.eq.${currentUserId},recipient_id.eq.${currentUserId}`)
+            .eq('is_read', false)
+            .then(() => {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('daheej:messages_read'));
+              }
+            });
         }
       } catch (err) {
         console.warn('[Chat] Supabase messages fetch fallback:', err);
@@ -310,7 +321,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               void supabase
                 .from('messages')
                 .update({ is_read: true })
-                .eq('id', newMsg.id);
+                .eq('id', newMsg.id)
+                .then(() => {
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('daheej:messages_read'));
+                  }
+                });
             }
           }
         }
@@ -413,7 +429,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       if (partnerTypingTimeoutRef.current) clearTimeout(partnerTypingTimeoutRef.current);
       if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current);
     };
-  }, [currentUserId, targetUserId, targetProfile.full_name, supabase]);
+  }, [currentUserId, targetUserId]);
 
   // Auto-scroll strictly isolated to the chat container to prevent jumping the outer window
   useEffect(() => {

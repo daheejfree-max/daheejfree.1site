@@ -149,6 +149,17 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
 
         if (!error && data && data.length > 0) {
           setMessages(data as ChatMessage[]);
+          void supabase
+            .from('messages')
+            .update({ is_read: true })
+            .eq('sender_id', partnerId)
+            .or(`receiver_id.eq.${currentUserId},recipient_id.eq.${currentUserId}`)
+            .eq('is_read', false)
+            .then(() => {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('daheej:messages_read'));
+              }
+            });
         }
       } catch (e) {
         console.warn('[DirectChatRoom] Remote fetch notice:', e);
@@ -181,6 +192,18 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
               if (prev.some((m) => m.id === newMsg.id)) return prev;
               return [...prev, newMsg];
             });
+
+            if (newMsg.receiver_id === currentUserId) {
+              void supabase
+                .from('messages')
+                .update({ is_read: true })
+                .eq('id', newMsg.id)
+                .then(() => {
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('daheej:messages_read'));
+                  }
+                });
+            }
           }
         }
       )
@@ -189,7 +212,7 @@ export default function DirectChatRoomPage({ params }: { params?: { id?: string 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUserId, partnerId, supabase]);
+  }, [currentUserId, partnerId]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();

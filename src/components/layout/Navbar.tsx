@@ -177,6 +177,32 @@ export const Navbar: React.FC<NavbarProps> = ({
           .eq('status', 'accepted')
           .or(`receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId}`);
 
+        // 3. 'Messages' Unread Badge: ONLY count messages where receiver_id === currentUserId AND is_read === false
+        let unreadCount = 0;
+        const { count: msgCount, error: msgErr } = await supabase
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('receiver_id', currentUserId)
+          .eq('is_read', false);
+
+        if (!msgErr && typeof msgCount === 'number') {
+          unreadCount = msgCount;
+        } else {
+          // Schema fallback for schemas using recipient_id
+          const { count: fbCount, error: fbErr } = await supabase
+            .from('messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('recipient_id', currentUserId)
+            .eq('is_read', false);
+
+          if (!fbErr && typeof fbCount === 'number') {
+            unreadCount = fbCount;
+          } else {
+            // Local store fallback - strictly count where receiver_id === currentUserId AND is_read === false
+            unreadCount = daheejStore.getUnreadCountForUser(currentUserId);
+          }
+        }
+
         if (isMounted) {
           if (!reqErr && typeof reqCount === 'number') {
             setLivePendingRequestsCount(reqCount);
@@ -191,6 +217,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             const storeAccepted = daheejStore.getAcceptedConnectionPartnerIds(currentUserId);
             setLiveAcceptedMatchesCount(storeAccepted.length);
           }
+
+          setLiveUnreadMessagesCount(unreadCount);
         }
       } catch {
         if (isMounted) {
@@ -198,6 +226,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           setLivePendingRequestsCount(storePending.length);
           const storeAccepted = daheejStore.getAcceptedConnectionPartnerIds(currentUserId);
           setLiveAcceptedMatchesCount(storeAccepted.length);
+          setLiveUnreadMessagesCount(daheejStore.getUnreadCountForUser(currentUserId));
         }
       }
     };
@@ -215,20 +244,38 @@ export const Navbar: React.FC<NavbarProps> = ({
       }
     };
 
+    const handleMessagesRead = () => {
+      if (isMounted) {
+        fetchExactCounts();
+      }
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('daheej:request_handled', handleRequestHandled);
+      window.addEventListener('daheej:messages_read', handleMessagesRead);
     }
 
-    // Supabase Realtime subscription for automatic updates on connections (unique channel ID)
-    const connChannelId = `navbar_badges_connections_${currentUserId}_${Math.random().toString(36).slice(2, 9)}`;
-    const connChannel = supabase
-      .channel(connChannelId)
+    // Supabase Realtime subscription for automatic updates on connections and messages (unique channel ID)
+    const badgesChannelId = `navbar_badges_${currentUserId}_${Math.random().toString(36).slice(2, 9)}`;
+    const badgesChannel = supabase
+      .channel(badgesChannelId)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'connections',
+        },
+        () => {
+          fetchExactCounts();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
         },
         () => {
           fetchExactCounts();
@@ -245,8 +292,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         const storeAccepted = daheejStore.getAcceptedConnectionPartnerIds(currentUserId);
         setLiveAcceptedMatchesCount(storeAccepted.length);
       } else if (e.table === 'messages') {
-        const unread = daheejStore.getUnreadMessageCount(currentUserId);
-        setLiveUnreadMessagesCount(unread);
+        fetchExactCounts();
       }
     });
 
@@ -254,8 +300,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       isMounted = false;
       if (typeof window !== 'undefined') {
         window.removeEventListener('daheej:request_handled', handleRequestHandled);
+        window.removeEventListener('daheej:messages_read', handleMessagesRead);
       }
-      supabase.removeChannel(connChannel);
+      supabase.removeChannel(badgesChannel);
       unsubStore();
     };
   }, [currentProfile?.id]);

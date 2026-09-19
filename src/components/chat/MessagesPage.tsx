@@ -492,6 +492,19 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     };
   }, [currentUserId, viewerTier]);
 
+  // Memoize conversation partner IDs to prevent recalculating secureProfiles on every read/message update
+  const messagePartnerIdsKey = useMemo(() => {
+    const set = new Set<string>();
+    allUserMessages.forEach((m) => {
+      const mReceiver = m.receiver_id || (m as any).recipient_id;
+      const partnerId = m.sender_id === currentUserId ? mReceiver : m.sender_id;
+      if (partnerId && partnerId !== currentUserId) {
+        set.add(partnerId);
+      }
+    });
+    return Array.from(set).sort().join(',');
+  }, [allUserMessages, currentUserId]);
+
   const secureProfiles = useMemo(() => {
     if (!currentUserId) return [];
     const acceptedIds = new Set(daheejStore.getAcceptedConnectionPartnerIds(currentUserId));
@@ -517,17 +530,9 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     });
 
     // Also include anyone who has exchanged messages with currentUserId
-    const partnerIdsWithMessages = new Set<string>();
-    allUserMessages.forEach((m) => {
-      const mReceiver = m.receiver_id || (m as any).recipient_id;
-      const partnerId = m.sender_id === currentUserId ? mReceiver : m.sender_id;
-      if (partnerId && partnerId !== currentUserId) {
-        partnerIdsWithMessages.add(partnerId);
-      }
-    });
-
+    const partnerIdsWithMessages = messagePartnerIdsKey ? messagePartnerIdsKey.split(',') : [];
     partnerIdsWithMessages.forEach((pid) => {
-      if (!map.has(pid)) {
+      if (pid && !map.has(pid)) {
         const found = allProfiles.find((p) => p.id === pid) || allKnownProfiles.find((p) => p.id === pid);
         if (found && found.kyc_status !== 'banned') {
           const isUnlocked = !found.photo_privacy || daheejStore.hasAcceptedPhotoConsent(currentUserId, found.id);
@@ -575,7 +580,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     }
 
     return Array.from(map.values());
-  }, [currentUserId, targetGender, allProfiles, connectionsVersion, initialSelectedUserId, selectedUserId, remoteAcceptedProfiles, allUserMessages, viewerTier]);
+  }, [currentUserId, targetGender, allProfiles, connectionsVersion, initialSelectedUserId, selectedUserId, remoteAcceptedProfiles, messagePartnerIdsKey, viewerTier]);
 
   // If initialSelectedUserId is provided and exists, select it
   useEffect(() => {
@@ -597,6 +602,16 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     return secureProfiles.find((p) => p.id === selectedUserId) || null;
   }, [secureProfiles, selectedUserId]);
 
+  const selectedPartnerRef = useRef<ProfileSecureView | null>(selectedPartner);
+  useEffect(() => {
+    selectedPartnerRef.current = selectedPartner;
+  }, [selectedPartner]);
+
+  const activeMessagesRef = useRef<ChatMessage[]>(activeMessages);
+  useEffect(() => {
+    activeMessagesRef.current = activeMessages;
+  }, [activeMessages]);
+
   // Load all messages for conversation list previews
   const refreshAllMessages = useCallback(() => {
     if (!currentUserId) return;
@@ -609,23 +624,24 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   }, [refreshAllMessages]);
 
   // 2. Fetch messages for active conversation and mark as read
-  const loadConversationMessages = useCallback(
-    async (isInitialSwitch = false) => {
-      if (!currentUserId || !selectedUserId) {
-        setActiveMessages([]);
-        return;
-      }
+  // Strictly relies on [currentUserId, selectedUserId] to prevent infinite re-render loops
+  useEffect(() => {
+    if (!currentUserId || !selectedUserId) {
+      setActiveMessages([]);
+      return;
+    }
 
-      // If initial conversation switch, pre-populate from local store (or clear if empty)
-      if (isInitialSwitch) {
-        const localMsgs = daheejStore.getMessages(currentUserId, selectedUserId);
-        setActiveMessages(localMsgs);
-      }
+    stopRingtone();
+    setIncomingCallPopup(null);
 
-      // Mark as read in store
-      daheejStore.markMessagesAsRead(currentUserId, selectedUserId);
+    // Initial conversation switch: pre-populate from local store
+    const localMsgs = daheejStore.getMessages(currentUserId, selectedUserId);
+    setActiveMessages(localMsgs);
+    daheejStore.markMessagesAsRead(currentUserId, selectedUserId);
 
-      // Fetch remote messages from Supabase
+    let isMounted = true;
+
+    const fetchActiveConversation = async () => {
       try {
         const { data, error } = await supabase
           .from('messages')
@@ -634,6 +650,8 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
             `and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId})`
           )
           .order('created_at', { ascending: true });
+
+        if (!isMounted) return;
 
         if (error) {
           // Fallback for schemas using recipient_id
@@ -645,35 +663,17 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
             )
             .order('created_at', { ascending: true });
 
+          if (!isMounted) return;
+
           if (fbData && fbData.length > 0) {
             daheejStore.syncConversationMessages(currentUserId, selectedUserId, fbData as ChatMessage[]);
             const unified = daheejStore.getMessages(currentUserId, selectedUserId);
-            setActiveMessages((prev) => {
-              if (prev.length !== unified.length) return unified;
-              let isSame = true;
-              for (let i = 0; i < prev.length; i++) {
-                if (prev[i].id !== unified[i].id || prev[i].content !== unified[i].content) {
-                  isSame = false;
-                  break;
-                }
-              }
-              return isSame ? prev : unified;
-            });
+            setActiveMessages(unified);
           }
         } else if (data) {
           daheejStore.syncConversationMessages(currentUserId, selectedUserId, data as ChatMessage[]);
           const unified = daheejStore.getMessages(currentUserId, selectedUserId);
-          setActiveMessages((prev) => {
-            if (prev.length !== unified.length) return unified;
-            let isSame = true;
-            for (let i = 0; i < prev.length; i++) {
-              if (prev[i].id !== unified[i].id || prev[i].content !== unified[i].content) {
-                isSame = false;
-                break;
-              }
-            }
-            return isSame ? prev : unified;
-          });
+          setActiveMessages(unified);
 
           // Remote mark as read in Supabase
           try {
@@ -683,9 +683,14 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
               .eq('sender_id', selectedUserId)
               .or(`receiver_id.eq.${currentUserId},recipient_id.eq.${currentUserId}`)
               .eq('is_read', false);
+
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('daheej:messages_read'));
+            }
           } catch (updateErr) {
             // Ignore if RLS or column difference
           }
+
           // Check for active incoming call in loaded unified messages
           const activeInviteMsg = unified.find(
             (m) => m.sender_id === selectedUserId && isCallInviteCurrentlyActive(m, unified)
@@ -699,7 +704,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                 return {
                   room_id: invite.room_id,
                   callType: invite.callType,
-                  caller_name: selectedPartner?.full_name || 'Matched Partner',
+                  caller_name: selectedPartnerRef.current?.full_name || 'Matched Partner',
                   sender_id: selectedUserId,
                   timestamp: new Date(activeInviteMsg.created_at || Date.now()).getTime(),
                 };
@@ -715,38 +720,20 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
             });
           }
         }
-
-        // Force local store to mark newly fetched messages as read
-        daheejStore.markMessagesAsRead(currentUserId, selectedUserId);
-        const latestUnified = daheejStore.getMessages(currentUserId, selectedUserId);
-        setActiveMessages((prev) => {
-          if (prev.length !== latestUnified.length) return latestUnified;
-          let isSame = true;
-          for (let i = 0; i < prev.length; i++) {
-            if (prev[i].id !== latestUnified[i].id || prev[i].read !== latestUnified[i].read) {
-              isSame = false;
-              break;
-            }
-          }
-          return isSame ? prev : latestUnified;
-        });
-
       } catch (err) {
         console.warn('[MessagesPage] Supabase remote sync fallback:', err);
       }
-    },
-    [currentUserId, selectedUserId, supabase, playRingtone, stopRingtone, selectedPartner]
-  );
+    };
 
-  useEffect(() => {
-    stopRingtone();
-    setIncomingCallPopup(null);
-    loadConversationMessages(true).then(() => {
-      refreshAllMessages();
-    });
-  }, [loadConversationMessages, stopRingtone, refreshAllMessages]);
+    fetchActiveConversation();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUserId, selectedUserId, playRingtone, stopRingtone]);
 
   // 3. Supabase Real-Time WebSocket Channel for Live Messages
+  // Strictly relies on [currentUserId, selectedUserId] with dedicated cleanup
   useEffect(() => {
     if (!currentUserId) return;
 
@@ -805,11 +792,11 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
           // Check if this is an incoming call invite from the partner
           const invite = parseCallInvite(newMsg.content);
-          if (invite && newMsg.sender_id === selectedUserId && !isTermEvent && isCallInviteCurrentlyActive(newMsg, activeMessages)) {
+          if (invite && newMsg.sender_id === selectedUserId && !isTermEvent && isCallInviteCurrentlyActive(newMsg, activeMessagesRef.current)) {
             setIncomingCallPopup({
               room_id: invite.room_id,
               callType: invite.callType,
-              caller_name: invite.caller_name || 'Matched Partner',
+              caller_name: invite.caller_name || selectedPartnerRef.current?.full_name || 'Matched Partner',
               sender_id: newMsg.sender_id,
               timestamp: Date.now(),
             });
@@ -824,7 +811,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
               Notification.permission === 'granted'
             ) {
               new Notification(
-                `Incoming ${invite.callType === 'video' ? 'Video' : 'Voice'} Call from ${invite.caller_name || selectedPartner?.full_name || 'Match'}`,
+                `Incoming ${invite.callType === 'video' ? 'Video' : 'Voice'} Call from ${invite.caller_name || selectedPartnerRef.current?.full_name || 'Match'}`,
                 {
                   body: 'Click to answer',
                   icon: '/favicon.ico',
@@ -840,7 +827,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
               'Notification' in window &&
               Notification.permission === 'granted'
             ) {
-              new Notification(`New message from ${selectedPartner?.full_name || 'Match'}`, {
+              new Notification(`New message from ${selectedPartnerRef.current?.full_name || 'Match'}`, {
                 body: newMsg.content || 'Sent you a new message',
                 icon: '/favicon.ico',
               });
@@ -885,13 +872,23 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
               void supabase
                 .from('messages')
                 .update({ is_read: true })
-                .eq('id', newMsg.id);
+                .eq('id', newMsg.id)
+                .then(() => {
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('daheej:messages_read'));
+                  }
+                });
             }
           } else {
             daheejStore.addMessage(newMsg);
           }
 
-          refreshAllMessages();
+          setAllUserMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) {
+              return prev.map((m) => (m.id === newMsg.id ? { ...m, ...newMsg } : m));
+            }
+            return [...prev, newMsg];
+          });
         }
       )
       .on(
@@ -930,7 +927,10 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           setActiveMessages((prev) =>
             prev.map((m) => (m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m))
           );
-          refreshAllMessages();
+
+          setAllUserMessages((prev) =>
+            prev.map((m) => (m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m))
+          );
         }
       )
       .subscribe((status) => {
@@ -965,11 +965,11 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
 
       // Check local incoming call invite
       const invite = parseCallInvite(msg.content);
-      if (invite && msg.sender_id === selectedUserId && !isTermMsg && isCallInviteCurrentlyActive(msg, activeMessages)) {
+      if (invite && msg.sender_id === selectedUserId && !isTermMsg && isCallInviteCurrentlyActive(msg, activeMessagesRef.current)) {
         setIncomingCallPopup({
           room_id: invite.room_id,
           callType: invite.callType,
-          caller_name: invite.caller_name || 'Matched Partner',
+          caller_name: invite.caller_name || selectedPartnerRef.current?.full_name || 'Matched Partner',
           sender_id: msg.sender_id,
           timestamp: Date.now(),
         });
@@ -995,7 +995,13 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           return [...prev, msg];
         });
       }
-      refreshAllMessages();
+
+      setAllUserMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) {
+          return prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m));
+        }
+        return [...prev, msg];
+      });
     });
 
     // 4. Supabase Call Signals subscription for instant call cancellation/hangup detection
@@ -1006,7 +1012,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           setIncomingCallPopup({
             room_id: inviteData.room_id,
             callType: inviteData.callType === 'video' ? 'video' : 'voice',
-            caller_name: inviteData.caller_name || selectedPartner?.full_name || 'Matched Partner',
+            caller_name: inviteData.caller_name || selectedPartnerRef.current?.full_name || 'Matched Partner',
             sender_id: inviteData.caller_id || '',
             timestamp: Date.now(),
           });
@@ -1026,11 +1032,36 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     );
 
     // 5. Background polling sync (without wiping or resetting active conversation)
-    const pollInterval = setInterval(() => {
-      if (selectedUserId) {
-        loadConversationMessages(false);
+    const pollInterval = setInterval(async () => {
+      if (!selectedUserId || !currentUserId) return;
+      try {
+        const { data } = await supabase
+          .from('messages')
+          .select('*')
+          .or(
+            `and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId})`
+          )
+          .order('created_at', { ascending: true });
+
+        if (data && data.length > 0) {
+          daheejStore.syncConversationMessages(currentUserId, selectedUserId, data as ChatMessage[]);
+          const unified = daheejStore.getMessages(currentUserId, selectedUserId);
+          setActiveMessages((prev) => {
+            if (prev.length !== unified.length) return unified;
+            let isSame = true;
+            for (let i = 0; i < prev.length; i++) {
+              if (prev[i].id !== unified[i].id || prev[i].content !== unified[i].content || prev[i].read !== unified[i].read) {
+                isSame = false;
+                break;
+              }
+            }
+            return isSame ? prev : unified;
+          });
+        }
+      } catch {
+        // quiet background sync
       }
-    }, 3500);
+    }, 5000);
 
     // 6. Typing Indicator Broadcast Channel
     let typingChannel: any = null;
@@ -1066,7 +1097,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current);
       setIsPartnerTyping(false);
     };
-  }, [currentUserId, selectedUserId, refreshAllMessages, loadConversationMessages, selectedPartner, supabase]);
+  }, [currentUserId, selectedUserId, playRingtone, stopRingtone]);
 
   // Handle Call Initiation (Sender Side) with Call Signaling & URL param
   const handleInitiateCall = async (callType: 'video' | 'voice') => {
