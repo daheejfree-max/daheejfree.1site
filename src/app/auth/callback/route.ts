@@ -103,7 +103,7 @@ export async function GET(request: Request) {
             ...(user.user_metadata?.anti_dowry_pledged === true ? { anti_dowry_pledged: true } : {}),
             ...(user.user_metadata?.terms_accepted === true ? { terms_accepted: true } : {}),
             ...(user.user_metadata?.privacy_policy_accepted === true ? { privacy_policy_accepted: true } : {}),
-            kyc_status: 'verified',
+            kyc_status: 'pending',
             last_known_ip: clientIp,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),

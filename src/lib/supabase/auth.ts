@@ -123,26 +123,52 @@ export async function signInWithEmailSupabase(
       // Capture and update last_known_ip securely
       logUserIpAddress(data.user.id);
 
-      // Look up user profile or build from metadata
-      const profile = daheejStore.getProfileById(data.user.id);
+      // Look up user profile exclusively by user.id
+      let profile = daheejStore.getProfileById(data.user.id);
+      if (!profile) {
+        const { data: dbProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (dbProfile) {
+          daheejStore.updateProfile(dbProfile.id, dbProfile);
+          profile = dbProfile;
+        }
+      }
+
       if (profile) {
         daheejStore.setCurrentUserId(profile.id);
         return { success: true, profile };
       }
+
+      // If user is authenticated in Supabase but profile row hasn't been created yet, synthesize by user.id
+      const meta = data.user.user_metadata || {};
+      const newProfile: Profile = {
+        id: data.user.id,
+        full_name: meta.full_name || meta.name || data.user.email?.split('@')[0] || 'Member',
+        gender: meta.gender || 'female',
+        age: Number(meta.age) || 24,
+        profession: meta.profession || 'Professional',
+        location: meta.location || 'Hyderabad, TS',
+        avatar_url: meta.avatar_url || meta.picture || '',
+        wali_name: meta.wali_name || 'Guardian',
+        wali_phone: meta.wali_phone || meta.phone || '',
+        wali_email: data.user.email || '',
+        anti_dowry_pledged: true,
+        kyc_status: 'pending',
+        is_onboarded: Boolean(meta.is_onboarded),
+        subscription_tier: 'free',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      daheejStore.createProfile(newProfile);
+      daheejStore.setCurrentUserId(newProfile.id);
+      return { success: true, profile: newProfile };
     }
 
-    // Fallback lookup
-    const profiles = daheejStore.getProfiles();
-    const matched = profiles.find(
-      (p) => p.wali_email.toLowerCase() === email.toLowerCase()
-    );
-    if (matched) {
-      logUserIpAddress(matched.id);
-      daheejStore.setCurrentUserId(matched.id);
-      return { success: true, profile: matched };
-    }
-
-    return { success: false, error: 'No profile found for this account.' };
+    return { success: false, error: 'Authentication session could not be established.' };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Login failed';
     if (msg.toLowerCase().includes('email not confirmed')) {
@@ -222,9 +248,9 @@ export async function signUpWithEmailSupabase(
       has_children: false,
       height_cm: data.gender === 'female' ? 165 : 178,
       anti_dowry_pledged: true,
-      kyc_status: 'verified',
-      kyc_document_type: 'Government Photo ID',
-      kyc_document_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500',
+      kyc_status: 'pending',
+      kyc_verified: false,
+      is_verified: false,
       wali_name: data.waliName || 'Mohammed Ali',
       wali_relation: data.waliRelation || 'Father',
       wali_phone: data.waliPhone || '+91 98765 43210',

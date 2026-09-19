@@ -109,19 +109,21 @@ export default function LoginPage({ onSuccess, onNavigateSignup }: LoginPageProp
     }
   };
 
-  const handleGoogleSuccess = (userData: { name: string; email: string; avatar_url: string }) => {
-    const matched = allProfiles.find(
-      (p) => p.wali_email === userData.email || p.full_name.toLowerCase() === userData.name.toLowerCase()
-    );
+  const handleGoogleSuccess = async (userData: { name: string; email: string; avatar_url: string }) => {
+    // Security Fix: Profile lookup and routing relies EXCLUSIVELY on authenticated user.id
+    const { data: authData } = await supabase.auth.getUser();
+    const authenticatedId = authData?.user?.id;
 
-    if (matched) {
-      switchUser(matched.id);
+    if (authenticatedId) {
+      daheejStore.setCurrentUserId(authenticatedId);
+      switchUser(authenticatedId);
       router.refresh();
-      if (onSuccess) onSuccess(matched.id);
+      if (onSuccess) onSuccess(authenticatedId);
       else router.push('/matches');
-    } else {
-      setGoogleUser(userData);
+      return;
     }
+
+    setGoogleUser(userData);
   };
 
   return (

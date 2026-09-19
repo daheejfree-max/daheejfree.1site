@@ -37,6 +37,7 @@ import { daheejStore } from '../../lib/supabase/store';
 import { AIBioAssistantModal } from '../ai/AIBioAssistantModal';
 import { LanguageSelector } from '../common/LanguageSelector';
 import { compressImageFile } from '../../lib/imageCompressor';
+import { KycVerifyButton } from '../KycVerifyButton';
 
 interface KYCVerificationProps {
   profile: Profile | null;
@@ -78,8 +79,6 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
   const [diditSessionUrl, setDiditSessionUrl] = useState<string | null>(profile?.didit_session_url || null);
 
   // Modals
-  const [isSelfieModalOpen, setIsSelfieModalOpen] = useState(false);
-  const [isGovtIdModalOpen, setIsGovtIdModalOpen] = useState(false);
   const [isAIBioModalOpen, setIsAIBioModalOpen] = useState(false);
 
   // Account Deletion States
@@ -434,25 +433,17 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
             )}
 
             <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
+              <KycVerifyButton
                 id="btn-didit-verify"
-                onClick={handleStartDiditKYC}
-                disabled={isStartingDidit}
+                userId={profile.id}
+                profileId={profile.id}
                 className="px-6 py-3.5 rounded-2xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all hover:scale-[1.02] cursor-pointer disabled:opacity-50"
+                onError={(err) => setDiditError(err)}
               >
-                {isStartingDidit ? (
-                  <>
-                    <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    Connecting to Didit Identity Gateway...
-                  </>
-                ) : (
-                  <>
-                    <Shield className="w-5 h-5 text-white" />
-                    Start Government ID Verification
-                    <ExternalLink className="w-4 h-4 opacity-80" />
-                  </>
-                )}
-              </button>
+                <Shield className="w-5 h-5 text-white" />
+                <span>Start Government ID Verification</span>
+                <ExternalLink className="w-4 h-4 opacity-80" />
+              </KycVerifyButton>
 
               <button
                 id="btn-didit-refresh"
