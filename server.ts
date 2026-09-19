@@ -252,6 +252,29 @@ app.post(['/api/admin/action', '/api/admin/action/'], async (req, res) => {
         successMessage = `KYC verified successfully for user ${targetProfile.full_name || targetUserId}.`;
         break;
 
+      case 'unverify_kyc':
+      case 'unverify':
+        updateFields = {
+          ...updateFields,
+          kyc_verified: false,
+          kyc_status: 'pending',
+          id_verified: false,
+          is_verified: false,
+        };
+        successMessage = `KYC unverified successfully. KYC status set to pending for user ${targetProfile.full_name || targetUserId}.`;
+        break;
+
+      case 'set_free':
+      case 'set_free_subscription':
+        updateFields = {
+          ...updateFields,
+          subscription_tier: 'free',
+          membership_tier: 'free',
+          subscription_status: 'inactive',
+        };
+        successMessage = `Subscription tier set to 'free' for user ${targetProfile.full_name || targetUserId}.`;
+        break;
+
       case 'grant_subscription': {
         const rawTier = typeof payload === 'string' ? payload : (payload?.subscription_tier || payload?.tier || 'gold');
         const targetTier = String(rawTier).toLowerCase().trim();

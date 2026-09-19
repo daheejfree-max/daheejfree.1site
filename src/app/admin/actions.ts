@@ -130,11 +130,28 @@ export async function executeAdminAction(
         kyc_verified: true,
         kyc_status: 'verified',
         id_verified: true,
+        is_verified: true,
+      };
+    } else if (action === 'unverify_kyc' || action === 'unverify') {
+      updateData = {
+        ...updateData,
+        kyc_verified: false,
+        kyc_status: 'pending',
+        id_verified: false,
+        is_verified: false,
       };
     } else if (action === 'grant_subscription') {
       updateData = {
         ...updateData,
         subscription_tier: payload?.subscription_tier || payload?.tier || 'gold',
+        membership_tier: payload?.subscription_tier || payload?.tier || 'gold',
+      };
+    } else if (action === 'set_free' || action === 'set_free_subscription') {
+      updateData = {
+        ...updateData,
+        subscription_tier: 'free',
+        membership_tier: 'free',
+        subscription_status: 'inactive',
       };
     } else if (action === 'ban_user') {
       updateData = {

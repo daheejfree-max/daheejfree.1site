@@ -28,6 +28,8 @@ import {
   ChevronDown,
   Info,
   Check,
+  ArrowDownCircle,
+  ShieldOff,
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured, daheejStore } from '../../lib/supabase/client';
 import { Profile } from '../../types/database';
@@ -225,7 +227,7 @@ export default function AdminControlPanel() {
 
   // 4. Secure Action Dispatcher (Powered by Next.js Server Action)
   const executeAction = async (
-    action: 'verify_kyc' | 'grant_subscription' | 'ban_user' | 'unban_user',
+    action: 'verify_kyc' | 'unverify_kyc' | 'grant_subscription' | 'set_free' | 'ban_user' | 'unban_user',
     targetUserId: string,
     payload?: any
   ) => {
@@ -249,9 +251,13 @@ export default function AdminControlPanel() {
       // Direct client fallback using current admin user's authenticated Supabase client
       let updateData: any = { updated_at: new Date().toISOString() };
       if (action === 'verify_kyc') {
-        updateData = { ...updateData, kyc_verified: true, kyc_status: 'verified', id_verified: true };
+        updateData = { ...updateData, kyc_verified: true, kyc_status: 'verified', id_verified: true, is_verified: true };
+      } else if (action === 'unverify_kyc') {
+        updateData = { ...updateData, kyc_verified: false, kyc_status: 'pending', id_verified: false, is_verified: false };
       } else if (action === 'grant_subscription') {
-        updateData = { ...updateData, subscription_tier: payload?.subscription_tier || payload?.tier || 'gold' };
+        updateData = { ...updateData, subscription_tier: payload?.subscription_tier || payload?.tier || 'gold', membership_tier: payload?.subscription_tier || payload?.tier || 'gold' };
+      } else if (action === 'set_free') {
+        updateData = { ...updateData, subscription_tier: 'free', membership_tier: 'free', subscription_status: 'inactive' };
       } else if (action === 'ban_user') {
         updateData = { ...updateData, is_active: false };
       } else if (action === 'unban_user') {
@@ -297,7 +303,7 @@ export default function AdminControlPanel() {
   };
 
   const handleAction = async (
-    action: 'verify_kyc' | 'grant_subscription' | 'ban_user' | 'unban_user',
+    action: 'verify_kyc' | 'unverify_kyc' | 'grant_subscription' | 'set_free' | 'ban_user' | 'unban_user',
     targetUserId: string,
     payload?: any
   ) => {
@@ -694,6 +700,22 @@ export default function AdminControlPanel() {
                             </button>
                           )}
 
+                          {/* Unverify Button (Amber/Warning Outline) */}
+                          <button
+                            type="button"
+                            disabled={Boolean(actionLoadingId) || (!isVerified && user.kyc_status === 'pending' && !user.kyc_verified)}
+                            onClick={() => handleAction('unverify_kyc', user.id)}
+                            className="px-3 py-1 text-xs font-semibold rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                            title="Downgrade user: Set KYC status to pending and revoke verification"
+                          >
+                            {actionLoadingId === `unverify_kyc-${user.id}` ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                            )}
+                            <span>Unverify</span>
+                          </button>
+
                           {/* Grant Subscription Button (Gold or Diamond) */}
                           <button
                             type="button"
@@ -714,6 +736,22 @@ export default function AdminControlPanel() {
                               <Crown className="w-3.5 h-3.5 text-purple-400" />
                             )}
                             <span>{currentTier === 'gold' ? '+ Diamond' : '+ Gold'}</span>
+                          </button>
+
+                          {/* Set Free Button (Subtle Zinc/Gray Outline) */}
+                          <button
+                            type="button"
+                            disabled={Boolean(actionLoadingId) || currentTier === 'free'}
+                            onClick={() => handleAction('set_free', user.id, { tier: 'free' })}
+                            className="px-3 py-1 text-xs font-semibold rounded-md bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                            title={currentTier === 'free' ? 'User is already on Free tier' : 'Downgrade subscription tier to Free'}
+                          >
+                            {actionLoadingId === `set_free-${user.id}` ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <ArrowDownCircle className="w-3.5 h-3.5 text-zinc-400" />
+                            )}
+                            <span>Set Free</span>
                           </button>
 
                           {/* Ban / Unban Button */}
