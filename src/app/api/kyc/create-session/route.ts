@@ -52,11 +52,18 @@ export async function POST(request: Request): Promise<Response> {
 
     const callbackUrl = `${siteUrl}/api/kyc/didit-callback`;
 
-    // 3. Call Didit's v3 hosted verification session API
+    // 3. Call Didit's v3 hosted verification session API with explicit user references
     const diditPayload = {
       workflow_id: diditWorkflowId,
       vendor_data: String(userId),
+      reference: String(userId),
+      client_reference: String(userId),
+      customer_id: String(userId),
       callback: callbackUrl,
+      metadata: {
+        userId: String(userId),
+        user_id: String(userId),
+      },
     };
 
     const res = await fetch('https://verification.didit.me/v3/session/', {

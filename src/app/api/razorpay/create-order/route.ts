@@ -40,20 +40,20 @@ export interface CreateOrderResponse {
 
 export async function POST(req: Request): Promise<Response> {
   try {
-    const body: CreateOrderRequest = await req.json().catch(() => ({} as any));
+    const body: CreateOrderRequest & { userId?: string; user_id?: string } = await req.json().catch(() => ({} as any));
     const {
       tier: rawTier = 'gold',
       billingCycle = 'monthly',
-      profileId,
       currency = 'INR',
     } = body;
 
+    const profileId = body.profileId || body.userId || body.user_id;
     const tier = String(rawTier || 'gold').toLowerCase().trim();
 
     // 1. Validate required fields
     if (!profileId) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing required profileId' }),
+        JSON.stringify({ success: false, error: 'Missing required profileId or userId' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -132,6 +132,8 @@ export async function POST(req: Request): Promise<Response> {
       receipt: cleanReceipt,
       notes: {
         profile_id: profileId,
+        user_id: profileId,
+        supabase_id: profileId,
         tier: tier,
         billing_cycle: billingCycle,
         app_name: 'DaheejFree Matrimonial',

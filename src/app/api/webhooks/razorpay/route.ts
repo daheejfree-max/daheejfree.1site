@@ -119,14 +119,21 @@ export async function POST(req: Request): Promise<Response> {
       const orderEntity = eventPayload.payload?.order?.entity;
 
       const profileId =
-        paymentEntity?.notes?.profile_id ||
-        orderEntity?.notes?.profile_id;
+        (paymentEntity?.notes as any)?.supabase_id ||
+        (paymentEntity?.notes as any)?.user_id ||
+        (paymentEntity?.notes as any)?.profile_id ||
+        (orderEntity?.notes as any)?.supabase_id ||
+        (orderEntity?.notes as any)?.user_id ||
+        (orderEntity?.notes as any)?.profile_id;
 
-      const tier = (
+      let rawTier = (
         paymentEntity?.notes?.tier ||
         orderEntity?.notes?.tier ||
         'gold'
-      ).toLowerCase();
+      ).toLowerCase().trim();
+
+      // Normalize tier to gold or diamond as specified in the pipeline
+      const tier = rawTier === 'diamond' || rawTier === 'platinum' ? 'diamond' : 'gold';
 
       const billingCycle = (
         paymentEntity?.notes?.billing_cycle ||

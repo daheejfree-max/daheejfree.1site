@@ -535,7 +535,8 @@ app.post(['/api/webhooks/dodo', '/api/payments/dodo/webhook'], async (req, res) 
 app.post(['/api/razorpay/create-order', '/api/checkout/razorpay', '/api/razorpay/subscription'], async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   try {
-    const { tier = 'gold', profileId, billingCycle = 'monthly', currency = 'INR' } = req.body || {};
+    const { tier = 'gold', profileId: pId, userId, user_id, billingCycle = 'monthly', currency = 'INR' } = req.body || {};
+    const profileId = pId || userId || user_id;
 
     if (!tier || !profileId) {
       return res.status(400).json({ success: false, error: 'Missing required parameters: tier or profileId' });
@@ -584,6 +585,8 @@ app.post(['/api/razorpay/create-order', '/api/checkout/razorpay', '/api/razorpay
       receipt: `rcpt_${profileId.slice(0, 8)}_${Date.now()}`,
       notes: {
         profile_id: profileId,
+        user_id: profileId,
+        supabase_id: profileId,
         tier: tier.toLowerCase(),
         billing_cycle: billingCycle,
       },
@@ -661,8 +664,16 @@ app.post(['/api/webhooks/razorpay', '/api/razorpay/webhook'], async (req, res) =
 
     if (eventName === 'payment.captured' || eventName === 'order.paid') {
       const paymentEntity = payload.payload?.payment?.entity;
-      const profileId = paymentEntity?.notes?.profile_id;
-      const tier = (paymentEntity?.notes?.tier || 'gold').toLowerCase();
+      const orderEntity = payload.payload?.order?.entity;
+      const profileId =
+        paymentEntity?.notes?.supabase_id ||
+        paymentEntity?.notes?.user_id ||
+        paymentEntity?.notes?.profile_id ||
+        orderEntity?.notes?.supabase_id ||
+        orderEntity?.notes?.user_id ||
+        orderEntity?.notes?.profile_id;
+      let rawTier = (paymentEntity?.notes?.tier || orderEntity?.notes?.tier || 'gold').toLowerCase();
+      const tier = rawTier === 'diamond' || rawTier === 'platinum' ? 'diamond' : 'gold';
       const billingCycle = paymentEntity?.notes?.billing_cycle || 'monthly';
       const paymentId = paymentEntity?.id || `pay_${Date.now()}`;
       const orderId = paymentEntity?.order_id || `order_${Date.now()}`;
@@ -747,7 +758,14 @@ app.all('/api/kyc/create-session', async (req, res) => {
       body: JSON.stringify({
         workflow_id: process.env.DIDIT_WORKFLOW_ID.trim(),
         vendor_data: String(userId),
+        reference: String(userId),
+        client_reference: String(userId),
+        customer_id: String(userId),
         callback: callbackUrl,
+        metadata: {
+          userId: String(userId),
+          user_id: String(userId),
+        },
       }),
     });
 
@@ -804,8 +822,8 @@ app.all('/api/kyc/create-session', async (req, res) => {
   }
 });
 
-// B. KYC Webhook & Callback Handler (/api/kyc/callback)
-app.all('/api/kyc/callback', async (req, res) => {
+// B. KYC Webhook & Callback Handler (/api/kyc/didit-callback & /api/kyc/callback)
+app.all(['/api/kyc/didit-callback', '/api/kyc/callback'], async (req, res) => {
   const isPost = req.method === 'POST';
   const payload = isPost ? req.body || {} : req.query || {};
 
@@ -815,7 +833,8 @@ app.all('/api/kyc/callback', async (req, res) => {
     payload.userId ||
     payload.user_id ||
     payload.profile_id ||
-    payload.profileId;
+    payload.profileId ||
+    payload.state;
 
   const status = String(payload.status || payload.decision || payload.event || '').toLowerCase();
   const isApproved =
@@ -870,6 +889,146 @@ app.all('/api/kyc/callback', async (req, res) => {
       : `${siteUrl}/profile?kyc_callback=done&refresh=true`;
 
     return res.redirect(targetUrl);
+  }
+});
+
+// ==============================================================================
+// 3.2 DIDIT KYC WEBHOOK LISTENER (/api/webhooks/didit)
+// Verified via DIDIT_WEBHOOK_SECRET and updates public.profiles via Service Role
+// ==============================================================================
+app.post(['/api/webhooks/didit', '/api/didit/webhook'], async (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    const signature = (
+      req.headers['didit-signature'] ||
+      req.headers['x-didit-signature'] ||
+      req.headers['x-signature'] ||
+      req.headers['signature']
+    ) as string | undefined;
+
+    const webhookSecret = process.env.DIDIT_WEBHOOK_SECRET;
+
+    if (webhookSecret && signature) {
+      let candidateSig = signature.trim();
+      if (candidateSig.startsWith('sha256=')) {
+        candidateSig = candidateSig.slice(7);
+      } else if (candidateSig.includes('v1=')) {
+        const v1Match = candidateSig.match(/v1=([a-fA-F0-9]+)/);
+        if (v1Match) candidateSig = v1Match[1];
+      }
+
+      const expectedSig = crypto
+        .createHmac('sha256', webhookSecret.trim())
+        .update(rawBody)
+        .digest('hex');
+
+      const sigBuf = Buffer.from(candidateSig);
+      const expBuf = Buffer.from(expectedSig);
+
+      if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+        console.warn('[Didit Webhook] Signature mismatch in server.ts');
+        return res.status(401).json({ error: 'Invalid Didit signature' });
+      }
+    }
+
+    const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
+
+    const userId =
+      payload.vendor_data ||
+      payload.vendorData ||
+      payload.reference ||
+      payload.reference_id ||
+      payload.client_reference ||
+      payload.customer_id ||
+      payload.customerId ||
+      payload.userId ||
+      payload.user_id ||
+      payload.profile_id ||
+      payload.profileId ||
+      payload.metadata?.userId ||
+      payload.metadata?.user_id ||
+      payload.metadata?.reference ||
+      payload.data?.vendor_data ||
+      payload.data?.vendorData ||
+      payload.data?.reference ||
+      payload.data?.customer_id ||
+      payload.data?.userId ||
+      payload.data?.user_id;
+
+    const rawStatus = String(
+      payload.status ||
+      payload.decision ||
+      payload.decision_status ||
+      payload.verification_status ||
+      payload.event ||
+      payload.data?.status ||
+      payload.data?.decision ||
+      ''
+    ).toLowerCase().trim();
+
+    const isApproved =
+      rawStatus === 'approved' ||
+      rawStatus === 'verified' ||
+      rawStatus === 'completed' ||
+      rawStatus === 'success' ||
+      rawStatus === 'verification.approved' ||
+      rawStatus === 'session.approved' ||
+      rawStatus === 'session.completed' ||
+      payload.verified === true ||
+      payload.data?.verified === true;
+
+    const sessionId = payload.session_id || payload.id || payload.data?.session_id;
+
+    if (userId) {
+      const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+      if (supabaseUrl && serviceRoleKey) {
+        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+        if (isApproved) {
+          await supabaseAdmin
+            .from('profiles')
+            .update({
+              kyc_verified: true,
+              kyc_status: 'verified',
+              is_verified: true,
+              id_verified: true,
+              selfie_verified: true,
+              didit_session_id: sessionId,
+              kyc_session_id: sessionId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', String(userId));
+          console.info(`[Didit Webhook] Profile ${userId} updated to kyc_verified: true, kyc_status: 'verified'`);
+        } else if (
+          rawStatus === 'declined' ||
+          rawStatus === 'rejected' ||
+          rawStatus === 'failed' ||
+          rawStatus === 'session.rejected'
+        ) {
+          await supabaseAdmin
+            .from('profiles')
+            .update({
+              kyc_verified: false,
+              kyc_status: 'rejected',
+              didit_session_id: sessionId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', String(userId));
+        }
+      }
+    }
+
+    return res.status(200).json({
+      received: true,
+      status: isApproved ? 'verified' : rawStatus,
+      userId,
+      sessionId,
+    });
+  } catch (err: any) {
+    console.error('[Didit Webhook] Error:', err);
+    return res.status(500).json({ error: err?.message || 'Internal webhook error' });
   }
 });
 
