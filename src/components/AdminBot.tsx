@@ -8,11 +8,33 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { Send, Bot, Terminal, Loader2, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Send, Bot, Terminal, Loader2, Sparkles, AlertCircle, X, CheckCircle2, HelpCircle } from 'lucide-react';
 
 export default function AdminBot() {
   const [localInput, setLocalInput] = useState('');
+  const [envStatus, setEnvStatus] = useState<{
+    githubConfigured: boolean;
+    missing: string[];
+  } | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Check backend integration status on mount
+  useEffect(() => {
+    fetch('/api/admin-bot')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data.githubConfigured === 'boolean') {
+          setEnvStatus({
+            githubConfigured: data.githubConfigured,
+            missing: data.missing || [],
+          });
+        }
+      })
+      .catch(() => {
+        // Silent fallback
+      });
+  }, []);
 
   // Initialize useChat with /api/admin-bot endpoint and compatible AI SDK transport
   const chat = (useChat as any)({
@@ -26,6 +48,7 @@ export default function AdminBot() {
     handleInputChange: sdkHandleInputChange,
     handleSubmit: sdkHandleSubmit,
     sendMessage,
+    clearError,
     status,
     error,
   } = chat;
@@ -44,6 +67,10 @@ export default function AdminBot() {
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault?.();
     if (!input || !input.trim()) return;
+
+    if (error && typeof clearError === 'function') {
+      clearError();
+    }
 
     if (sdkHandleSubmit) {
       sdkHandleSubmit(e);
@@ -71,7 +98,9 @@ export default function AdminBot() {
           if (part.type === 'tool-invocation') {
             const toolName = part.toolInvocation?.toolName || 'tool';
             const state = part.toolInvocation?.state || 'executed';
-            return `⚙️ [Executing Tool: ${toolName} (${state})]`;
+            const args = part.toolInvocation?.args || {};
+            const pathArg = args.filePath ? ` "${args.filePath}"` : '';
+            return `⚡ [Tool: ${toolName}${pathArg} • ${state}]`;
           }
           return '';
         })
@@ -87,26 +116,37 @@ export default function AdminBot() {
   return (
     <div className="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden mb-8 shadow-lg font-sans">
       {/* 1. Header */}
-      <div className="px-4 py-3 bg-zinc-900/90 border-b border-zinc-800/80 flex items-center justify-between">
+      <div className="px-4 py-3 bg-zinc-900/90 border-b border-zinc-800/80 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
             <Bot className="w-4 h-4" />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs sm:text-sm font-semibold text-zinc-100 flex items-center gap-1.5">
               <span>🤖</span>
               <span>DaheejFree Autonomous Developer Agent</span>
             </span>
-            <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Active</span>
-            </span>
+
+            {envStatus?.githubConfigured ? (
+              <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>GitHub Commits Active</span>
+              </span>
+            ) : (
+              <span
+                title="Agent is active in code analysis mode. Add GITHUB_PAT, GITHUB_OWNER, and GITHUB_REPO to Vercel env for autonomous commits."
+                className="flex items-center gap-1 text-[11px] font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full cursor-help"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                <span>Live Advisor Mode</span>
+              </span>
+            )}
           </div>
         </div>
 
         <div className="hidden sm:flex items-center gap-2 text-[11px] text-zinc-500">
           <Terminal className="w-3.5 h-3.5" />
-          <span>Vercel &amp; GitHub Autonomous Pipeline</span>
+          <span>Vercel &amp; Gemini Autonomous Pipeline</span>
         </div>
       </div>
 
@@ -116,11 +156,36 @@ export default function AdminBot() {
           <div className="h-full py-6 flex flex-col items-center justify-center text-center text-zinc-500 space-y-2">
             <Sparkles className="w-6 h-6 text-zinc-600 mb-1" />
             <p className="font-sans text-xs text-zinc-400 font-medium">
-              Autonomous developer agent ready to inspect code and push live commits to GitHub.
+              Autonomous developer agent ready to inspect code, debug Didit KYC, and draft updates.
             </p>
-            <p className="font-mono text-[11px] text-zinc-600">
-              Try: &ldquo;Fix typo in landing hero&rdquo; or &ldquo;Inspect src/app/page.tsx&rdquo;
-            </p>
+            <div className="flex flex-wrap justify-center gap-2 pt-1 font-sans">
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof sendMessage === 'function') {
+                    sendMessage({ text: 'How do I fix Didit KYC verification issues?' });
+                  } else {
+                    setLocalInput('How do I fix Didit KYC verification issues?');
+                  }
+                }}
+                className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-md text-[11px] text-zinc-300 transition-colors"
+              >
+                💡 &ldquo;How do I fix Didit KYC issues?&rdquo;
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof sendMessage === 'function') {
+                    sendMessage({ text: 'Inspect src/app/api/kyc/create-session/route.ts' });
+                  } else {
+                    setLocalInput('Inspect src/app/api/kyc/create-session/route.ts');
+                  }
+                }}
+                className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-md text-[11px] text-zinc-300 transition-colors"
+              >
+                🔍 &ldquo;Inspect KYC create-session route&rdquo;
+              </button>
+            </div>
           </div>
         ) : (
           messages.map((msg: any, index: number) => {
@@ -164,14 +229,32 @@ export default function AdminBot() {
         {isStreaming && (
           <div className="flex items-center gap-2 text-xs text-emerald-400/90 bg-emerald-950/20 border border-emerald-500/20 px-3 py-2 rounded-lg w-fit">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
-            <span>Agent is reasoning and preparing GitHub tools...</span>
+            <span>Agent is inspecting codebase and preparing response...</span>
           </div>
         )}
 
         {error && (
-          <div className="flex items-center gap-2 text-xs text-red-300 bg-red-950/40 border border-red-500/30 px-3 py-2 rounded-lg">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <span>Agent Error: {error.message || 'Failed to process prompt. Check environment variables.'}</span>
+          <div className="flex items-start justify-between gap-2 text-xs text-red-300 bg-red-950/40 border border-red-500/30 p-3 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold">Chat Response Error</p>
+                <p className="text-[11px] text-red-300/80">
+                  {error.message?.includes('fetch')
+                    ? 'Unable to communicate with /api/admin-bot. Ensure GEMINI_API_KEY is configured in your Vercel deployment settings.'
+                    : error.message || 'An error occurred while generating response.'}
+                </p>
+              </div>
+            </div>
+            {typeof clearError === 'function' && (
+              <button
+                type="button"
+                onClick={() => clearError()}
+                className="text-zinc-400 hover:text-white p-1 rounded hover:bg-white/10"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         )}
 
@@ -185,7 +268,7 @@ export default function AdminBot() {
             type="text"
             value={input}
             onChange={handleInputChange}
-            placeholder="Command autonomous developer agent (e.g. Inspect or edit code)..."
+            placeholder="Command autonomous developer agent (e.g. Inspect code or fix Didit)..."
             disabled={isStreaming}
             className="bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-500 w-full p-3 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-none text-xs sm:text-sm disabled:opacity-50"
           />

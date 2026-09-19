@@ -2585,6 +2585,17 @@ app.post('/api/admin-bot', async (req, res) => {
   }
 });
 
+app.get('/api/admin-bot', async (req, res) => {
+  try {
+    const { GET: adminBotGetHandler } = await import('./src/app/api/admin-bot/route');
+    const webRes = await adminBotGetHandler();
+    const data = await webRes.json();
+    res.status(webRes.status).json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error checking bot status' });
+  }
+});
+
 // JSON 404 Handler for all unhandled /api/* requests (Ensures HTML is never returned for API calls)
 app.use('/api', (req, res) => {
   res.status(404).json({
