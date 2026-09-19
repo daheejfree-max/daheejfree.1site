@@ -34,6 +34,7 @@ import {
 import { supabase, isSupabaseConfigured, daheejStore } from '../../lib/supabase/client';
 import { Profile } from '../../types/database';
 import { executeAdminAction } from './actions';
+import AdminBot from '../../components/AdminBot';
 
 type FilterTab = 'all' | 'pending_kyc' | 'verified_kyc' | 'premium' | 'banned';
 
@@ -400,6 +401,9 @@ export default function AdminControlPanel() {
           </button>
         </div>
       )}
+
+      {/* Autonomous Developer Agent Chat Terminal */}
+      <AdminBot />
 
       {/* 1. Stats Overview Cards (3-Column Grid) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
