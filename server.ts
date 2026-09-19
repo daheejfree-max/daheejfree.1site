@@ -2533,6 +2533,47 @@ app.get('/auth/callback', async (req, res, nextMiddleware) => {
   }
 });
 
+// Admin Autonomous Bot Route Delegation
+app.post('/api/admin-bot', async (req, res) => {
+  try {
+    const protocol = req.protocol || 'http';
+    const host = req.get('host') || 'localhost:3000';
+    const url = `${protocol}://${host}${req.originalUrl}`;
+    const webReq = new Request(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(req.headers['authorization'] ? { authorization: req.headers['authorization'] as string } : {}),
+      },
+      body: JSON.stringify(req.body),
+    });
+
+    const { POST: adminBotHandler } = await import('./src/app/api/admin-bot/route');
+    const webRes = await adminBotHandler(webReq);
+
+    res.status(webRes.status);
+    webRes.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+
+    if (webRes.body) {
+      const reader = webRes.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(Buffer.from(value));
+      }
+      res.end();
+    } else {
+      const text = await webRes.text();
+      res.send(text);
+    }
+  } catch (err: any) {
+    console.error('[Express /api/admin-bot error]:', err);
+    res.status(500).json({ error: err.message || 'Admin Bot internal error' });
+  }
+});
+
 // JSON 404 Handler for all unhandled /api/* requests (Ensures HTML is never returned for API calls)
 app.use('/api', (req, res) => {
   res.status(404).json({
