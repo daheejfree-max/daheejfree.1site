@@ -128,7 +128,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+    // Select high-availability, low-latency Flash model to prevent 503/429 high demand spikes
+    const requestedModel = process.env.GEMINI_MODEL;
+    const modelName =
+      requestedModel &&
+      !requestedModel.includes('3.6') &&
+      !requestedModel.includes('2.0') &&
+      !requestedModel.includes('1.5')
+        ? requestedModel
+        : 'gemini-flash-lite-latest';
     const google = createGoogleGenerativeAI({ apiKey: geminiKey });
 
     const systemPrompt = `You are DaheejFree's autonomous developer agent.
@@ -161,6 +169,7 @@ Key Platform Context:
       system: systemPrompt,
       messages: modelMessages,
       stopWhen: isStepCount(10),
+      maxRetries: 2,
       tools: {
         readRepositoryFile: tool({
           description:

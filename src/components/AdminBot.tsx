@@ -388,7 +388,12 @@ export default function AdminBot() {
     }
 
     if (partsElements.length === 0) {
-      return <div className="text-zinc-500 italic">Thinking...</div>;
+      return (
+        <div className="flex items-center gap-1.5 text-zinc-400 italic text-xs py-1">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400 shrink-0" />
+          <span>Analyzing and inspecting repository...</span>
+        </div>
+      );
     }
 
     return <div className="space-y-1.5">{partsElements}</div>;
@@ -494,7 +499,14 @@ export default function AdminBot() {
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold mb-1 opacity-70">
                     <span>{isUser ? 'Admin' : 'Autonomous Agent'}</span>
                   </div>
-                  <div>{content || '...'}</div>
+                  <div>
+                    {content || (
+                      <div className="flex items-center gap-1.5 text-emerald-400/80 text-xs py-0.5">
+                        <Loader2 className="w-3 h-3 animate-spin shrink-0 text-emerald-400" />
+                        <span>Inspecting codebase...</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {isUser && (
@@ -521,7 +533,9 @@ export default function AdminBot() {
               <div className="space-y-1">
                 <p className="font-semibold">Chat Response Error</p>
                 <p className="text-[11px] text-red-300/80">
-                  {error.message?.includes('fetch')
+                  {error.message?.includes('high demand')
+                    ? 'Gemini API experienced a temporary demand spike. The agent has automatically switched to the high-availability Flash Lite engine. Please click the prompt button or try sending your message again.'
+                    : error.message?.includes('fetch')
                     ? 'Unable to communicate with /api/admin-bot. Ensure GEMINI_API_KEY is configured in your Vercel deployment settings.'
                     : error.message === 'An error occurred.'
                     ? 'AI stream error from provider. Verify that GEMINI_API_KEY in your Vercel environment is valid and active.'
