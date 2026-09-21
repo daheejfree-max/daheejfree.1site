@@ -856,7 +856,7 @@ export default function App() {
         {/* Tab: God Mode Admin Control Panel */}
         {currentTab === 'admin' && (
           isAdmin ? (
-            <div className="min-h-screen bg-zinc-950 text-zinc-100 -m-4 sm:-m-6 md:-m-8 p-4 md:p-8">
+            <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 -m-4 sm:-m-6 md:-m-8 p-4 md:p-8 transition-colors">
               <AdminControlPanel />
             </div>
           ) : (
