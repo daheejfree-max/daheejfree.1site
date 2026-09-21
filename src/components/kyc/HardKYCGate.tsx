@@ -2,7 +2,7 @@
 // STRICT PRODUCTION HARD KYC VERIFICATION GATE (UN-DISMISSIBLE PLATFORM WALL)
 // ==============================================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -71,28 +71,43 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
     [currentProfile.id, onRefreshProfile, onUpdateProfile]
   );
 
+  const hasAutoCheckedRef = useRef(false);
+
   const verifySessionWithDidit = useCallback(
-    async (sessionIdParam?: string) => {
+    async (manualSessionIds?: string | string[]) => {
       setIsRefreshing(true);
       setError(null);
       setStatusMessage('Checking identity credentials with official Didit records...');
 
       try {
-        let activeSessionId = sessionIdParam;
+        const candidateSessionIds: string[] = [];
 
-        if (!activeSessionId && typeof window !== 'undefined') {
-          const params = new URLSearchParams(window.location.search);
-          const sIds = params.getAll('verificationSessionId');
-          activeSessionId =
-            sIds.length > 0
-              ? sIds[sIds.length - 1]
-              : params.get('session_id') ||
-                params.get('sessionId') ||
-                currentProfile.kyc_session_id ||
-                currentProfile.didit_session_id;
-        } else if (!activeSessionId) {
-          activeSessionId = currentProfile.kyc_session_id || currentProfile.didit_session_id;
+        if (manualSessionIds) {
+          if (Array.isArray(manualSessionIds)) {
+            candidateSessionIds.push(...manualSessionIds);
+          } else {
+            candidateSessionIds.push(manualSessionIds);
+          }
         }
+
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const urlSessions = [
+            ...params.getAll('verificationSessionId'),
+            ...params.getAll('session_id'),
+            ...params.getAll('sessionId'),
+            params.get('verificationSessionId'),
+            params.get('sessionId'),
+            params.get('session_id'),
+          ].filter((s): s is string => Boolean(s && typeof s === 'string' && s.trim()));
+          candidateSessionIds.push(...urlSessions);
+        }
+
+        if (currentProfile.didit_session_id) candidateSessionIds.push(currentProfile.didit_session_id);
+        if (currentProfile.kyc_session_id) candidateSessionIds.push(currentProfile.kyc_session_id);
+
+        const uniqueCandidates = Array.from(new Set(candidateSessionIds.map((s) => s.trim()).filter(Boolean)));
+        const primarySessionId = uniqueCandidates[uniqueCandidates.length - 1] || null;
 
         // 1. Call server-side verification endpoint which checks Didit v3 API with secret key
         const response = await fetch('/api/kyc/verify', {
@@ -101,7 +116,8 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
           body: JSON.stringify({
             userId: currentProfile.id,
             profileId: currentProfile.id,
-            sessionId: activeSessionId,
+            sessionId: primarySessionId,
+            sessionIds: uniqueCandidates,
             checkOnly: true,
           }),
         });
@@ -130,7 +146,7 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
           decisionStatus === 'success';
 
         if (isApproved) {
-          await applyVerifiedState(activeSessionId);
+          await applyVerifiedState(resData?.sessionId || primarySessionId || undefined);
           return true;
         }
 
@@ -146,7 +162,7 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
           dbData?.kyc_status === 'verified' ||
           dbData?.is_verified === true
         ) {
-          await applyVerifiedState(activeSessionId);
+          await applyVerifiedState(primarySessionId || undefined);
           return true;
         }
 
@@ -157,7 +173,6 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
           setStatusMessage('Verification checked. If you just completed Didit, click "Check Verification Status" again in a few moments.');
         }
 
-        await onRefreshProfile();
         return false;
       } catch (err: any) {
         console.error('[HardKYCGate] verifySessionWithDidit error:', err);
@@ -167,25 +182,41 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
         setIsRefreshing(false);
       }
     },
-    [currentProfile.id, currentProfile.kyc_session_id, currentProfile.didit_session_id, applyVerifiedState, onRefreshProfile]
+    [currentProfile.id, currentProfile.kyc_session_id, currentProfile.didit_session_id, applyVerifiedState]
   );
 
-  // Auto-detect returning verification on mount (e.g. from Didit redirect)
+  // Auto-detect returning verification on mount ONCE (never loops)
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (hasAutoCheckedRef.current) return;
+    hasAutoCheckedRef.current = true;
 
     const params = new URLSearchParams(window.location.search);
     const sessionIds = params.getAll('verificationSessionId');
-    const latestSessionId =
-      sessionIds.length > 0
-        ? sessionIds[sessionIds.length - 1]
-        : params.get('session_id') || params.get('sessionId');
-    const kycParam = params.get('kyc');
+    const sessionId = params.get('sessionId') || params.get('session_id');
+    const hasKycSignal =
+      sessionIds.length > 0 ||
+      Boolean(sessionId) ||
+      params.get('kyc') === 'verified' ||
+      params.has('status');
 
-    if (latestSessionId || kycParam === 'verified') {
-      verifySessionWithDidit(latestSessionId || undefined);
+    // Collect all candidate session IDs before cleaning address bar
+    const candidates = [
+      ...sessionIds,
+      sessionId,
+      params.get('verificationSessionId'),
+    ].filter((s): s is string => Boolean(s && typeof s === 'string' && s.trim()));
+
+    // Clean dirty parameters immediately from URL bar so refreshes stay clean
+    if (window.location.search) {
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [verifySessionWithDidit]);
+
+    if (hasKycSignal) {
+      verifySessionWithDidit(candidates);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Initiate real Didit.me Government ID & Biometric Verification Session
   const handleStartDiditSession = async () => {
