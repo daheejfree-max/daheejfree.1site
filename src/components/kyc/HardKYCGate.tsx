@@ -2,7 +2,7 @@
 // STRICT PRODUCTION HARD KYC VERIFICATION GATE (UN-DISMISSIBLE PLATFORM WALL)
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -43,6 +43,150 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
   const isSelfieVerified = Boolean(currentProfile.selfie_verified);
   const isDocVerified = Boolean(currentProfile.kyc_document_url || currentProfile.kyc_status === 'verified');
 
+  const applyVerifiedState = useCallback(
+    async (sessionId?: string) => {
+      const verifiedUpdates: Partial<Profile> = {
+        kyc_status: 'verified',
+        kyc_verified: true,
+        is_verified: true,
+        id_verified: true,
+        selfie_verified: true,
+        ...(sessionId ? { didit_session_id: sessionId, kyc_session_id: sessionId } : {}),
+      };
+
+      daheejStore.updateProfile(currentProfile.id, verifiedUpdates);
+      if (onUpdateProfile) {
+        onUpdateProfile(verifiedUpdates);
+      }
+
+      setStatusMessage('Identity successfully verified! Access granted.');
+
+      // Strip dirty query parameters (verificationSessionId, status, etc.) from address bar
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      await onRefreshProfile();
+    },
+    [currentProfile.id, onRefreshProfile, onUpdateProfile]
+  );
+
+  const verifySessionWithDidit = useCallback(
+    async (sessionIdParam?: string) => {
+      setIsRefreshing(true);
+      setError(null);
+      setStatusMessage('Checking identity credentials with official Didit records...');
+
+      try {
+        let activeSessionId = sessionIdParam;
+
+        if (!activeSessionId && typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const sIds = params.getAll('verificationSessionId');
+          activeSessionId =
+            sIds.length > 0
+              ? sIds[sIds.length - 1]
+              : params.get('session_id') ||
+                params.get('sessionId') ||
+                currentProfile.kyc_session_id ||
+                currentProfile.didit_session_id;
+        } else if (!activeSessionId) {
+          activeSessionId = currentProfile.kyc_session_id || currentProfile.didit_session_id;
+        }
+
+        // 1. Call server-side verification endpoint which checks Didit v3 API with secret key
+        const response = await fetch('/api/kyc/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentProfile.id,
+            profileId: currentProfile.id,
+            sessionId: activeSessionId,
+            checkOnly: true,
+          }),
+        });
+
+        let resData: any = null;
+        try {
+          const responseText = await response.text();
+          resData = responseText ? JSON.parse(responseText) : {};
+        } catch {
+          console.warn('[HardKYCGate] Non-JSON response from /api/kyc/verify');
+        }
+
+        const decisionStatus = String(
+          resData?.decision?.status ||
+          resData?.decision?.decision ||
+          resData?.status ||
+          ''
+        ).toLowerCase().trim();
+
+        const isApproved =
+          resData?.verified === true ||
+          resData?.status === 'verified' ||
+          decisionStatus === 'approved' ||
+          decisionStatus === 'verified' ||
+          decisionStatus === 'completed' ||
+          decisionStatus === 'success';
+
+        if (isApproved) {
+          await applyVerifiedState(activeSessionId);
+          return true;
+        }
+
+        // 2. Direct database check in case webhook fulfilled asynchronously
+        const { data: dbData } = await supabase
+          .from('profiles')
+          .select('kyc_verified, kyc_status, id_verified, selfie_verified, is_verified')
+          .eq('id', currentProfile.id)
+          .maybeSingle();
+
+        if (
+          dbData?.kyc_verified === true ||
+          dbData?.kyc_status === 'verified' ||
+          dbData?.is_verified === true
+        ) {
+          await applyVerifiedState(activeSessionId);
+          return true;
+        }
+
+        if (decisionStatus === 'declined' || decisionStatus === 'rejected') {
+          setError('Verification was not approved by Didit. Please ensure your document and face match clearly and try again.');
+          setStatusMessage(null);
+        } else {
+          setStatusMessage('Verification checked. If you just completed Didit, click "Check Verification Status" again in a few moments.');
+        }
+
+        await onRefreshProfile();
+        return false;
+      } catch (err: any) {
+        console.error('[HardKYCGate] verifySessionWithDidit error:', err);
+        setError(err?.message || 'Unable to sync verification status at this moment.');
+        return false;
+      } finally {
+        setIsRefreshing(false);
+      }
+    },
+    [currentProfile.id, currentProfile.kyc_session_id, currentProfile.didit_session_id, applyVerifiedState, onRefreshProfile]
+  );
+
+  // Auto-detect returning verification on mount (e.g. from Didit redirect)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const sessionIds = params.getAll('verificationSessionId');
+    const latestSessionId =
+      sessionIds.length > 0
+        ? sessionIds[sessionIds.length - 1]
+        : params.get('session_id') || params.get('sessionId');
+    const kycParam = params.get('kyc');
+
+    if (latestSessionId || kycParam === 'verified') {
+      verifySessionWithDidit(latestSessionId || undefined);
+    }
+  }, [verifySessionWithDidit]);
+
   // Initiate real Didit.me Government ID & Biometric Verification Session
   const handleStartDiditSession = async () => {
     setIsStartingDidit(true);
@@ -50,13 +194,16 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
     setStatusMessage(null);
 
     try {
+      // Clean returnUrl without dirty previous query parameters
+      const cleanReturnUrl = `${window.location.origin}/matches`;
+
       const response = await fetch('/api/kyc/create-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentProfile.id,
           profileId: currentProfile.id,
-          returnUrl: window.location.href,
+          returnUrl: cleanReturnUrl,
         }),
       });
 
@@ -99,58 +246,9 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
     }
   };
 
-  // Poll / Refresh verification status from backend & database (direct public.profiles query)
+  // Poll / Refresh verification status from backend & database
   const handleRefreshStatus = async () => {
-    setIsRefreshing(true);
-    setError(null);
-    setStatusMessage(null);
-
-    try {
-      const { data, error: dbErr } = await supabase
-        .from('profiles')
-        .select('kyc_verified, kyc_status, id_verified, selfie_verified, is_verified')
-        .eq('id', currentProfile.id)
-        .maybeSingle();
-
-      if (dbErr) {
-        console.warn('[HardKYCGate] Profile query warning:', dbErr);
-      }
-
-      const isVerified =
-        data?.kyc_verified === true ||
-        data?.kyc_status === 'verified' ||
-        data?.is_verified === true;
-
-      if (isVerified) {
-        daheejStore.updateProfile(currentProfile.id, {
-          kyc_status: 'verified',
-          kyc_verified: true,
-          is_verified: true,
-          id_verified: true,
-          selfie_verified: true,
-        });
-        if (onUpdateProfile) {
-          onUpdateProfile({
-            kyc_status: 'verified',
-            kyc_verified: true,
-            is_verified: true,
-            id_verified: true,
-            selfie_verified: true,
-          });
-        }
-        setStatusMessage('Identity successfully verified. Redirecting to platform...');
-        await onRefreshProfile();
-        return;
-      }
-
-      await onRefreshProfile();
-      setStatusMessage('Verification status checked against official records.');
-    } catch (err: any) {
-      console.error('[HardKYCGate] Refresh error:', err);
-      setError(err?.message || 'Unable to refresh verification status at this moment.');
-    } finally {
-      setIsRefreshing(false);
-    }
+    await verifySessionWithDidit();
   };
 
   return (
@@ -216,6 +314,18 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
             <ShieldCheck className="w-5 h-5 text-white" />
             <span>{isStartingDidit ? 'Connecting to Identity Gateway...' : 'Start Government ID Verification'}</span>
             <ExternalLink className="w-4 h-4 opacity-80" />
+          </button>
+
+          {/* Sync Button for users who already finished on Didit */}
+          <button
+            id="btn-hard-gate-confirm-didit"
+            type="button"
+            onClick={() => verifySessionWithDidit()}
+            disabled={isRefreshing}
+            className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-emerald-950/40 hover:bg-emerald-900/40 text-emerald-300 border border-emerald-800/50 flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>I Completed Verification on Didit (Confirm Now)</span>
           </button>
 
           {/* Status Poll & Sign Out row */}

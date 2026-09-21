@@ -155,7 +155,12 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
 
-    const diditSessionId = payload.session_id || payload.id || null;
+    const diditSessionId =
+      payload.session_id ||
+      payload.id ||
+      (payload as any).verificationSessionId ||
+      (payload as any).verification_session_id ||
+      null;
     const token = payload.token || payload.code;
 
     // Validate using DIDIT_CLIENT_ID and DIDIT_CLIENT_SECRET
@@ -280,9 +285,19 @@ export async function GET(req: Request): Promise<Response> {
   const clientSecret = process.env.DIDIT_CLIENT_SECRET;
 
   const code = url.searchParams.get('code');
-  const sessionId = url.searchParams.get('session_id') || url.searchParams.get('id');
+  const sessionId =
+    url.searchParams.get('verificationSessionId') ||
+    url.searchParams.get('verification_session_id') ||
+    url.searchParams.get('session_id') ||
+    url.searchParams.get('sessionId') ||
+    url.searchParams.get('id');
   const rawStatus = (url.searchParams.get('status') || url.searchParams.get('decision') || '').toLowerCase();
-  const stateUserId = url.searchParams.get('state') || url.searchParams.get('vendor_data') || url.searchParams.get('userId');
+  const stateUserId =
+    url.searchParams.get('state') ||
+    url.searchParams.get('vendor_data') ||
+    url.searchParams.get('userId') ||
+    url.searchParams.get('user_id') ||
+    url.searchParams.get('profileId');
 
   // Validate Didit token/payload using DIDIT_CLIENT_ID and DIDIT_CLIENT_SECRET
   const validation = await validateDiditTokenOrSession({
@@ -304,13 +319,15 @@ export async function GET(req: Request): Promise<Response> {
   if (isApproved && vendorDataUserId) {
     const supabaseAdmin = getSupabaseAdmin();
     if (supabaseAdmin) {
-      // Database Fulfillment: Set kyc_verified: true and kyc_status: 'verified'
+      // Database Fulfillment: Set kyc_verified: true, kyc_status: 'verified', is_verified, id_verified, selfie_verified
       await supabaseAdmin
         .from('profiles')
         .update({
           kyc_verified: true,
           kyc_status: 'verified',
           is_verified: true,
+          id_verified: true,
+          selfie_verified: true,
           didit_session_id: sessionId,
           kyc_session_id: sessionId,
           updated_at: new Date().toISOString(),

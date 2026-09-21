@@ -144,18 +144,19 @@ export function useAuth() {
   const updateCurrentProfile = async (updates: Partial<Profile>) => {
     if (!profile) return null;
     const updated = daheejStore.updateProfile(profile.id, updates);
+    setProfile((prev) => (prev ? { ...prev, ...updates } : (updated || null)));
     try {
       // Sanitize payload to only valid database columns
       const allowedKeys = new Set([
         'full_name', 'nickname', 'phone_number', 'gender', 'avatar_url',
         'wali_name', 'wali_relation', 'wali_phone', 'wali_contact_number', 'wali_email',
-        'wali_verified', 'has_wali', 'kyc_status', 'is_verified', 'is_active',
+        'wali_verified', 'has_wali', 'kyc_status', 'kyc_verified', 'is_verified', 'id_verified', 'is_active',
         'subscription_tier', 'membership_tier', 'bio', 'age', 'profession',
         'location', 'education', 'sect', 'preferred_sect', 'religious_sect',
         'religious_practice', 'prayer_frequency', 'quran_recitation', 'marital_status',
         'has_children', 'height_cm', 'anti_dowry_pledged', 'dowry_pledge_signed',
         'islamic_oath_signed', 'islamic_oath_date', 'covenant_signed', 'covenant_signed_at',
-        'is_onboarded', 'city', 'kyc_document_type', 'kyc_document_url', 'kyc_session_id',
+        'is_onboarded', 'city', 'kyc_document_type', 'kyc_document_url', 'kyc_session_id', 'didit_session_id',
         'didit_session_url', 'subscription_id', 'subscription_status', 'photo_privacy',
         'is_photo_private', 'photo_blur_hash', 'photo_privacy_mode', 'selfie_verified',
         'selfie_url', 'selfie_verification_url', 'legal_consent_accepted_at',

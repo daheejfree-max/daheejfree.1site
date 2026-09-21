@@ -861,7 +861,14 @@ app.all(['/api/kyc/didit-callback', '/api/kyc/callback'], async (req, res) => {
   const isPost = req.method === 'POST';
   const payload = isPost ? req.body || {} : req.query || {};
 
-  const vendorDataUserId =
+  const sessionId =
+    payload.verificationSessionId ||
+    payload.verification_session_id ||
+    payload.session_id ||
+    payload.sessionId ||
+    payload.id;
+
+  let vendorDataUserId =
     payload.vendor_data ||
     payload.vendorData ||
     payload.userId ||
@@ -870,7 +877,29 @@ app.all(['/api/kyc/didit-callback', '/api/kyc/callback'], async (req, res) => {
     payload.profileId ||
     payload.state;
 
-  const status = String(payload.status || payload.decision || payload.event || '').toLowerCase();
+  let status = String(payload.status || payload.decision || payload.event || '').toLowerCase();
+  const diditApiKey = (process.env.DIDIT_API_KEY || '').trim();
+
+  // If sessionId is present, fetch decision directly from Didit to confirm status and retrieve vendor_data if missing
+  if (sessionId && diditApiKey) {
+    try {
+      const decisionRes = await fetch(`https://verification.didit.me/v3/session/${sessionId}/decision/`, {
+        method: 'GET',
+        headers: { 'x-api-key': diditApiKey },
+      });
+      if (decisionRes.ok) {
+        const decData = await decisionRes.json();
+        const apiStatus = String(decData?.status || decData?.decision || '').toLowerCase();
+        if (apiStatus) status = apiStatus;
+        if (!vendorDataUserId && (decData?.vendor_data || decData?.vendorData)) {
+          vendorDataUserId = decData.vendor_data || decData.vendorData;
+        }
+      }
+    } catch (apiErr) {
+      console.warn('[Didit Callback Handler] Error querying decision API:', apiErr);
+    }
+  }
+
   const isApproved =
     status === 'approved' ||
     status === 'verified' ||
@@ -890,13 +919,16 @@ app.all(['/api/kyc/didit-callback', '/api/kyc/callback'], async (req, res) => {
         .update({
           kyc_verified: true,
           kyc_status: 'verified',
+          is_verified: true,
           id_verified: true,
           selfie_verified: true,
           selfie_verified_at: new Date().toISOString(),
+          didit_session_id: sessionId || null,
+          kyc_session_id: sessionId || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', String(vendorDataUserId));
-      console.info(`[Didit Callback Handler] Verified profile ${vendorDataUserId}`);
+      console.info(`[Didit Callback Handler] Successfully verified profile ${vendorDataUserId}`);
     } catch (dbErr) {
       console.error('[Didit Callback Handler] Supabase update error:', dbErr);
     }
@@ -908,6 +940,7 @@ app.all(['/api/kyc/didit-callback', '/api/kyc/callback'], async (req, res) => {
       verified: isApproved,
       vendorDataUserId,
       status,
+      sessionId,
     });
   } else {
     // Browser GET redirect back to app
@@ -919,8 +952,8 @@ app.all(['/api/kyc/didit-callback', '/api/kyc/callback'], async (req, res) => {
     ).replace(/\/$/, '');
 
     const targetUrl = isApproved
-      ? `${siteUrl}/profile?kyc_verified=true&refresh=true`
-      : `${siteUrl}/profile?kyc_callback=done&refresh=true`;
+      ? `${siteUrl}/matches?kyc=verified`
+      : `${siteUrl}/matches?kyc_status=${status || 'pending'}`;
 
     return res.redirect(targetUrl);
   }
@@ -1074,7 +1107,18 @@ app.all(['/api/kyc/verify', '/api/kyc/initiate', '/api/kyc/session'], async (req
   try {
     const profileId = req.body?.profileId || req.body?.userId || req.query?.profileId || req.query?.userId;
     const returnUrl = req.body?.returnUrl || req.query?.returnUrl;
-    const sessionIdQuery = req.body?.sessionId || req.query?.sessionId;
+    const rawSessionId =
+      req.body?.sessionId ||
+      req.body?.verificationSessionId ||
+      req.body?.verification_session_id ||
+      req.body?.session_id ||
+      req.body?.id ||
+      req.query?.sessionId ||
+      req.query?.verificationSessionId ||
+      req.query?.verification_session_id ||
+      req.query?.session_id ||
+      req.query?.id;
+    const checkOnly = Boolean(req.body?.checkOnly || req.query?.checkOnly);
     const features = req.body?.features || 'ID,OCR,LIVENESS';
 
     if (!profileId) {
@@ -1093,22 +1137,63 @@ app.all(['/api/kyc/verify', '/api/kyc/initiate', '/api/kyc/session'], async (req
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
+    let activeSessionId = rawSessionId;
+
+    // If checkOnly or no sessionId provided, check DB profile record first
+    if (!activeSessionId && (checkOnly || !diditWorkflowId) && supabaseUrl && serviceRoleKey) {
+      try {
+        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+        const { data: existingProfile } = await supabaseAdmin
+          .from('profiles')
+          .select('kyc_session_id, didit_session_id, kyc_status, is_verified, kyc_verified')
+          .eq('id', profileId)
+          .maybeSingle();
+
+        if (existingProfile?.kyc_verified || existingProfile?.kyc_status === 'verified' || existingProfile?.is_verified) {
+          return res.status(200).json({
+            success: true,
+            verified: true,
+            status: 'verified',
+            profileId,
+            sessionId: existingProfile.kyc_session_id || existingProfile.didit_session_id,
+          });
+        }
+        activeSessionId = existingProfile?.kyc_session_id || existingProfile?.didit_session_id;
+      } catch (dbErr) {
+        console.warn('[Server KYC Verify] DB query warning:', dbErr);
+      }
+    }
+
     // A. Check Decision for an existing session
-    if (sessionIdQuery) {
-      if (!diditApiKey) {
+    if (activeSessionId || checkOnly) {
+      if (!diditApiKey || !activeSessionId) {
+        let isDbVerified = false;
+        if (supabaseUrl && serviceRoleKey) {
+          try {
+            const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+            const { data: dbCheck } = await supabaseAdmin
+              .from('profiles')
+              .select('kyc_verified, kyc_status, is_verified')
+              .eq('id', profileId)
+              .maybeSingle();
+            isDbVerified = Boolean(dbCheck?.kyc_verified || dbCheck?.kyc_status === 'verified' || dbCheck?.is_verified);
+          } catch {}
+        }
+
         return res.status(200).json({
           success: true,
-          status: 'pending',
+          verified: isDbVerified,
+          status: isDbVerified ? 'verified' : 'pending',
           profileId,
-          sessionId: sessionIdQuery,
-          message: 'Didit.me verification in progress.',
+          sessionId: activeSessionId || null,
+          message: isDbVerified ? 'Verified in records.' : 'Didit.me verification in progress.',
         });
       }
 
       let decisionData: any = null;
       try {
         // Try Didit v3 decision endpoint with strict x-api-key header
-        let decisionResponse = await fetch(`https://verification.didit.me/v3/session/${sessionIdQuery}/decision/`, {
+        let decisionResponse = await fetch(`https://verification.didit.me/v3/session/${activeSessionId}/decision/`, {
           method: 'GET',
           headers: {
             'x-api-key': diditApiKey,
@@ -1117,7 +1202,7 @@ app.all(['/api/kyc/verify', '/api/kyc/initiate', '/api/kyc/session'], async (req
 
         if (!decisionResponse.ok) {
           // Fallback to apx host with Bearer token
-          decisionResponse = await fetch(`https://apx.didit.me/v1/session/${sessionIdQuery}/decision/`, {
+          decisionResponse = await fetch(`https://apx.didit.me/v1/session/${activeSessionId}/decision/`, {
             method: 'GET',
             headers: {
               Authorization: `Bearer ${diditApiKey}`,
@@ -1136,8 +1221,18 @@ app.all(['/api/kyc/verify', '/api/kyc/initiate', '/api/kyc/session'], async (req
         console.error('[Didit KYC Decision] Network error:', upstreamErr);
       }
 
-      const status = (decisionData?.status || decisionData?.decision || '').toLowerCase();
-      const isApproved = status === 'approved' || status === 'verified' || status === 'completed' || status === 'success';
+      const rawDecisionStatus = String(
+        decisionData?.status ||
+        decisionData?.decision ||
+        decisionData?.verification_status ||
+        ''
+      ).toLowerCase().trim();
+
+      const isApproved =
+        rawDecisionStatus === 'approved' ||
+        rawDecisionStatus === 'verified' ||
+        rawDecisionStatus === 'completed' ||
+        rawDecisionStatus === 'success';
 
       // Service Role Database Update if verification successful
       if (isApproved && supabaseUrl && serviceRoleKey) {
@@ -1149,9 +1244,15 @@ app.all(['/api/kyc/verify', '/api/kyc/initiate', '/api/kyc/session'], async (req
               kyc_verified: true,
               kyc_status: 'verified',
               is_verified: true,
+              id_verified: true,
+              selfie_verified: true,
+              didit_session_id: activeSessionId,
+              kyc_session_id: activeSessionId,
               updated_at: new Date().toISOString(),
             })
             .eq('id', profileId);
+
+          console.info(`[Server KYC Decision] Successfully verified profile ${profileId} via session ${activeSessionId}`);
         } catch (dbErr) {
           console.error('[Didit KYC] Supabase Admin update error:', dbErr);
         }
@@ -1160,9 +1261,13 @@ app.all(['/api/kyc/verify', '/api/kyc/initiate', '/api/kyc/session'], async (req
       return res.status(200).json({
         success: true,
         verified: isApproved,
-        status: isApproved ? 'verified' : (status === 'rejected' || status === 'declined' ? 'unverified' : 'pending'),
+        status: isApproved
+          ? 'verified'
+          : rawDecisionStatus === 'rejected' || rawDecisionStatus === 'declined'
+          ? 'unverified'
+          : 'pending',
         profileId,
-        sessionId: sessionIdQuery,
+        sessionId: activeSessionId,
         decision: decisionData,
       });
     }

@@ -57,18 +57,33 @@ export async function POST(request: Request): Promise<Response> {
       'https://daheejfree.site'
     ).replace(/\/$/, '');
 
-    const callbackUrl = body.callbackUrl || body.returnUrl || `${siteUrl}/api/kyc/didit-callback`;
+    // Canonical redirect: route through didit-callback with userId attached for guaranteed fulfillment
+    let callbackUrl = `${siteUrl}/api/kyc/didit-callback?userId=${encodeURIComponent(String(userId).trim())}`;
+
+    // If client supplied custom returnUrl, sanitize query params
+    if (body.callbackUrl || body.returnUrl) {
+      const customUrl = body.callbackUrl || body.returnUrl;
+      try {
+        const parsed = new URL(customUrl, siteUrl);
+        parsed.searchParams.delete('verificationSessionId');
+        parsed.searchParams.delete('status');
+        parsed.searchParams.delete('decision');
+        // Ensure userId is present
+        if (!parsed.searchParams.has('userId') && !parsed.searchParams.has('vendor_data')) {
+          parsed.searchParams.set('userId', String(userId).trim());
+        }
+        callbackUrl = parsed.toString();
+      } catch {}
+    }
 
     // 3. Construct the exact JSON payload required by Didit v3 API
-    // Must include workflow_id and vendor_data (Supabase user.id)
+    // Must include workflow_id, vendor_data (Supabase user.id), and callback
     const diditPayload: Record<string, any> = {
       workflow_id: diditWorkflowId.trim(),
       vendor_data: String(userId).trim(),
+      callback: callbackUrl,
+      callback_method: 'both',
     };
-
-    if (callbackUrl) {
-      diditPayload.callback = callbackUrl;
-    }
 
     // 4. Make POST request to https://verification.didit.me/v3/session/
     const response = await fetch('https://verification.didit.me/v3/session/', {
