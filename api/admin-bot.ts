@@ -1,8 +1,20 @@
-import { POST as webPost, GET as webGet } from '../src/app/api/admin-bot/route';
+import { POST as routePost, GET as routeGet } from '../src/app/api/admin-bot/route.ts';
 
-export { webPost as POST, webGet as GET };
+export const config = {
+  maxDuration: 60,
+};
 
+export { routePost as POST, routeGet as GET };
+
+// Fallback Node.js Serverless Function handler for Vercel environments that invoke default export
 export default async function handler(req: any, res: any) {
+  // If invoked with Web Standard Request (e.g. Edge / Vercel Web runtime)
+  if (req instanceof Request || (req && typeof req.headers?.get === 'function')) {
+    if (req.method === 'GET') return routeGet();
+    return routePost(req);
+  }
+
+  // If invoked with Node.js IncomingMessage / ServerResponse
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -12,7 +24,7 @@ export default async function handler(req: any, res: any) {
 
   if (req.method === 'GET') {
     try {
-      const webRes = await webGet();
+      const webRes = await routeGet();
       const data = await webRes.json();
       return res.status(webRes.status).json(data);
     } catch (err: any) {
@@ -26,20 +38,28 @@ export default async function handler(req: any, res: any) {
       const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
       const url = `${protocol}://${host}${req.url || '/api/admin-bot'}`;
 
+      let bodyData: any = req.body;
+      if (typeof bodyData !== 'string') {
+        bodyData = JSON.stringify(bodyData || {});
+      }
+
       const webReq = new Request(url, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           ...(req.headers['authorization'] ? { authorization: req.headers['authorization'] } : {}),
         },
-        body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}),
+        body: bodyData,
       });
 
-      const webRes = await webPost(webReq);
+      const webRes = await routePost(webReq);
 
       res.status(webRes.status);
       webRes.headers.forEach((val: string, key: string) => {
-        res.setHeader(key, val);
+        // Skip hop-by-hop headers
+        if (key.toLowerCase() !== 'transfer-encoding' && key.toLowerCase() !== 'content-encoding') {
+          res.setHeader(key, val);
+        }
       });
 
       if (webRes.body) {

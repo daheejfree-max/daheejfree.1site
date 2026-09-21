@@ -1,5 +1,3 @@
-import { NextResponse } from 'next/server';
-
 // ==============================================================================
 // DIDIT.ME KYC SESSION CREATION API ROUTE (v3)
 // ==============================================================================
@@ -12,7 +10,7 @@ export async function POST(request: Request): Promise<Response> {
 
     if (!diditApiKey) {
       console.error('[Didit KYC] Server misconfiguration: DIDIT_API_KEY is missing from environment variables.');
-      return NextResponse.json(
+      return Response.json(
         { success: false, error: 'Server configuration error: DIDIT_API_KEY is not set.' },
         { status: 500 }
       );
@@ -20,7 +18,7 @@ export async function POST(request: Request): Promise<Response> {
 
     if (!diditWorkflowId) {
       console.error('[Didit KYC] Server misconfiguration: DIDIT_WORKFLOW_ID is missing from environment variables.');
-      return NextResponse.json(
+      return Response.json(
         { success: false, error: 'Server configuration error: DIDIT_WORKFLOW_ID is not set.' },
         { status: 500 }
       );
@@ -45,7 +43,7 @@ export async function POST(request: Request): Promise<Response> {
 
     if (!userId) {
       console.error('[Didit KYC] Validation error: Missing user ID in request body.');
-      return NextResponse.json(
+      return Response.json(
         { success: false, error: 'Missing required Supabase user ID (vendor_data) to create KYC session.' },
         { status: 400 }
       );
@@ -94,7 +92,7 @@ export async function POST(request: Request): Promise<Response> {
         parsedError = null;
       }
 
-      return NextResponse.json(
+      return Response.json(
         {
           success: false,
           error: parsedError?.message || parsedError?.error || `Didit API rejected session creation with status ${response.status}.`,
@@ -112,7 +110,7 @@ export async function POST(request: Request): Promise<Response> {
       data = JSON.parse(responseText);
     } catch (parseError) {
       console.error('[Didit KYC API Error] Failed to parse successful JSON response from Didit:', responseText);
-      return NextResponse.json(
+      return Response.json(
         { success: false, error: 'Invalid JSON response received from Didit API.', raw: responseText },
         { status: 502 }
       );
@@ -123,14 +121,14 @@ export async function POST(request: Request): Promise<Response> {
 
     if (!verificationUrl) {
       console.error('[Didit KYC API Error] Didit response did not contain a verification URL:', data);
-      return NextResponse.json(
+      return Response.json(
         { success: false, error: 'Didit session created but no verification URL was returned.', details: data },
         { status: 502 }
       );
     }
 
     // Return the URL to the frontend so client can redirect: window.location.href = data.url
-    return NextResponse.json({
+    return Response.json({
       success: true,
       url: verificationUrl,
       session_url: verificationUrl,
@@ -140,7 +138,7 @@ export async function POST(request: Request): Promise<Response> {
     });
   } catch (error: any) {
     console.error('[Didit KYC API Error] Unhandled exception in create-session route:', error);
-    return NextResponse.json(
+    return Response.json(
       { success: false, error: error?.message || 'Internal server error while creating Didit KYC session.' },
       { status: 500 }
     );
@@ -148,7 +146,7 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, {
+  return new Response(null, {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': '*',

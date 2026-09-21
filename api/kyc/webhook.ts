@@ -1,8 +1,12 @@
-import { POST as webPost } from '../../src/app/api/kyc/webhook/route';
+import { POST as routePost } from '../../src/app/api/kyc/webhook/route.ts';
 
-export { webPost as POST };
+export { routePost as POST };
 
 export default async function handler(req: any, res: any) {
+  if (req instanceof Request || (req && typeof req.headers?.get === 'function')) {
+    return routePost(req);
+  }
+
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -22,13 +26,18 @@ export default async function handler(req: any, res: any) {
       if (req.headers['x-didit-signature']) headers['x-didit-signature'] = req.headers['x-didit-signature'];
       if (req.headers['x-signature']) headers['x-signature'] = req.headers['x-signature'];
 
+      let bodyData = req.body;
+      if (typeof bodyData !== 'string') {
+        bodyData = JSON.stringify(bodyData || {});
+      }
+
       const webReq = new Request(url, {
         method: 'POST',
         headers,
-        body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}),
+        body: bodyData,
       });
 
-      const webRes = await webPost(webReq);
+      const webRes = await routePost(webReq);
       const data = await webRes.json();
       return res.status(webRes.status).json(data);
     } catch (err: any) {

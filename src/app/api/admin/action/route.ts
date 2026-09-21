@@ -1,8 +1,7 @@
-import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 export async function OPTIONS() {
-  return new NextResponse(null, {
+  return new Response(null, {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': '*',
@@ -13,20 +12,20 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
-  return NextResponse.json({ status: 'Admin API Active' });
+  return Response.json({ status: 'Admin API Active' });
 }
 
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!authHeader) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     const token = authHeader.replace('Bearer ', '').trim();
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceKey) {
-      return NextResponse.json({ error: 'Server misconfiguration: missing Supabase credentials' }, { status: 500 });
+      return Response.json({ error: 'Server misconfiguration: missing Supabase credentials' }, { status: 500 });
     }
 
     // Authenticate caller
@@ -37,7 +36,7 @@ export async function POST(req: Request) {
     );
     const { data: { user }, error: authErr } = await userClient.auth.getUser();
     if (authErr || !user) {
-      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+      return Response.json({ error: 'Invalid session' }, { status: 401 });
     }
 
     // Authorize admin clearance with elevated service role client
@@ -63,7 +62,7 @@ export async function POST(req: Request) {
 
     const isAdmin = Boolean(profile?.is_admin || isDesignatedSuperadmin);
     if (!isAdmin) {
-      return NextResponse.json({ error: 'Forbidden: Admin clearance required' }, { status: 403 });
+      return Response.json({ error: 'Forbidden: Admin clearance required' }, { status: 403 });
     }
 
     // Process database mutations
@@ -83,7 +82,7 @@ export async function POST(req: Request) {
     } else if (action === 'unban_user') {
       updateData = { ...updateData, is_active: true };
     } else {
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+      return Response.json({ error: 'Invalid action' }, { status: 400 });
     }
 
     const { data: updatedProfile, error: dbErr } = await adminClient
@@ -95,20 +94,20 @@ export async function POST(req: Request) {
 
     if (dbErr) {
       console.error('[api/admin/action] Mutation DB error:', dbErr);
-      return NextResponse.json({ error: dbErr.message }, { status: 500 });
+      return Response.json({ error: dbErr.message }, { status: 500 });
     }
 
     if (!updatedProfile) {
-      return NextResponse.json({ error: `User profile with ID ${targetUserId} not found` }, { status: 404 });
+      return Response.json({ error: `User profile with ID ${targetUserId} not found` }, { status: 404 });
     }
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       message: `Action '${action}' executed successfully.`,
       profile: updatedProfile,
     });
   } catch (err: any) {
     console.error('API Error:', err);
-    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
+    return Response.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }
