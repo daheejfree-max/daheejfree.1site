@@ -24,7 +24,7 @@ async function normalizeToModelMessages(rawMessages: any[]): Promise<any[]> {
     console.warn('[AdminBot Route] convertToModelMessages conversion warning:', err);
   }
 
-  // Resilient fallback conversion if schema doesn't strictly match
+  // Resilient fallback conversion if schema doesn't strictly match or includes UI tool invocations
   const fallback: any[] = [];
   for (const m of rawMessages) {
     if (!m) continue;
@@ -38,6 +38,13 @@ async function normalizeToModelMessages(rawMessages: any[]): Promise<any[]> {
           if (typeof p === 'string') return p;
           if (p?.text) return p.text;
           if (p?.type === 'text') return p.text;
+          if (p?.type?.startsWith('tool-') || p?.type === 'tool-invocation') {
+            const toolName = p.toolName || p.toolInvocation?.toolName || 'tool';
+            const filePath = p.args?.filePath || p.input?.filePath || p.toolInvocation?.args?.filePath || '';
+            const res = p.output || p.result || p.toolInvocation?.result;
+            const status = res?.error ? `Error: ${res.error}` : 'Inspected successfully';
+            return `[Tool: ${toolName} on "${filePath}": ${status}]`;
+          }
           return '';
         })
         .filter(Boolean)
@@ -163,31 +170,42 @@ Current Environment Status:
 
 Key Platform Architecture & File Map:
 - Didit KYC Verification:
-  - API Route: src/app/api/kyc/create-session/route.ts (handles session creation with https://verification.didit.me/v3/session/ using DIDIT_API_KEY & DIDIT_WORKFLOW_ID)
-  - UI Component: src/components/KYCModal.tsx
-- Razorpay / Payment Gateway:
-  - API Routes: src/app/api/payment/create-order/route.ts, src/app/api/payment/verify/route.ts
-  - UI Component: src/components/PaymentModal.tsx
+  - API Route: src/app/api/kyc/create-session/route.ts (creates session with https://verification.didit.me/v3/session/ using DIDIT_API_KEY & DIDIT_WORKFLOW_ID)
+  - Webhook Route: src/app/api/webhooks/didit/route.ts
+  - UI Component: src/components/dashboard/KYCVerification.tsx
+  - Gate Component: src/components/kyc/HardKYCGate.tsx
+- Razorpay Payment Gateway & Subscriptions:
+  - API Routes: src/app/api/razorpay/create-order/route.ts, src/app/api/checkout/razorpay/route.ts
+  - Webhook Route: src/app/api/webhooks/razorpay/route.ts
+  - Library / SDK: src/lib/razorpay.ts
+  - UI Component: src/components/subscriptions/SubscriptionModal.tsx
 - Supabase Client & DB:
   - src/lib/supabase.ts & supabase/schema.sql
 - Admin Control Panel:
   - src/app/admin/page.tsx & src/components/AdminBot.tsx
 
-Efficiency & Speed Guidelines:
-- Inspect ONLY the 1 or 2 files strictly relevant to the admin's request. Do not guess non-existent paths.
-- Once you inspect a file, do NOT read the same file again. Analyze the content you received and respond directly to the admin or proceed to commit.
-- Deliver concise, actionable, and rapid responses.
+Core Operational Workflow:
+- Inspect ONLY 1 or 2 relevant files using \`readRepositoryFile\`.
+- Immediately after inspecting or if you have the needed information, deliver a comprehensive, actionable, and clear text response for the admin.
+- Avoid looping tool calls. Synthesize findings and explain exactly what is functional, what is missing, and how to fix it.
 - Tone: Professional, competent, helpful, concise.`;
 
     // 6. Normalize UI messages into ModelMessage[] format for streamText
     const modelMessages = await normalizeToModelMessages(messages);
 
-    // 7. Invoke streamText with tools (budgeted to max 4 steps for sub-3-second responses)
+    // 7. Invoke streamText with tools
     const result = streamText({
       model: google(modelName),
       system: systemPrompt,
       messages: modelMessages,
-      stopWhen: isStepCount(4),
+      prepareStep: ({ stepNumber }) => {
+        // Allow up to 2 tool execution steps, then force text synthesis step
+        if (stepNumber >= 2) {
+          return { toolChoice: 'none' };
+        }
+        return {};
+      },
+      stopWhen: ({ steps }) => steps.length >= 3,
       maxRetries: 2,
       tools: {
         readRepositoryFile: tool({
@@ -197,13 +215,39 @@ Efficiency & Speed Guidelines:
             filePath: z.string().describe('The path to the file in the repository, e.g. src/app/page.tsx'),
           }),
           execute: async ({ filePath }) => {
+            // Intelligent alias resolver for legacy or partial paths
+            const sanitize = (raw: string) => raw.replace(/^\/+/, '').trim();
+            const getResolvedPath = (target: string): string => {
+              const cleaned = sanitize(target);
+              const direct = path.resolve(process.cwd(), cleaned);
+              if (fs.existsSync(direct) && fs.statSync(direct).isFile()) {
+                return cleaned;
+              }
+              const lower = cleaned.toLowerCase();
+              if (lower.includes('kycmodal') || (lower.includes('kyc') && lower.includes('modal'))) {
+                return 'src/components/dashboard/KYCVerification.tsx';
+              }
+              if (lower.includes('paymentmodal') || (lower.includes('payment') && lower.includes('modal'))) {
+                return 'src/components/subscriptions/SubscriptionModal.tsx';
+              }
+              if (lower.includes('payment/create-order') || lower.includes('payment/order')) {
+                return 'src/app/api/razorpay/create-order/route.ts';
+              }
+              if (lower.includes('payment/verify')) {
+                return 'src/app/api/webhooks/razorpay/route.ts';
+              }
+              return cleaned;
+            };
+
+            const targetFilePath = getResolvedPath(filePath);
+
             // Attempt 1: Try reading via GitHub Octokit if configured
             if (octokit && owner && repo) {
               try {
                 const response = await octokit.rest.repos.getContent({
                   owner,
                   repo,
-                  path: filePath,
+                  path: targetFilePath,
                 });
 
                 const data = response.data;
@@ -211,33 +255,32 @@ Efficiency & Speed Guidelines:
                   const decodedContent = Buffer.from(data.content, 'base64').toString('utf-8');
                   return {
                     success: true,
-                    filePath,
+                    filePath: targetFilePath,
                     content: decodedContent,
                     sha: data.sha,
                     source: 'github',
                   };
                 }
               } catch (gitErr: any) {
-                console.warn(`[Octokit read failed for ${filePath}, falling back to local fs]:`, gitErr?.message);
+                console.warn(`[Octokit read failed for ${targetFilePath}, falling back to local fs]:`, gitErr?.message);
               }
             }
 
             // Attempt 2: Fallback to reading from local filesystem
             try {
-              const sanitizedPath = filePath.replace(/^\/+/, '');
-              const localFilePath = path.resolve(process.cwd(), sanitizedPath);
+              const localFilePath = path.resolve(process.cwd(), targetFilePath);
 
               if (fs.existsSync(localFilePath) && fs.statSync(localFilePath).isFile()) {
                 const content = await fs.promises.readFile(localFilePath, 'utf-8');
                 return {
                   success: true,
-                  filePath,
+                  filePath: targetFilePath,
                   content,
                   source: 'local-filesystem',
                 };
               }
             } catch (fsErr: any) {
-              console.warn(`[Local fs read error for ${filePath}]:`, fsErr?.message);
+              console.warn(`[Local fs read error for ${targetFilePath}]:`, fsErr?.message);
             }
 
             return {
