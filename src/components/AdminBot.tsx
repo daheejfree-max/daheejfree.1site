@@ -242,6 +242,8 @@ export default function AdminBot() {
                 <p className="text-[11px] text-red-300/80">
                   {error.message?.includes('fetch')
                     ? 'Unable to communicate with /api/admin-bot. Ensure GEMINI_API_KEY is configured in your Vercel deployment settings.'
+                    : error.message === 'An error occurred.'
+                    ? 'AI stream error from provider. Verify that GEMINI_API_KEY in your Vercel environment is valid and active.'
                     : error.message || 'An error occurred while generating response.'}
                 </p>
               </div>

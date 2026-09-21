@@ -66,7 +66,13 @@ export async function POST(req: Request) {
     }
 
     // 4. Initialize Google Generative AI
-    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY;
+    const rawGeminiKey =
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      '';
+    const geminiKey = rawGeminiKey.trim().replace(/^["']|["']$/g, '');
+
     if (!geminiKey) {
       console.error('ADMIN BOT ERROR: Missing GEMINI_API_KEY.');
       return Response.json(
@@ -75,6 +81,7 @@ export async function POST(req: Request) {
       );
     }
 
+    const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
     const google = createGoogleGenerativeAI({ apiKey: geminiKey });
 
     // 5. System prompt informing agent of DaheejFree platform context & environment state
@@ -102,7 +109,7 @@ Key Platform Context:
 
     // 6. Invoke streamText with tools
     const result = streamText({
-      model: google('gemini-2.0-flash'),
+      model: google(modelName),
       system: systemPrompt,
       messages,
       stopWhen: isStepCount(10),
@@ -230,16 +237,25 @@ Key Platform Context:
       },
     });
 
-    // 7. Ensure toDataStreamResponse compatibility for useChat
-    if (!('toDataStreamResponse' in result)) {
-      (result as any).toDataStreamResponse = function (options?: any) {
-        return (result as any).toUIMessageStreamResponse ? (result as any).toUIMessageStreamResponse(options) : result;
-      };
+    // 7. Ensure toDataStreamResponse compatibility for useChat with descriptive error reporting
+    const streamResponseOptions = {
+      onError: (err: any) => {
+        const errorMsg = err instanceof Error ? err.message : String(err?.message || err || 'An error occurred.');
+        console.error('[AdminBot AI Stream Error]:', errorMsg);
+        return errorMsg;
+      },
+    };
+
+    if (typeof (result as any).toUIMessageStreamResponse === 'function') {
+      return (result as any).toUIMessageStreamResponse(streamResponseOptions);
+    }
+    if (typeof (result as any).toDataStreamResponse === 'function') {
+      return (result as any).toDataStreamResponse(streamResponseOptions);
     }
 
-    return (result as any).toDataStreamResponse();
-  } catch (error) {
+    return result;
+  } catch (error: any) {
     console.error('ADMIN BOT ERROR:', error);
-    return Response.json({ error: 'Internal Server Error' }, { status: 500 });
+    return Response.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
 }

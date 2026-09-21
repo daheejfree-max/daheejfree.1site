@@ -19,8 +19,11 @@ export async function GET() {
     missing.push('GEMINI_API_KEY');
   }
 
+  const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+
   return Response.json({
     status: 'ok',
+    model: modelName,
     githubConfigured: !missing.includes('GITHUB_PAT') && !missing.includes('GITHUB_OWNER') && !missing.includes('GITHUB_REPO'),
     missing,
   });
@@ -55,7 +58,13 @@ export async function POST(req: Request) {
       }
     }
 
-    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY;
+    const rawGeminiKey =
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      '';
+    const geminiKey = rawGeminiKey.trim().replace(/^["']|["']$/g, '');
+
     if (!geminiKey) {
       console.error('ADMIN BOT ERROR: Missing GEMINI_API_KEY.');
       return Response.json(
@@ -64,6 +73,7 @@ export async function POST(req: Request) {
       );
     }
 
+    const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
     const google = createGoogleGenerativeAI({ apiKey: geminiKey });
 
     const systemPrompt = `You are DaheejFree's autonomous developer agent.
@@ -89,7 +99,7 @@ Key Platform Context:
 - Tone: Professional, competent, helpful, concise.`;
 
     const result = streamText({
-      model: google('gemini-2.0-flash'),
+      model: google(modelName),
       system: systemPrompt,
       messages,
       stopWhen: isStepCount(10),
@@ -100,7 +110,7 @@ Key Platform Context:
           inputSchema: z.object({
             filePath: z.string().describe('The path to the file in the repository, e.g. src/app/page.tsx'),
           }),
-          execute: async ({ filePath }) => {
+          execute: async ({ filePath }: { filePath: string }) => {
             if (octokit && owner && repo) {
               try {
                 const response = await octokit.rest.repos.getContent({
@@ -157,7 +167,7 @@ Key Platform Context:
             fileContent: z.string().describe('The complete new raw source code/content of the file'),
             commitMessage: z.string().describe('The Git commit message describing the changes made'),
           }),
-          execute: async ({ filePath, fileContent, commitMessage }) => {
+          execute: async ({ filePath, fileContent, commitMessage }: { filePath: string; fileContent: string; commitMessage: string }) => {
             if (!octokit || !owner || !repo) {
               return {
                 success: false,
@@ -215,13 +225,22 @@ Key Platform Context:
       },
     });
 
-    if (!('toDataStreamResponse' in result)) {
-      (result as any).toDataStreamResponse = function (options?: any) {
-        return (result as any).toUIMessageStreamResponse ? (result as any).toUIMessageStreamResponse(options) : result;
-      };
+    const streamResponseOptions = {
+      onError: (err: any) => {
+        const errorMsg = err instanceof Error ? err.message : String(err?.message || err || 'An error occurred.');
+        console.error('[AdminBot AI Stream Error]:', errorMsg);
+        return errorMsg;
+      },
+    };
+
+    if (typeof (result as any).toUIMessageStreamResponse === 'function') {
+      return (result as any).toUIMessageStreamResponse(streamResponseOptions);
+    }
+    if (typeof (result as any).toDataStreamResponse === 'function') {
+      return (result as any).toDataStreamResponse(streamResponseOptions);
     }
 
-    return (result as any).toDataStreamResponse();
+    return result;
   } catch (error: any) {
     console.error('ADMIN BOT ERROR:', error);
     return Response.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
