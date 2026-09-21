@@ -344,8 +344,8 @@ export default function AdminControlPanel() {
   // 1. Loading state: Never render Restricted UI while evaluating credentials
   if (authLoading) {
     return (
-      <div className="min-h-[450px] flex flex-col items-center justify-center space-y-4 p-8">
-        <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center shadow-lg animate-pulse">
+      <div className="min-h-[450px] flex flex-col items-center justify-center space-y-4 p-8 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+        <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center shadow-lg animate-pulse">
           <ShieldAlert className="w-7 h-7 animate-pulse text-emerald-500" />
         </div>
         <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-200">Verifying Admin Access...</h2>
@@ -357,14 +357,16 @@ export default function AdminControlPanel() {
   // 2. Restricted UI: Only render when verification completed and isAdmin is false
   if (!isAdmin) {
     return (
-      <div className="max-w-md mx-auto my-16 p-8 bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900/50 rounded-3xl text-center space-y-4 shadow-xl">
-        <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto">
-          <ShieldAlert className="w-6 h-6" />
+      <div className="min-h-[600px] flex items-center justify-center p-4 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+        <div className="max-w-md w-full mx-auto p-8 bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900/50 rounded-3xl text-center space-y-4 shadow-xl">
+          <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Admin Access Restricted</h2>
+          <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            The God Mode Control Panel requires verified administrator privileges.
+          </p>
         </div>
-        <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Admin Access Restricted</h2>
-        <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-          The God Mode Control Panel requires verified administrator privileges.
-        </p>
       </div>
     );
   }
@@ -379,7 +381,7 @@ export default function AdminControlPanel() {
               ? 'bg-emerald-50 dark:bg-emerald-950/80 border-emerald-200 dark:border-emerald-500/40 text-emerald-900 dark:text-emerald-200'
               : notification.type === 'error'
               ? 'bg-red-50 dark:bg-red-950/80 border-red-200 dark:border-red-500/40 text-red-900 dark:text-red-200'
-              : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200'
+              : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200'
           }`}
         >
           <div className="flex items-center gap-3">
@@ -463,7 +465,7 @@ export default function AdminControlPanel() {
       </div>
 
       {/* 2. Control Toolbar (Search, Filter Tabs & Refresh) */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800/80 space-y-4 shadow-sm">
+      <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-4 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Search Input */}
           <div className="relative flex-1 max-w-md">
@@ -483,7 +485,7 @@ export default function AdminControlPanel() {
               type="button"
               onClick={fetchUsers}
               disabled={loading}
-              className="px-3 py-2 rounded-xl text-xs font-semibold bg-zinc-100 dark:bg-zinc-800/80 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/60 flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-500 dark:text-emerald-400' : ''}`} />
               <span>Refresh Directory</span>
@@ -492,14 +494,14 @@ export default function AdminControlPanel() {
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs border-t border-zinc-200 dark:border-zinc-800/60 pt-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs border-t border-zinc-200 dark:border-zinc-800 pt-3">
           <button
             type="button"
             onClick={() => setActiveTab('all')}
             className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'all'
                 ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-300 dark:border-zinc-700'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/40'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
           >
             All Users ({users.length})
@@ -510,7 +512,7 @@ export default function AdminControlPanel() {
             className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'pending_kyc'
                 ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/40'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
           >
             Pending KYC ({stats.pendingKYCs})
@@ -521,7 +523,7 @@ export default function AdminControlPanel() {
             className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'verified_kyc'
                 ? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/40'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
           >
             Verified KYC ({users.filter((u) => u.kyc_verified).length})
@@ -532,7 +534,7 @@ export default function AdminControlPanel() {
             className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'premium'
                 ? 'bg-purple-500/20 text-purple-800 dark:text-purple-300 border border-purple-500/30'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/40'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
           >
             Premium Tier ({stats.premiumUsers})
@@ -543,7 +545,7 @@ export default function AdminControlPanel() {
             className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'banned'
                 ? 'bg-red-500/20 text-red-800 dark:text-red-300 border border-red-500/30'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/40'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
           >
             Suspended ({stats.bannedUsers})
@@ -556,7 +558,7 @@ export default function AdminControlPanel() {
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left text-xs text-zinc-700 dark:text-zinc-300 border-collapse min-w-[720px]">
             <thead>
-              <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-950/80 text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+              <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-950 text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                 <th className="py-3.5 px-4">User / Candidate</th>
                 <th className="py-3.5 px-4">KYC Compliance</th>
                 <th className="py-3.5 px-4">Subscription</th>
@@ -564,7 +566,7 @@ export default function AdminControlPanel() {
                 <th className="py-3.5 px-4 text-right">God Mode Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
+            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {loading && users.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-zinc-500">
@@ -588,7 +590,7 @@ export default function AdminControlPanel() {
                   const isGoldOrDiamond = currentTier === 'gold' || currentTier === 'diamond' || currentTier === 'platinum';
 
                   return (
-                    <tr key={user.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
+                    <tr key={user.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                       {/* Name / ID Column */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
@@ -662,7 +664,7 @@ export default function AdminControlPanel() {
                             Gold Tier
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-zinc-200 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 border border-zinc-300 dark:border-zinc-700/60">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-300 dark:border-zinc-700">
                             Free Tier
                           </span>
                         )}
