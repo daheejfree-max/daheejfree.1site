@@ -345,11 +345,11 @@ export default function AdminControlPanel() {
   if (authLoading) {
     return (
       <div className="min-h-[450px] flex flex-col items-center justify-center space-y-4 p-8">
-        <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shadow-lg animate-pulse">
+        <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center shadow-lg animate-pulse">
           <ShieldAlert className="w-7 h-7 animate-pulse text-emerald-500" />
         </div>
-        <h2 className="text-lg font-bold text-zinc-200">Verifying Admin Access...</h2>
-        <p className="text-xs text-zinc-500">Checking security clearance and is_admin credentials with Supabase.</p>
+        <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-200">Verifying Admin Access...</h2>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">Checking security clearance and is_admin credentials with Supabase.</p>
       </div>
     );
   }
@@ -357,12 +357,12 @@ export default function AdminControlPanel() {
   // 2. Restricted UI: Only render when verification completed and isAdmin is false
   if (!isAdmin) {
     return (
-      <div className="max-w-md mx-auto my-16 p-8 bg-zinc-900 border border-red-900/50 rounded-3xl text-center space-y-4 shadow-xl">
-        <div className="w-12 h-12 rounded-2xl bg-red-950 text-red-400 flex items-center justify-center mx-auto">
+      <div className="max-w-md mx-auto my-16 p-8 bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900/50 rounded-3xl text-center space-y-4 shadow-xl">
+        <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto">
           <ShieldAlert className="w-6 h-6" />
         </div>
-        <h2 className="text-xl font-bold text-white">Admin Access Restricted</h2>
-        <p className="text-xs text-zinc-400 leading-relaxed">
+        <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Admin Access Restricted</h2>
+        <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
           The God Mode Control Panel requires verified administrator privileges.
         </p>
       </div>
@@ -370,32 +370,32 @@ export default function AdminControlPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-screen transition-colors">
       {/* Toast Notification Banner */}
       {notification && (
         <div
           className={`p-4 rounded-xl border flex items-center justify-between gap-3 shadow-lg transition-all animate-in fade-in slide-in-from-top-2 ${
             notification.type === 'success'
-              ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-200'
+              ? 'bg-emerald-50 dark:bg-emerald-950/80 border-emerald-200 dark:border-emerald-500/40 text-emerald-900 dark:text-emerald-200'
               : notification.type === 'error'
-              ? 'bg-red-950/80 border-red-500/40 text-red-200'
-              : 'bg-zinc-800 border-zinc-700 text-zinc-200'
+              ? 'bg-red-50 dark:bg-red-950/80 border-red-200 dark:border-red-500/40 text-red-900 dark:text-red-200'
+              : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200'
           }`}
         >
           <div className="flex items-center gap-3">
             {notification.type === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
             ) : notification.type === 'error' ? (
-              <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
             ) : (
-              <Info className="w-5 h-5 text-zinc-400 shrink-0" />
+              <Info className="w-5 h-5 text-zinc-500 shrink-0" />
             )}
             <span className="text-xs md:text-sm font-semibold">{notification.message}</span>
           </div>
           <button
             type="button"
             onClick={() => setNotification(null)}
-            className="p-1 rounded-md hover:bg-white/10 text-xs text-zinc-400 hover:text-white"
+            className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
           >
             ✕
           </button>
@@ -408,72 +408,72 @@ export default function AdminControlPanel() {
       {/* 1. Stats Overview Cards (3-Column Grid) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Total Users */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 relative overflow-hidden shadow-lg transition-all hover:border-zinc-700">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 relative overflow-hidden shadow-md dark:shadow-lg transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Total Users</span>
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Total Users</span>
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
               <Users className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-white tracking-tight">{stats.totalUsers}</span>
+            <span className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white tracking-tight">{stats.totalUsers}</span>
             <span className="text-xs text-zinc-500 font-medium">accounts</span>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-zinc-400">
+          <div className="mt-4 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             <span>Active database records</span>
           </div>
         </div>
 
         {/* Pending KYC */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 relative overflow-hidden shadow-lg transition-all hover:border-zinc-700">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 relative overflow-hidden shadow-md dark:shadow-lg transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Pending KYC</span>
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Pending KYC</span>
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
               <Clock className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-amber-400 tracking-tight">{stats.pendingKYCs}</span>
+            <span className="text-3xl sm:text-4xl font-black text-amber-600 dark:text-amber-400 tracking-tight">{stats.pendingKYCs}</span>
             <span className="text-xs text-zinc-500 font-medium">awaiting review</span>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-amber-400/90">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+          <div className="mt-4 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400/90">
+            <span className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
             <span>Requires identity vetting</span>
           </div>
         </div>
 
         {/* Premium */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 relative overflow-hidden shadow-lg transition-all hover:border-zinc-700">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 relative overflow-hidden shadow-md dark:shadow-lg transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Premium</span>
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Premium</span>
+            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
               <Crown className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-purple-400 tracking-tight">{stats.premiumUsers}</span>
+            <span className="text-3xl sm:text-4xl font-black text-purple-600 dark:text-purple-400 tracking-tight">{stats.premiumUsers}</span>
             <span className="text-xs text-zinc-500 font-medium">Gold / Diamond</span>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-purple-300/90">
-            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+          <div className="mt-4 flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300/90">
+            <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
             <span>Paid tier entitlements</span>
           </div>
         </div>
       </div>
 
       {/* 2. Control Toolbar (Search, Filter Tabs & Refresh) */}
-      <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800/80 space-y-4">
+      <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800/80 space-y-4 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Search Input */}
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
             <input
               type="text"
               placeholder="Search by name, ID, phone, or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-zinc-950 border border-zinc-800 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+              className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
             />
           </div>
 
@@ -483,23 +483,23 @@ export default function AdminControlPanel() {
               type="button"
               onClick={fetchUsers}
               disabled={loading}
-              className="px-3 py-2 rounded-xl text-xs font-semibold bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-zinc-100 dark:bg-zinc-800/80 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/60 flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-500 dark:text-emerald-400' : ''}`} />
               <span>Refresh Directory</span>
             </button>
           </div>
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs border-t border-zinc-800/60 pt-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs border-t border-zinc-200 dark:border-zinc-800/60 pt-3">
           <button
             type="button"
             onClick={() => setActiveTab('all')}
             className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'all'
-                ? 'bg-zinc-800 text-white border border-zinc-700'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40'
+                ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-300 dark:border-zinc-700'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/40'
             }`}
           >
             All Users ({users.length})
@@ -509,8 +509,8 @@ export default function AdminControlPanel() {
             onClick={() => setActiveTab('pending_kyc')}
             className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'pending_kyc'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/40'
+                ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/40'
             }`}
           >
             Pending KYC ({stats.pendingKYCs})
@@ -520,8 +520,8 @@ export default function AdminControlPanel() {
             onClick={() => setActiveTab('verified_kyc')}
             className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'verified_kyc'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800/40'
+                ? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/40'
             }`}
           >
             Verified KYC ({users.filter((u) => u.kyc_verified).length})
@@ -531,8 +531,8 @@ export default function AdminControlPanel() {
             onClick={() => setActiveTab('premium')}
             className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'premium'
-                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                : 'text-zinc-400 hover:text-purple-400 hover:bg-zinc-800/40'
+                ? 'bg-purple-500/20 text-purple-800 dark:text-purple-300 border border-purple-500/30'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/40'
             }`}
           >
             Premium Tier ({stats.premiumUsers})
@@ -542,8 +542,8 @@ export default function AdminControlPanel() {
             onClick={() => setActiveTab('banned')}
             className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'banned'
-                ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                : 'text-zinc-400 hover:text-red-400 hover:bg-zinc-800/40'
+                ? 'bg-red-500/20 text-red-800 dark:text-red-300 border border-red-500/30'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/40'
             }`}
           >
             Suspended ({stats.bannedUsers})
@@ -552,11 +552,11 @@ export default function AdminControlPanel() {
       </div>
 
       {/* 3. Comprehensive Users Data Table */}
-      <div className="rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden shadow-xl">
+      <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-xl">
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-left text-xs text-zinc-300 border-collapse min-w-[720px]">
+          <table className="w-full text-left text-xs text-zinc-700 dark:text-zinc-300 border-collapse min-w-[720px]">
             <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-950/80 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
+              <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-950/80 text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                 <th className="py-3.5 px-4">User / Candidate</th>
                 <th className="py-3.5 px-4">KYC Compliance</th>
                 <th className="py-3.5 px-4">Subscription</th>
@@ -564,18 +564,18 @@ export default function AdminControlPanel() {
                 <th className="py-3.5 px-4 text-right">God Mode Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/60">
+            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
               {loading && users.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-zinc-500">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-400" />
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-500 dark:text-emerald-400" />
                     <span>Loading user directory from Supabase...</span>
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-zinc-500">
-                    <Users className="w-6 h-6 mx-auto mb-2 text-zinc-600" />
+                    <Users className="w-6 h-6 mx-auto mb-2 text-zinc-400 dark:text-zinc-600" />
                     <span>No users found matching your search and filter criteria.</span>
                   </td>
                 </tr>
@@ -588,7 +588,7 @@ export default function AdminControlPanel() {
                   const isGoldOrDiamond = currentTier === 'gold' || currentTier === 'diamond' || currentTier === 'platinum';
 
                   return (
-                    <tr key={user.id} className="hover:bg-zinc-800/30 transition-colors">
+                    <tr key={user.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
                       {/* Name / ID Column */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
@@ -597,21 +597,21 @@ export default function AdminControlPanel() {
                               src={user.avatar_url}
                               alt=""
                               referrerPolicy="no-referrer"
-                              className="w-9 h-9 rounded-xl object-cover bg-zinc-800 border border-zinc-700 shrink-0"
+                              className="w-9 h-9 rounded-xl object-cover bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shrink-0"
                             />
                           ) : (
-                            <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-zinc-300 shrink-0">
+                            <div className="w-9 h-9 rounded-xl bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 flex items-center justify-center font-bold text-zinc-700 dark:text-zinc-300 shrink-0">
                               {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
                             </div>
                           )}
 
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-white text-xs truncate max-w-[150px] sm:max-w-[200px]">
+                              <span className="font-bold text-zinc-900 dark:text-white text-xs truncate max-w-[150px] sm:max-w-[200px]">
                                 {user.full_name || 'Unnamed Candidate'}
                               </span>
                               {user.is_admin && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                                   ADMIN
                                 </span>
                               )}
@@ -628,22 +628,22 @@ export default function AdminControlPanel() {
                       {/* KYC Status Column */}
                       <td className="py-3.5 px-4">
                         {isVerified ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                             Verified
                           </span>
                         ) : isPending ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                            <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                             Pending Review
                           </span>
                         ) : isBanned ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">
-                            <XCircle className="w-3.5 h-3.5 text-red-400" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20">
+                            <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
                             Rejected / Banned
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-300 dark:border-zinc-700">
                             Unverified
                           </span>
                         )}
@@ -652,17 +652,17 @@ export default function AdminControlPanel() {
                       {/* Subscription Column */}
                       <td className="py-3.5 px-4">
                         {currentTier === 'diamond' ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
-                            <Crown className="w-3.5 h-3.5 text-cyan-400" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20">
+                            <Crown className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
                             Diamond
                           </span>
                         ) : currentTier === 'gold' ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                            <Crown className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
+                            <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                             Gold Tier
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-zinc-800/80 text-zinc-400 border border-zinc-700/60">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-zinc-200 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 border border-zinc-300 dark:border-zinc-700/60">
                             Free Tier
                           </span>
                         )}
@@ -671,13 +671,13 @@ export default function AdminControlPanel() {
                       {/* Account Status Column */}
                       <td className="py-3.5 px-4">
                         {isBanned ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-red-950/60 text-red-400 border border-red-800/60">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800/60">
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                             Suspended
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-950/40 text-emerald-300 border border-emerald-800/40">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/40">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                             Active
                           </span>
                         )}
@@ -692,13 +692,13 @@ export default function AdminControlPanel() {
                               type="button"
                               disabled={Boolean(actionLoadingId)}
                               onClick={() => handleAction('verify_kyc', user.id)}
-                              className="px-3 py-1 text-xs font-semibold rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                              className="px-3 py-1 text-xs font-semibold rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
                               title="Approve Government ID and Selfie Verification"
                             >
                               {actionLoadingId === `verify_kyc-${user.id}` ? (
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                               ) : (
-                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                               )}
                               <span>Approve KYC</span>
                             </button>
@@ -709,13 +709,13 @@ export default function AdminControlPanel() {
                             type="button"
                             disabled={Boolean(actionLoadingId) || (!isVerified && user.kyc_status === 'pending' && !user.kyc_verified)}
                             onClick={() => handleAction('unverify_kyc', user.id)}
-                            className="px-3 py-1 text-xs font-semibold rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                            className="px-3 py-1 text-xs font-semibold rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
                             title="Downgrade user: Set KYC status to pending and revoke verification"
                           >
                             {actionLoadingId === `unverify_kyc-${user.id}` ? (
                               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                             ) : (
-                              <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                              <ShieldAlert className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                             )}
                             <span>Unverify</span>
                           </button>
@@ -731,13 +731,13 @@ export default function AdminControlPanel() {
                                 { tier: currentTier === 'gold' ? 'diamond' : 'gold' }
                               )
                             }
-                            className="px-3 py-1 text-xs font-semibold rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                            className="px-3 py-1 text-xs font-semibold rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
                             title={currentTier === 'gold' ? 'Promote to Diamond Tier' : 'Grant Gold Subscription Tier'}
                           >
                             {actionLoadingId === `grant_subscription-${user.id}` ? (
                               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                             ) : (
-                              <Crown className="w-3.5 h-3.5 text-purple-400" />
+                              <Crown className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                             )}
                             <span>{currentTier === 'gold' ? '+ Diamond' : '+ Gold'}</span>
                           </button>
@@ -747,13 +747,13 @@ export default function AdminControlPanel() {
                             type="button"
                             disabled={Boolean(actionLoadingId) || currentTier === 'free'}
                             onClick={() => handleAction('set_free', user.id, { tier: 'free' })}
-                            className="px-3 py-1 text-xs font-semibold rounded-md bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                            className="px-3 py-1 text-xs font-semibold rounded-md bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-700 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
                             title={currentTier === 'free' ? 'User is already on Free tier' : 'Downgrade subscription tier to Free'}
                           >
                             {actionLoadingId === `set_free-${user.id}` ? (
                               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                             ) : (
-                              <ArrowDownCircle className="w-3.5 h-3.5 text-zinc-400" />
+                              <ArrowDownCircle className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
                             )}
                             <span>Set Free</span>
                           </button>
@@ -764,13 +764,13 @@ export default function AdminControlPanel() {
                               type="button"
                               disabled={Boolean(actionLoadingId)}
                               onClick={() => handleAction('unban_user', user.id)}
-                              className="px-3 py-1 text-xs font-semibold rounded-md bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                              className="px-3 py-1 text-xs font-semibold rounded-md bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-700 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
                               title="Unban and Reactivate User Account"
                             >
                               {actionLoadingId === `unban_user-${user.id}` ? (
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                               ) : (
-                                <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                               )}
                               <span>Unban</span>
                             </button>
@@ -783,13 +783,13 @@ export default function AdminControlPanel() {
                                   handleAction('ban_user', user.id);
                                 }
                               }}
-                              className="px-3 py-1 text-xs font-semibold rounded-md bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                              className="px-3 py-1 text-xs font-semibold rounded-md bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20 hover:bg-red-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
                               title={user.is_admin ? 'Cannot ban an admin' : 'Suspend and Ban User Account'}
                             >
                               {actionLoadingId === `ban_user-${user.id}` ? (
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                               ) : (
-                                <UserX className="w-3.5 h-3.5 text-red-400" />
+                                <UserX className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
                               )}
                               <span>Ban</span>
                             </button>
