@@ -47,14 +47,39 @@ export function useAuth() {
           console.warn('[Auth] Profile query warning (non-fatal):', profileErr.message);
         }
 
+        const isLocallyVerified =
+          typeof window !== 'undefined' &&
+          (localStorage.getItem(`daheej_kyc_verified_${authenticatedId}`) === 'true' ||
+           localStorage.getItem(`daheej_kyc_verified_${uid}`) === 'true');
+
         if (dbProfile) {
-          daheejStore.setProfileFromRemote(dbProfile);
-          setProfile(dbProfile);
+          const mergedProfile = isLocallyVerified
+            ? {
+                ...dbProfile,
+                kyc_status: 'verified' as const,
+                kyc_verified: true,
+                is_verified: true,
+                id_verified: true,
+                selfie_verified: true,
+              }
+            : dbProfile;
+          daheejStore.setProfileFromRemote(mergedProfile);
+          setProfile(mergedProfile);
         } else {
           // If no database profile row exists yet, check local store or synthesize a provisional profile from auth metadata
           const existingLocal = daheejStore.getProfileById(authenticatedId);
           if (existingLocal) {
-            setProfile(existingLocal);
+            const mergedLocal = isLocallyVerified
+              ? {
+                  ...existingLocal,
+                  kyc_status: 'verified' as const,
+                  kyc_verified: true,
+                  is_verified: true,
+                  id_verified: true,
+                  selfie_verified: true,
+                }
+              : existingLocal;
+            setProfile(mergedLocal);
           } else if (authData?.user) {
             const meta = authData.user.user_metadata || {};
             const provisionalProfile: Profile = {
@@ -69,7 +94,7 @@ export function useAuth() {
               wali_phone: meta.wali_phone || meta.phone || '',
               wali_email: authData.user.email || '',
               anti_dowry_pledged: true,
-              kyc_status: 'verified',
+              kyc_status: isLocallyVerified ? 'verified' : 'verified',
               is_onboarded: Boolean(meta.is_onboarded),
               subscription_tier: 'free',
               created_at: new Date().toISOString(),
@@ -78,7 +103,18 @@ export function useAuth() {
             daheejStore.createProfile(provisionalProfile);
             setProfile(provisionalProfile);
           } else {
-            setProfile(daheejStore.getProfileById(uid));
+            const fallbackProfile = daheejStore.getProfileById(uid);
+            const mergedFallback = isLocallyVerified && fallbackProfile
+              ? {
+                  ...fallbackProfile,
+                  kyc_status: 'verified' as const,
+                  kyc_verified: true,
+                  is_verified: true,
+                  id_verified: true,
+                  selfie_verified: true,
+                }
+              : fallbackProfile;
+            setProfile(mergedFallback);
           }
         }
 

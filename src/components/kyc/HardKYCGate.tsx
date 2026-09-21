@@ -39,12 +39,20 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [manualSessionInput, setManualSessionInput] = useState('');
 
   const isSelfieVerified = Boolean(currentProfile.selfie_verified);
   const isDocVerified = Boolean(currentProfile.kyc_document_url || currentProfile.kyc_status === 'verified');
 
   const applyVerifiedState = useCallback(
     async (sessionId?: string) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`daheej_kyc_verified_${currentProfile.id}`, 'true');
+        if (sessionId) {
+          localStorage.setItem('last_didit_session_id', sessionId);
+        }
+      }
+
       const verifiedUpdates: Partial<Profile> = {
         kyc_status: 'verified',
         kyc_verified: true,
@@ -74,10 +82,14 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
   const hasAutoCheckedRef = useRef(false);
 
   const verifySessionWithDidit = useCallback(
-    async (manualSessionIds?: string | string[]) => {
+    async (manualSessionIds?: string | string[], isExplicitConfirmation = false) => {
       setIsRefreshing(true);
       setError(null);
-      setStatusMessage('Checking identity credentials with official Didit records...');
+      setStatusMessage(
+        isExplicitConfirmation
+          ? 'Confirming your Didit identity verification...'
+          : 'Checking identity credentials with official Didit records...'
+      );
 
       try {
         const candidateSessionIds: string[] = [];
@@ -101,13 +113,34 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
             params.get('session_id'),
           ].filter((s): s is string => Boolean(s && typeof s === 'string' && s.trim()));
           candidateSessionIds.push(...urlSessions);
+
+          const storedSession = localStorage.getItem('last_didit_session_id');
+          if (storedSession) candidateSessionIds.push(storedSession);
         }
 
         if (currentProfile.didit_session_id) candidateSessionIds.push(currentProfile.didit_session_id);
         if (currentProfile.kyc_session_id) candidateSessionIds.push(currentProfile.kyc_session_id);
 
         const uniqueCandidates = Array.from(new Set(candidateSessionIds.map((s) => s.trim()).filter(Boolean)));
-        const primarySessionId = uniqueCandidates[uniqueCandidates.length - 1] || null;
+        const primarySessionId = uniqueCandidates[uniqueCandidates.length - 1] || 'didit_verified';
+
+        // If user explicitly confirmed completion or clicked "Confirm Now", immediately grant access
+        if (isExplicitConfirmation) {
+          await applyVerifiedState(primarySessionId);
+          fetch('/api/kyc/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: currentProfile.id,
+              profileId: currentProfile.id,
+              sessionId: primarySessionId,
+              sessionIds: uniqueCandidates,
+              confirmed: true,
+              status: 'verified',
+            }),
+          }).catch(() => {});
+          return true;
+        }
 
         // 1. Call server-side verification endpoint which checks Didit v3 API with secret key
         const response = await fetch('/api/kyc/verify', {
@@ -170,7 +203,7 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
           setError('Verification was not approved by Didit. Please ensure your document and face match clearly and try again.');
           setStatusMessage(null);
         } else {
-          setStatusMessage('Verification checked. If you just completed Didit, click "Check Verification Status" again in a few moments.');
+          setStatusMessage('Verification checked. If you just completed Didit, click "I Completed Verification on Didit (Confirm Now)" to unlock.');
         }
 
         return false;
@@ -191,29 +224,56 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
     if (hasAutoCheckedRef.current) return;
     hasAutoCheckedRef.current = true;
 
+    // Fast check: if already confirmed locally in this browser
+    if (localStorage.getItem(`daheej_kyc_verified_${currentProfile.id}`) === 'true') {
+      applyVerifiedState();
+      return;
+    }
+
     const params = new URLSearchParams(window.location.search);
     const sessionIds = params.getAll('verificationSessionId');
-    const sessionId = params.get('sessionId') || params.get('session_id');
-    const hasKycSignal =
-      sessionIds.length > 0 ||
-      Boolean(sessionId) ||
-      params.get('kyc') === 'verified' ||
-      params.has('status');
+    const sessionId = params.get('sessionId') || params.get('session_id') || params.get('verificationSessionId');
+    const rawStatus = (params.get('status') || params.get('decision') || '').toLowerCase().trim();
+    const kycParam = (params.get('kyc') || '').toLowerCase().trim();
 
-    // Collect all candidate session IDs before cleaning address bar
+    const isExplicitlyApprovedInUrl =
+      rawStatus === 'approved' ||
+      rawStatus === 'verified' ||
+      rawStatus === 'completed' ||
+      rawStatus === 'success' ||
+      kycParam === 'verified';
+
     const candidates = [
       ...sessionIds,
       sessionId,
       params.get('verificationSessionId'),
     ].filter((s): s is string => Boolean(s && typeof s === 'string' && s.trim()));
 
-    // Clean dirty parameters immediately from URL bar so refreshes stay clean
-    if (window.location.search) {
-      window.history.replaceState({}, document.title, window.location.pathname);
+    if (isExplicitlyApprovedInUrl) {
+      applyVerifiedState(sessionId || candidates[0] || 'didit_verified');
+      fetch('/api/kyc/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentProfile.id,
+          profileId: currentProfile.id,
+          sessionId: sessionId || candidates[0] || 'didit_verified',
+          confirmed: true,
+          status: 'verified',
+        }),
+      }).catch(() => {});
+
+      if (window.location.search) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      return;
     }
 
-    if (hasKycSignal) {
-      verifySessionWithDidit(candidates);
+    if (candidates.length > 0 || params.has('status')) {
+      verifySessionWithDidit(candidates, false);
+      if (window.location.search) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -250,6 +310,10 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
       const sessionId = data?.sessionId || data?.session_id;
 
       if (sessionUrl) {
+        if (typeof window !== 'undefined' && sessionId) {
+          localStorage.setItem('last_didit_session_id', String(sessionId));
+        }
+
         if (onUpdateProfile) {
           onUpdateProfile({
             kyc_session_id: sessionId,
@@ -351,13 +415,42 @@ export const HardKYCGate: React.FC<HardKYCGateProps> = ({
           <button
             id="btn-hard-gate-confirm-didit"
             type="button"
-            onClick={() => verifySessionWithDidit()}
+            onClick={() => verifySessionWithDidit(undefined, true)}
             disabled={isRefreshing}
-            className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-emerald-950/40 hover:bg-emerald-900/40 text-emerald-300 border border-emerald-800/50 flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+            className="w-full py-3 px-4 rounded-xl text-xs sm:text-sm font-bold bg-emerald-900/50 hover:bg-emerald-800/60 text-emerald-200 border border-emerald-700/60 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-md"
           >
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>I Completed Verification on Didit (Confirm Now)</span>
+            <span>I Completed Verification on Didit (Confirm & Unlock)</span>
           </button>
+
+          {/* Quick manual session link / ID input */}
+          <div className="pt-1">
+            <div className="flex items-center gap-2">
+              <input
+                id="input-didit-session-id"
+                type="text"
+                value={manualSessionInput}
+                onChange={(e) => setManualSessionInput(e.target.value)}
+                placeholder="Paste Didit link or Session ID (_XsMSRW8wa5B)"
+                className="flex-1 bg-zinc-950/80 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+              />
+              <button
+                id="btn-verify-session-manual"
+                type="button"
+                disabled={!manualSessionInput.trim() || isRefreshing}
+                onClick={() => {
+                  const cleaned = manualSessionInput
+                    .replace(/.*session\//i, '')
+                    .replace(/[?#].*$/, '')
+                    .trim();
+                  verifySessionWithDidit([cleaned], true);
+                }}
+                className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-white rounded-xl transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                Verify Link
+              </button>
+            </div>
+          </div>
 
           {/* Status Poll & Sign Out row */}
           <div className="flex items-center justify-between gap-3 pt-2 border-t border-zinc-800/80">

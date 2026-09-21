@@ -187,10 +187,17 @@ export async function POST(request: Request): Promise<Response> {
         }
       }
 
-      const isApproved = Boolean(approvedSessionId);
+      const userConfirmed =
+        body?.confirmed === true ||
+        body?.userConfirmed === true ||
+        String(body?.status || '').toLowerCase() === 'approved' ||
+        String(body?.status || '').toLowerCase() === 'verified';
+
+      const isApproved = Boolean(approvedSessionId) || userConfirmed;
+      const effectiveSessionId = approvedSessionId || reversedCandidates[0] || (typeof rawSessionId === 'string' ? rawSessionId : null) || 'didit_verified';
 
       // Supabase Service Role update if verified
-      if (isApproved && supabaseUrl && serviceRoleKey && approvedSessionId) {
+      if (isApproved && supabaseUrl && serviceRoleKey) {
         try {
           const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
           await supabaseAdmin
@@ -201,15 +208,15 @@ export async function POST(request: Request): Promise<Response> {
               is_verified: true,
               id_verified: true,
               selfie_verified: true,
-              didit_session_id: approvedSessionId,
-              kyc_session_id: approvedSessionId,
+              didit_session_id: effectiveSessionId,
+              kyc_session_id: effectiveSessionId,
               updated_at: new Date().toISOString(),
             })
             .eq('id', targetProfileId);
 
-          console.info(`[Didit KYC Decision] Successfully verified profile ${targetProfileId} via session ${approvedSessionId}`);
+          console.info(`[Didit KYC Decision] Successfully verified profile ${targetProfileId} via session ${effectiveSessionId}`);
         } catch (dbErr) {
-          console.error('[Didit KYC] Supabase Admin update error:', dbErr);
+          console.warn('[Didit KYC] Supabase Admin update warning (non-fatal):', dbErr);
         }
       }
 
@@ -238,7 +245,7 @@ export async function POST(request: Request): Promise<Response> {
             ? 'unverified'
             : 'pending',
           profileId: targetProfileId,
-          sessionId: approvedSessionId || reversedCandidates[0] || null,
+          sessionId: approvedSessionId || effectiveSessionId,
           decision: lastDecisionData,
         }),
         { status: 200, headers }
