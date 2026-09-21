@@ -1,4 +1,4 @@
-import { streamText, tool, isStepCount } from 'ai';
+import { streamText, tool, isStepCount, convertToModelMessages, modelMessageSchema } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { Octokit } from '@octokit/rest';
 import { z } from 'zod';
@@ -6,6 +6,61 @@ import fs from 'fs';
 import path from 'path';
 
 export const maxDuration = 60;
+
+// Helper to reliably normalize incoming client UIMessages into ModelMessages
+async function normalizeToModelMessages(rawMessages: any[]): Promise<any[]> {
+  const parseResult = z.array(modelMessageSchema).safeParse(rawMessages);
+  if (parseResult.success) {
+    return parseResult.data;
+  }
+
+  try {
+    const converted = await convertToModelMessages(rawMessages);
+    const convertedCheck = z.array(modelMessageSchema).safeParse(converted);
+    if (convertedCheck.success) {
+      return convertedCheck.data;
+    }
+  } catch (err) {
+    console.warn('[AdminBot Route] convertToModelMessages conversion warning:', err);
+  }
+
+  // Resilient fallback conversion if schema doesn't strictly match
+  const fallback: any[] = [];
+  for (const m of rawMessages) {
+    if (!m) continue;
+
+    let contentText = '';
+    if (typeof m.content === 'string') {
+      contentText = m.content;
+    } else if (Array.isArray(m.parts)) {
+      contentText = m.parts
+        .map((p: any) => {
+          if (typeof p === 'string') return p;
+          if (p?.text) return p.text;
+          if (p?.type === 'text') return p.text;
+          return '';
+        })
+        .filter(Boolean)
+        .join('\n');
+    } else if (typeof m.text === 'string') {
+      contentText = m.text;
+    } else if (typeof m.message === 'string') {
+      contentText = m.message;
+    }
+
+    const role = m.role === 'assistant' || m.role === 'user' ? m.role : 'user';
+    fallback.push({
+      role,
+      content: contentText || ' ',
+    });
+  }
+
+  const finalCheck = z.array(modelMessageSchema).safeParse(fallback);
+  if (finalCheck.success) {
+    return finalCheck.data;
+  }
+  return fallback;
+}
 
 // GET endpoint to allow the frontend to inspect GitHub integration readiness
 export async function GET() {
@@ -107,11 +162,14 @@ Key Platform Context:
   - Located in src/app/api/kyc/create-session/route.ts
 - Tone: Professional, competent, helpful, concise.`;
 
-    // 6. Invoke streamText with tools
+    // 6. Normalize UI messages into ModelMessage[] format for streamText
+    const modelMessages = await normalizeToModelMessages(messages);
+
+    // 7. Invoke streamText with tools
     const result = streamText({
       model: google(modelName),
       system: systemPrompt,
-      messages,
+      messages: modelMessages,
       stopWhen: isStepCount(10),
       tools: {
         readRepositoryFile: tool({

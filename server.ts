@@ -2566,14 +2566,30 @@ app.post('/api/admin-bot', async (req, res) => {
     webRes.headers.forEach((value, key) => {
       res.setHeader(key, value);
     });
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
 
     if (webRes.body) {
       const reader = webRes.body.getReader();
-      while (true) {
+      let closed = false;
+
+      req.on('close', () => {
+        if (!closed) {
+          closed = true;
+          reader.cancel().catch(() => {});
+        }
+      });
+
+      while (!closed) {
         const { done, value } = await reader.read();
         if (done) break;
         res.write(Buffer.from(value));
+        if (typeof (res as any).flush === 'function') {
+          (res as any).flush();
+        }
       }
+      closed = true;
       res.end();
     } else {
       const text = await webRes.text();

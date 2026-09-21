@@ -8,7 +8,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { Send, Bot, Terminal, Loader2, Sparkles, AlertCircle, X, CheckCircle2, HelpCircle } from 'lucide-react';
+import {
+  Send,
+  Bot,
+  Terminal,
+  Loader2,
+  Sparkles,
+  AlertCircle,
+  X,
+  CheckCircle2,
+  FileCode,
+  GitCommit,
+  ExternalLink,
+  Brain,
+} from 'lucide-react';
 
 export default function AdminBot() {
   const [localInput, setLocalInput] = useState('');
@@ -19,10 +32,17 @@ export default function AdminBot() {
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Check backend integration status on mount
+  // Check backend integration status on mount with explicit error logging
   useEffect(() => {
     fetch('/api/admin-bot')
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          console.error(`[AdminBot Init Error] HTTP ${res.status} ${res.statusText} from /api/admin-bot:`, text);
+          return null;
+        }
+        return res.json();
+      })
       .then((data) => {
         if (data && typeof data.githubConfigured === 'boolean') {
           setEnvStatus({
@@ -31,15 +51,51 @@ export default function AdminBot() {
           });
         }
       })
-      .catch(() => {
-        // Silent fallback
+      .catch((err) => {
+        console.error('[AdminBot Init Error] Network error reaching /api/admin-bot:', err);
       });
   }, []);
 
-  // Initialize useChat with /api/admin-bot endpoint and compatible AI SDK transport
+  // Custom fetch wrapper to log all raw HTTP errors returned by /api/admin-bot
+  const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    try {
+      const res = await fetch(input, init);
+      if (!res.ok) {
+        try {
+          const clone = res.clone();
+          const errorBody = await clone.text();
+          console.error(
+            `[AdminBot /api/admin-bot HTTP ${res.status} Error]:`,
+            res.statusText,
+            errorBody || '(empty body)'
+          );
+        } catch (e) {
+          console.error(`[AdminBot /api/admin-bot HTTP ${res.status} Error]:`, res.statusText);
+        }
+      }
+      return res;
+    } catch (networkError) {
+      console.error('[AdminBot /api/admin-bot Network Request Failed]:', networkError);
+      throw networkError;
+    }
+  };
+
+  // Initialize useChat with /api/admin-bot endpoint and error logging
   const chat = (useChat as any)({
     api: '/api/admin-bot',
-    transport: new DefaultChatTransport({ api: '/api/admin-bot' }),
+    transport: new DefaultChatTransport({
+      api: '/api/admin-bot',
+      fetch: customFetch,
+    }),
+    onError: (err: any) => {
+      console.error('[AdminBot Chat onError Callback]:', err);
+      if (err?.message) {
+        console.error('[AdminBot Error Message]:', err.message);
+      }
+      if (err?.cause) {
+        console.error('[AdminBot Error Cause]:', err.cause);
+      }
+    },
   });
 
   const {
@@ -55,6 +111,45 @@ export default function AdminBot() {
 
   const isStreaming = status === 'submitted' || status === 'streaming';
 
+  // Explicitly monitor and log reactive error changes
+  useEffect(() => {
+    if (error) {
+      console.error('[AdminBot Active Error State]:', {
+        name: error.name,
+        message: error.message,
+        cause: (error as any).cause,
+        stack: error.stack,
+        raw: error,
+      });
+    }
+  }, [error]);
+
+  // Monitor incoming data stream messages for streamed errors or failed tool executions
+  useEffect(() => {
+    messages.forEach((msg: any) => {
+      if (Array.isArray(msg.parts)) {
+        msg.parts.forEach((part: any) => {
+          if (part.type === 'error') {
+            console.error('[AdminBot DataStream Error Part]:', part.errorText || part.error || part);
+          }
+          if (part.type === 'tool-invocation' && part.toolInvocation?.result?.error) {
+            console.error(
+              `[AdminBot Tool "${part.toolInvocation.toolName}" Execution Error]:`,
+              part.toolInvocation.result.error
+            );
+          }
+        });
+      }
+      if (Array.isArray(msg.toolInvocations)) {
+        msg.toolInvocations.forEach((ti: any) => {
+          if (ti.result?.error) {
+            console.error(`[AdminBot Tool "${ti.toolName}" Execution Error]:`, ti.result.error);
+          }
+        });
+      }
+    });
+  }, [messages]);
+
   // Support controlled input across both legacy and modern AI SDK hook signatures
   const input = sdkInput !== undefined ? sdkInput : localInput;
 
@@ -64,7 +159,7 @@ export default function AdminBot() {
       setLocalInput(e.target.value);
     });
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault?.();
     if (!input || !input.trim()) return;
 
@@ -72,11 +167,15 @@ export default function AdminBot() {
       clearError();
     }
 
-    if (sdkHandleSubmit) {
-      sdkHandleSubmit(e);
-    } else if (typeof sendMessage === 'function') {
-      sendMessage({ text: input });
-      setLocalInput('');
+    try {
+      if (sdkHandleSubmit) {
+        sdkHandleSubmit(e);
+      } else if (typeof sendMessage === 'function') {
+        await sendMessage({ text: input });
+        setLocalInput('');
+      }
+    } catch (submitErr) {
+      console.error('[AdminBot Submit Handler Exception]:', submitErr);
     }
   };
 
@@ -85,32 +184,214 @@ export default function AdminBot() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isStreaming]);
 
-  // Extract display text from either classical message content or modern UIMessage parts
+  // Comprehensive Data Stream & UI Message part renderer
   const renderMessageContent = (msg: any) => {
-    if (typeof msg.content === 'string' && msg.content) {
-      return msg.content;
-    }
+    const partsElements: React.ReactNode[] = [];
 
-    if (Array.isArray(msg.parts)) {
-      const partsText = msg.parts
-        .map((part: any) => {
-          if (part.type === 'text') return part.text;
-          if (part.type === 'tool-invocation') {
-            const toolName = part.toolInvocation?.toolName || 'tool';
-            const state = part.toolInvocation?.state || 'executed';
-            const args = part.toolInvocation?.args || {};
-            const pathArg = args.filePath ? ` "${args.filePath}"` : '';
-            return `⚡ [Tool: ${toolName}${pathArg} • ${state}]`;
+    // 1. Process data stream parts array (standard in Vercel AI SDK)
+    if (Array.isArray(msg.parts) && msg.parts.length > 0) {
+      msg.parts.forEach((part: any, pIdx: number) => {
+        if (part.type === 'text' && part.text) {
+          partsElements.push(
+            <div key={`part-text-${pIdx}`} className="whitespace-pre-wrap leading-relaxed">
+              {part.text}
+            </div>
+          );
+        } else if (part.type === 'reasoning') {
+          const reasoningText = part.reasoning || part.text || '';
+          if (reasoningText) {
+            partsElements.push(
+              <div
+                key={`part-reasoning-${pIdx}`}
+                className="my-1.5 p-2.5 rounded-lg bg-purple-950/20 border border-purple-800/30 text-zinc-300 text-[11px] font-mono whitespace-pre-wrap"
+              >
+                <div className="flex items-center gap-1.5 text-[10px] text-purple-400 uppercase tracking-wider font-semibold mb-1">
+                  <Brain className="w-3 h-3 text-purple-400" />
+                  <span>Agent Reasoning</span>
+                </div>
+                <div className="text-zinc-400 leading-normal">{reasoningText}</div>
+              </div>
+            );
           }
-          return '';
-        })
-        .filter(Boolean)
-        .join('\n');
+        } else if (part.type === 'tool-invocation') {
+          const ti = part.toolInvocation || {};
+          const toolName = ti.toolName || 'tool';
+          const state = ti.state || 'call';
+          const args = ti.args || {};
+          const result = ti.result;
 
-      if (partsText) return partsText;
+          if (toolName === 'commitToGithub') {
+            partsElements.push(
+              <div
+                key={`part-tool-${pIdx}`}
+                className="my-1.5 p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] font-mono"
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-zinc-200">
+                    <GitCommit className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="font-semibold text-emerald-300">commitToGithub</span>
+                    <span className="text-zinc-400 font-sans truncate max-w-[200px]" title={args.filePath}>
+                      {args.filePath || 'file'}
+                    </span>
+                  </div>
+                  {state === 'result' ? (
+                    result?.error ? (
+                      <span className="text-red-400 text-[10px] font-medium flex items-center gap-1 bg-red-950/50 px-2 py-0.5 rounded border border-red-800/40">
+                        <AlertCircle className="w-3 h-3 shrink-0" /> Commit Failed
+                      </span>
+                    ) : (
+                      <span className="text-emerald-400 text-[10px] font-medium flex items-center gap-1 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800/40">
+                        <CheckCircle2 className="w-3 h-3 shrink-0" /> Pushed to Main
+                      </span>
+                    )
+                  ) : (
+                    <span className="text-amber-400 text-[10px] font-medium flex items-center gap-1 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/40">
+                      <Loader2 className="w-3 h-3 animate-spin shrink-0" /> Committing...
+                    </span>
+                  )}
+                </div>
+                {args.commitMessage && (
+                  <div className="mt-1.5 text-[10px] text-zinc-400 italic">
+                    &ldquo;{args.commitMessage}&rdquo;
+                  </div>
+                )}
+                {state === 'result' && result?.commitSha && (
+                  <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-400">
+                    <span>SHA: {result.commitSha.slice(0, 7)}</span>
+                    {result.commitUrl && (
+                      <a
+                        href={result.commitUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-0.5 ml-auto"
+                      >
+                        View Commit <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    )}
+                  </div>
+                )}
+                {state === 'result' && result?.error && (
+                  <div className="mt-1.5 text-[10px] text-red-300 bg-red-950/50 p-1.5 rounded border border-red-500/20">
+                    {result.error}
+                  </div>
+                )}
+              </div>
+            );
+          } else if (toolName === 'readRepositoryFile') {
+            partsElements.push(
+              <div
+                key={`part-tool-${pIdx}`}
+                className="my-1.5 p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] font-mono"
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-zinc-200">
+                    <FileCode className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span className="font-semibold text-blue-300">readRepositoryFile</span>
+                    <span className="text-zinc-400 font-sans truncate max-w-[200px]" title={args.filePath}>
+                      {args.filePath || 'file'}
+                    </span>
+                  </div>
+                  {state === 'result' ? (
+                    result?.error ? (
+                      <span className="text-red-400 text-[10px] font-medium flex items-center gap-1 bg-red-950/50 px-2 py-0.5 rounded border border-red-800/40">
+                        <AlertCircle className="w-3 h-3 shrink-0" /> Error
+                      </span>
+                    ) : (
+                      <span className="text-blue-400 text-[10px] font-medium flex items-center gap-1 bg-blue-950/50 px-2 py-0.5 rounded border border-blue-800/40">
+                        <CheckCircle2 className="w-3 h-3 shrink-0" /> Read {result?.content ? `(${result.content.length} chars)` : 'OK'}
+                      </span>
+                    )
+                  ) : (
+                    <span className="text-amber-400 text-[10px] font-medium flex items-center gap-1 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/40">
+                      <Loader2 className="w-3 h-3 animate-spin shrink-0" /> Reading file...
+                    </span>
+                  )}
+                </div>
+                {state === 'result' && result?.error && (
+                  <div className="mt-1.5 text-[10px] text-red-300 bg-red-950/50 p-1.5 rounded border border-red-500/20">
+                    {result.error}
+                  </div>
+                )}
+              </div>
+            );
+          } else {
+            partsElements.push(
+              <div
+                key={`part-tool-${pIdx}`}
+                className="my-1.5 p-2 rounded bg-zinc-900 border border-zinc-800 text-[11px] font-mono flex items-center justify-between"
+              >
+                <span className="text-zinc-300">⚡ [{toolName}]</span>
+                <span className="text-[10px] text-zinc-500">{state}</span>
+              </div>
+            );
+          }
+        } else if (part.type === 'error') {
+          const errorMsg = part.errorText || part.error?.message || String(part.error || 'Stream error occurred');
+          partsElements.push(
+            <div
+              key={`part-err-${pIdx}`}
+              className="my-1.5 p-2.5 rounded-lg bg-red-950/50 border border-red-500/30 text-red-300 text-xs"
+            >
+              <div className="flex items-center gap-1.5 font-semibold text-red-400 mb-0.5">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>Stream Error</span>
+              </div>
+              <p className="text-[11px] text-red-300/90">{errorMsg}</p>
+            </div>
+          );
+        }
+      });
     }
 
-    return typeof msg.text === 'string' ? msg.text : '';
+    // 2. Process legacy toolInvocations array if parts wasn't populated with them
+    if (
+      (!Array.isArray(msg.parts) || msg.parts.length === 0) &&
+      Array.isArray(msg.toolInvocations) &&
+      msg.toolInvocations.length > 0
+    ) {
+      msg.toolInvocations.forEach((ti: any, tIdx: number) => {
+        partsElements.push(
+          <div
+            key={`ti-${tIdx}`}
+            className="my-1.5 p-2 rounded bg-zinc-900 border border-zinc-800 text-[11px] font-mono flex items-center justify-between"
+          >
+            <span className="text-zinc-300">⚡ [{ti.toolName || 'tool'}]</span>
+            <span className="text-[10px] text-zinc-500">{ti.state || 'executed'}</span>
+          </div>
+        );
+      });
+    }
+
+    // 3. Fallback: Classical message content string or array
+    if (partsElements.length === 0) {
+      if (typeof msg.content === 'string' && msg.content) {
+        partsElements.push(
+          <div key="content-str" className="whitespace-pre-wrap leading-relaxed">
+            {msg.content}
+          </div>
+        );
+      } else if (Array.isArray(msg.content)) {
+        msg.content.forEach((item: any, cIdx: number) => {
+          if (typeof item === 'string') {
+            partsElements.push(<div key={`content-arr-${cIdx}`}>{item}</div>);
+          } else if (item?.text) {
+            partsElements.push(<div key={`content-arr-${cIdx}`}>{item.text}</div>);
+          }
+        });
+      } else if (typeof msg.text === 'string' && msg.text) {
+        partsElements.push(
+          <div key="content-text" className="whitespace-pre-wrap leading-relaxed">
+            {msg.text}
+          </div>
+        );
+      }
+    }
+
+    if (partsElements.length === 0) {
+      return <div className="text-zinc-500 italic">Thinking...</div>;
+    }
+
+    return <div className="space-y-1.5">{partsElements}</div>;
   };
 
   return (
