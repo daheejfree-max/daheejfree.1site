@@ -213,12 +213,34 @@ export default function AdminBot() {
               </div>
             );
           }
-        } else if (part.type === 'tool-invocation') {
+        } else if (
+          part.type === 'tool-invocation' ||
+          part.type === 'dynamic-tool' ||
+          (typeof part.type === 'string' && part.type.startsWith('tool-')) ||
+          Boolean(part.toolInvocation)
+        ) {
           const ti = part.toolInvocation || {};
-          const toolName = ti.toolName || 'tool';
-          const state = ti.state || 'call';
-          const args = ti.args || {};
-          const result = ti.result;
+          const toolName =
+            ti.toolName ||
+            part.toolName ||
+            (typeof part.type === 'string' && part.type.startsWith('tool-')
+              ? part.type.replace(/^tool-/, '')
+              : 'tool');
+          const state =
+            part.state === 'output-available' || part.state === 'output-error'
+              ? 'result'
+              : part.state === 'input-available' || part.state === 'input-start'
+              ? 'call'
+              : ti.state || part.state || 'call';
+          const args = part.input || ti.args || part.args || {};
+          const result =
+            part.output !== undefined
+              ? part.output
+              : part.errorText
+              ? { error: part.errorText }
+              : ti.result !== undefined
+              ? ti.result
+              : part.result;
 
           if (toolName === 'commitToGithub') {
             partsElements.push(

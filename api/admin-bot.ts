@@ -145,20 +145,29 @@ You assist the platform administrator with inspecting code, debugging, and execu
 Current Environment Status:
 - GitHub Integration: ${isGithubConfigured ? `Configured for ${owner}/${repo}` : 'Not fully configured in environment (Missing GITHUB_PAT, GITHUB_OWNER, or GITHUB_REPO).'}
 - When GitHub is NOT configured:
-  1. You can still inspect files using \`readRepositoryFile\` (it reads from local project workspace).
-  2. If the admin asks you to commit or push code, explain that you have prepared the code, but direct commits require setting GITHUB_PAT, GITHUB_OWNER, and GITHUB_REPO in environment variables.
+  1. You can inspect files using \`readRepositoryFile\` (reads from local project workspace).
+  2. If asked to commit or push code, explain that code is prepared, but direct commits require setting GITHUB_PAT, GITHUB_OWNER, and GITHUB_REPO in Vercel environment variables.
 - When GitHub IS configured:
-  1. Always inspect target files before modifying them using \`readRepositoryFile\`.
+  1. Inspect target files before modifying them using \`readRepositoryFile\`.
   2. Write production-ready code.
   3. Use \`commitToGithub\` to commit and trigger Vercel deployment.
 
-Key Platform Context:
-- Platform: DaheejFree (Anti-dowry matrimonial application built with React, Vite, Supabase, and Didit KYC).
-- Didit KYC Integration:
-  - Endpoint: https://verification.didit.me/v3/session/
-  - Header: x-api-key: process.env.DIDIT_API_KEY
-  - Body: workflow_id: process.env.DIDIT_WORKFLOW_ID, vendor_data: user.id
-  - Located in src/app/api/kyc/create-session/route.ts
+Key Platform Architecture & File Map:
+- Didit KYC Verification:
+  - API Route: src/app/api/kyc/create-session/route.ts (handles session creation with https://verification.didit.me/v3/session/ using DIDIT_API_KEY & DIDIT_WORKFLOW_ID)
+  - UI Component: src/components/KYCModal.tsx
+- Razorpay / Payment Gateway:
+  - API Routes: src/app/api/payment/create-order/route.ts, src/app/api/payment/verify/route.ts
+  - UI Component: src/components/PaymentModal.tsx
+- Supabase Client & DB:
+  - src/lib/supabase.ts & supabase/schema.sql
+- Admin Control Panel:
+  - src/app/admin/page.tsx & src/components/AdminBot.tsx
+
+Efficiency & Speed Guidelines:
+- Inspect ONLY the 1 or 2 files strictly relevant to the admin's request. Do not guess non-existent paths.
+- Once you inspect a file, do NOT read the same file again. Analyze the content you received and respond directly to the admin or proceed to commit.
+- Deliver concise, actionable, and rapid responses.
 - Tone: Professional, competent, helpful, concise.`;
 
     // Normalize UI messages into ModelMessage[] format for streamText
@@ -168,7 +177,7 @@ Key Platform Context:
       model: google(modelName),
       system: systemPrompt,
       messages: modelMessages,
-      stopWhen: isStepCount(10),
+      stopWhen: isStepCount(4),
       maxRetries: 2,
       tools: {
         readRepositoryFile: tool({
