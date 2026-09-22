@@ -1,7 +1,7 @@
 'use client';
 
 // ==============================================================================
-// DAHEEJFREE ROOT LANDING GATEWAY: THE 4 PILLARS OF TRUST
+// DAHEEJFREE ROOT LANDING GATEWAY: ISLAMIC THEME & BRIDE/GROOM HERO
 // ==============================================================================
 
 import React from 'react';
@@ -115,15 +115,43 @@ export default function LandingGatewayPage({
 
   return (
     <div className="min-h-[100dvh] bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 selection:bg-emerald-500 selection:text-white dark:selection:text-zinc-950 transition-colors">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden pt-12 pb-20 sm:pt-20 sm:pb-28 border-b border-zinc-200 dark:border-zinc-800/80">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-100/60 via-zinc-50 to-zinc-50 dark:from-emerald-950/40 dark:via-zinc-950 dark:to-zinc-950 pointer-events-none" />
+      {/* Hero Section with Islamic Geometric Pattern & Bride/Groom Silhouette/Art */}
+      <section className="relative overflow-hidden pt-12 pb-24 sm:pt-20 sm:pb-32 border-b border-zinc-200 dark:border-zinc-800/80">
+        {/* Islamic Star & Geometric Background Overlay */}
+        <div className="absolute inset-0 opacity-10 dark:opacity-20 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/20 via-zinc-950/70 to-zinc-950 pointer-events-none" />
+
+        {/* Decorative Islamic Arch & Bride / Groom Silhouette Visual Banner */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-6xl h-full opacity-15 dark:opacity-25 pointer-events-none flex justify-center items-start overflow-hidden">
+          <div className="w-[800px] h-[500px] rounded-b-[400px] border-b-2 border-emerald-500/40 bg-gradient-to-b from-emerald-600/10 to-transparent flex items-end justify-center pb-8">
+            <div className="flex items-center gap-6 text-emerald-400">
+              <Heart className="w-12 h-12 animate-pulse text-amber-400" />
+            </div>
+          </div>
+        </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-8">
           {/* Shariah Compliance Eyebrow */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold shadow-sm dark:shadow-lg dark:shadow-emerald-950/50">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950/90 border border-emerald-300 dark:border-emerald-500/50 text-emerald-800 dark:text-emerald-300 text-xs font-semibold shadow-sm dark:shadow-xl dark:shadow-emerald-950/80">
             <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>Islamic Anti-Dowry Matrimonial Standard • 100% Shariah Aligned</span>
+          </div>
+
+          {/* Bride & Groom Art / Silhouette Visual Card */}
+          <div className="max-w-xl mx-auto p-4 rounded-3xl bg-white/80 dark:bg-zinc-900/90 border border-emerald-500/30 dark:border-emerald-500/40 shadow-2xl backdrop-blur-md flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                <Users className="w-6 h-6" />
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-bold text-zinc-900 dark:text-white">Pure Islamic Union</p>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Halal Bride & Groom Matchmaking</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-xs font-bold">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Bila-Daheej</span>
+            </div>
           </div>
 
           {/* Main Title */}
