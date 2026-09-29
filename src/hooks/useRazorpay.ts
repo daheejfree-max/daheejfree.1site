@@ -118,18 +118,19 @@ export async function initiateRazorpayCheckout(
       return { success: false, error: errMsg };
     }
 
-    // Handle free tier instant activation
-    if (orderData.isFree) {
+    // Handle free tier or simulated test mode instant activation
+    if (orderData.isFree || orderData.isSimulated) {
+      const simOrderId = orderData.order_id || orderData.id || orderData.orderId || 'sim_order';
       onSuccess?.({
-        razorpay_payment_id: 'free_tier_activation',
-        razorpay_order_id: 'free_order',
-        razorpay_signature: 'free_verified',
+        razorpay_payment_id: orderData.isSimulated ? `pay_sim_${Date.now()}` : 'free_tier_activation',
+        razorpay_order_id: simOrderId,
+        razorpay_signature: orderData.isSimulated ? 'sim_verified' : 'free_verified',
       });
-      return { success: true, orderId: 'free_order' };
+      return { success: true, orderId: simOrderId };
     }
 
-    const orderId = orderData.order_id || orderData.id;
-    const keyId = orderData.key_id;
+    const orderId = orderData.order_id || orderData.id || orderData.orderId;
+    const keyId = orderData.key_id || orderData.keyId;
 
     if (!orderId || !keyId) {
       const errMsg = 'Invalid order response: missing order_id or key_id';

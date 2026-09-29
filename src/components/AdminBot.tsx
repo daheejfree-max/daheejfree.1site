@@ -191,10 +191,11 @@ export default function AdminBot() {
     // 1. Process data stream parts array (standard in Vercel AI SDK)
     if (Array.isArray(msg.parts) && msg.parts.length > 0) {
       msg.parts.forEach((part: any, pIdx: number) => {
-        if (part.type === 'text' && part.text) {
+        const textContent = part.text || part.delta || part.content || (typeof part === 'string' ? part : '');
+        if ((part.type === 'text' || typeof part === 'string') && textContent) {
           partsElements.push(
             <div key={`part-text-${pIdx}`} className="whitespace-pre-wrap leading-relaxed">
-              {part.text}
+              {textContent}
             </div>
           );
         } else if (part.type === 'reasoning') {

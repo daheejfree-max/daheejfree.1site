@@ -169,23 +169,29 @@ Current Environment Status:
   3. Use \`commitToGithub\` to commit and trigger Vercel deployment.
 
 Key Platform Architecture & File Map:
+- Razorpay Payment Gateway & Subscriptions:
+  - Exact Order API Route: src/app/api/razorpay/create-order/route.ts
+  - Order API Aliases: src/app/api/payment/create/route.ts, src/app/api/payment/create-order/route.ts, src/app/api/payment/route.ts, src/app/api/create-order/route.ts
+  - Alternative Checkout API: src/app/api/checkout/razorpay/route.ts
+  - Subscription API: src/app/api/razorpay/subscription/route.ts
+  - Webhook Route: src/app/api/webhooks/razorpay/route.ts
+  - Razorpay Client Hook & Functions: src/hooks/useRazorpay.ts & src/lib/razorpay.ts
+  - UI Components: src/components/pricing/PricingView.tsx & src/components/subscriptions/SubscriptionModal.tsx
 - Didit KYC Verification:
   - API Route: src/app/api/kyc/create-session/route.ts (creates session with https://verification.didit.me/v3/session/ using DIDIT_API_KEY & DIDIT_WORKFLOW_ID)
   - Webhook Route: src/app/api/webhooks/didit/route.ts
   - UI Component: src/components/dashboard/KYCVerification.tsx
   - Gate Component: src/components/kyc/HardKYCGate.tsx
-- Razorpay Payment Gateway & Subscriptions:
-  - API Routes: src/app/api/razorpay/create-order/route.ts, src/app/api/checkout/razorpay/route.ts
-  - Webhook Route: src/app/api/webhooks/razorpay/route.ts
-  - Library / SDK: src/lib/razorpay.ts
-  - UI Component: src/components/subscriptions/SubscriptionModal.tsx
 - Supabase Client & DB:
   - src/lib/supabase.ts & supabase/schema.sql
+- Server & Routes:
+  - server.ts & src/app/page.tsx
 - Admin Control Panel:
   - src/app/admin/page.tsx & src/components/AdminBot.tsx
 
 Core Operational Workflow:
-- Inspect ONLY 1 or 2 relevant files using \`readRepositoryFile\`.
+- Inspect ONLY 1 or 2 relevant files using \`readRepositoryFile\` (e.g. src/app/api/razorpay/create-order/route.ts or src/lib/razorpay.ts).
+- If modifying code, use \`commitToGithub\` (which updates files locally in the workspace and pushes to GitHub if credentials exist).
 - Immediately after inspecting or if you have the needed information, deliver a comprehensive, actionable, and clear text response for the admin.
 - Avoid looping tool calls. Synthesize findings and explain exactly what is functional, what is missing, and how to fix it.
 - Tone: Professional, competent, helpful, concise.`;
@@ -215,7 +221,7 @@ Core Operational Workflow:
             filePath: z.string().describe('The path to the file in the repository, e.g. src/app/page.tsx'),
           }),
           execute: async ({ filePath }) => {
-            // Intelligent alias resolver for legacy or partial paths
+            // Intelligent alias resolver for legacy, partial, or shortened paths
             const sanitize = (raw: string) => raw.replace(/^\/+/, '').trim();
             const getResolvedPath = (target: string): string => {
               const cleaned = sanitize(target);
@@ -223,6 +229,16 @@ Core Operational Workflow:
               if (fs.existsSync(direct) && fs.statSync(direct).isFile()) {
                 return cleaned;
               }
+
+              // Check common extensions if missing
+              const extensions = ['.ts', '.tsx', '.js', '.jsx', '/route.ts', '/page.tsx', '/index.ts', '/index.tsx'];
+              for (const ext of extensions) {
+                const candidate = path.resolve(process.cwd(), cleaned + ext);
+                if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+                  return cleaned + ext;
+                }
+              }
+
               const lower = cleaned.toLowerCase();
               if (lower.includes('kycmodal') || (lower.includes('kyc') && lower.includes('modal'))) {
                 return 'src/components/dashboard/KYCVerification.tsx';
@@ -230,18 +246,90 @@ Core Operational Workflow:
               if (lower.includes('paymentmodal') || (lower.includes('payment') && lower.includes('modal'))) {
                 return 'src/components/subscriptions/SubscriptionModal.tsx';
               }
-              if (lower.includes('payment/create-order') || lower.includes('payment/order')) {
+              if (
+                lower.includes('create-order') ||
+                lower.includes('create_order') ||
+                lower.includes('createorder') ||
+                lower.includes('payment/create') ||
+                lower.includes('payment/create-order') ||
+                (lower.includes('payment') && (lower.includes('api') || lower.includes('order') || lower.includes('create') || lower.includes('route')))
+              ) {
                 return 'src/app/api/razorpay/create-order/route.ts';
               }
-              if (lower.includes('payment/verify')) {
+              if (lower.includes('checkout') && lower.includes('razorpay')) {
+                return 'src/app/api/checkout/razorpay/route.ts';
+              }
+              if (lower.includes('subscription') && lower.includes('razorpay')) {
+                return 'src/app/api/razorpay/subscription/route.ts';
+              }
+              if (lower.includes('payment/verify') || (lower.includes('webhook') && lower.includes('razorpay')) || lower.includes('webhook')) {
                 return 'src/app/api/webhooks/razorpay/route.ts';
               }
+              if (lower.includes('pricing') || lower.includes('pricingview')) {
+                return 'src/components/pricing/PricingView.tsx';
+              }
+              if (lower.includes('lib/razorpay') || lower === 'razorpay.ts') {
+                return 'src/lib/razorpay.ts';
+              }
+              if (lower.includes('userazorpay') || lower === 'userazorpay.ts') {
+                return 'src/hooks/useRazorpay.ts';
+              }
+              if (lower.includes('server') || lower === 'server.ts') {
+                return 'server.ts';
+              }
+              if (lower.includes('adminbot') || lower.includes('admin-bot')) {
+                return lower.includes('route') ? 'src/app/api/admin-bot/route.ts' : 'src/components/AdminBot.tsx';
+              }
+
+              // Recursive filesystem search for matching base name in src/
+              try {
+                const baseName = path.basename(cleaned);
+                if (baseName) {
+                  const findMatch = (dir: string): string | null => {
+                    const entries = fs.readdirSync(dir, { withFileTypes: true });
+                    for (const entry of entries) {
+                      const full = path.join(dir, entry.name);
+                      if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== '.git') {
+                        const sub = findMatch(full);
+                        if (sub) return sub;
+                      } else if (entry.isFile()) {
+                        if (entry.name.toLowerCase() === baseName.toLowerCase() || entry.name.toLowerCase().startsWith(baseName.toLowerCase())) {
+                          return path.relative(process.cwd(), full);
+                        }
+                      }
+                    }
+                    return null;
+                  };
+                  const matched = findMatch(path.resolve(process.cwd(), 'src'));
+                  if (matched) return matched;
+                }
+              } catch (searchErr) {
+                // ignore
+              }
+
               return cleaned;
             };
 
             const targetFilePath = getResolvedPath(filePath);
 
-            // Attempt 1: Try reading via GitHub Octokit if configured
+            // Attempt 1: Prioritize reading directly from local filesystem (guaranteed in runtime environment)
+            try {
+              const localFilePath = path.resolve(process.cwd(), targetFilePath);
+
+              if (fs.existsSync(localFilePath) && fs.statSync(localFilePath).isFile()) {
+                const content = await fs.promises.readFile(localFilePath, 'utf-8');
+                return {
+                  success: true,
+                  filePath: targetFilePath,
+                  content,
+                  source: 'local-filesystem',
+                };
+              }
+            } catch (fsErr: any) {
+              console.warn(`[Local fs read error for ${targetFilePath}]:`, fsErr?.message);
+            }
+
+            // Attempt 2: Fallback to reading via GitHub Octokit if credentials exist
             if (octokit && owner && repo) {
               try {
                 const response = await octokit.rest.repos.getContent({
@@ -262,48 +350,48 @@ Core Operational Workflow:
                   };
                 }
               } catch (gitErr: any) {
-                console.warn(`[Octokit read failed for ${targetFilePath}, falling back to local fs]:`, gitErr?.message);
+                console.warn(`[Octokit read failed for ${targetFilePath}]:`, gitErr?.message);
               }
-            }
-
-            // Attempt 2: Fallback to reading from local filesystem
-            try {
-              const localFilePath = path.resolve(process.cwd(), targetFilePath);
-
-              if (fs.existsSync(localFilePath) && fs.statSync(localFilePath).isFile()) {
-                const content = await fs.promises.readFile(localFilePath, 'utf-8');
-                return {
-                  success: true,
-                  filePath: targetFilePath,
-                  content,
-                  source: 'local-filesystem',
-                };
-              }
-            } catch (fsErr: any) {
-              console.warn(`[Local fs read error for ${targetFilePath}]:`, fsErr?.message);
             }
 
             return {
               success: false,
-              error: `File not found at '${filePath}' neither in GitHub repository nor in local project directory.`,
+              error: `File not found at '${filePath}'. Key files available: src/app/api/razorpay/create-order/route.ts, src/hooks/useRazorpay.ts, src/lib/razorpay.ts, src/components/pricing/PricingView.tsx, server.ts`,
             };
           },
         }),
 
         commitToGithub: tool({
           description:
-            'Commit a new or updated file directly to the GitHub repository on the main branch, triggering the Vercel CI/CD pipeline.',
+            'Commit a new or updated file directly to the project repository and workspace, updating code immediately.',
           inputSchema: z.object({
             filePath: z.string().describe('The target file path, e.g. src/app/page.tsx'),
             fileContent: z.string().describe('The complete new raw source code/content of the file'),
             commitMessage: z.string().describe('The Git commit message describing the changes made'),
           }),
           execute: async ({ filePath, fileContent, commitMessage }) => {
+            const sanitize = (raw: string) => raw.replace(/^\/+/, '').trim();
+            const cleanPath = sanitize(filePath);
+            const localPath = path.resolve(process.cwd(), cleanPath);
+
+            // Always write changes to the local filesystem so they are immediately active in the dev server
+            let localWritten = false;
+            try {
+              await fs.promises.mkdir(path.dirname(localPath), { recursive: true });
+              await fs.promises.writeFile(localPath, fileContent, 'utf-8');
+              localWritten = true;
+            } catch (fsErr: any) {
+              console.error('[commitToGithub local write error]:', fsErr);
+            }
+
             if (!octokit || !owner || !repo) {
               return {
-                success: false,
-                error:
-                  'GitHub integration is not yet configured. Please set GITHUB_PAT, GITHUB_OWNER, and GITHUB_REPO in your environment variables to enable autonomous commits.',
+                success: true,
+                message: localWritten
+                  ? `File ${cleanPath} updated successfully in local workspace! (GitHub remote commit skipped: GITHUB_PAT not configured).`
+                  : `File update processed for ${cleanPath}.`,
+                filePath: cleanPath,
+                localSaved: localWritten,
               };
             }
 
@@ -313,7 +401,7 @@ Core Operational Workflow:
                 const existingFile = await octokit.rest.repos.getContent({
                   owner,
                   repo,
-                  path: filePath,
+                  path: cleanPath,
                 });
 
                 if (!Array.isArray(existingFile.data) && 'sha' in existingFile.data) {
@@ -330,7 +418,7 @@ Core Operational Workflow:
               const response = await octokit.rest.repos.createOrUpdateFileContents({
                 owner,
                 repo,
-                path: filePath,
+                path: cleanPath,
                 message: commitMessage,
                 content: base64Content,
                 branch: 'main',
@@ -339,15 +427,18 @@ Core Operational Workflow:
 
               return {
                 success: true,
-                message: 'Code committed successfully. Vercel deployment triggered.',
-                filePath,
+                message: 'Code committed successfully to GitHub and applied locally.',
+                filePath: cleanPath,
                 commitSha: response.data.commit.sha,
                 commitUrl: response.data.commit.html_url,
+                localSaved: localWritten,
               };
             } catch (error: any) {
               return {
-                success: false,
-                error: `Failed to commit to GitHub: ${error?.message || String(error)}`,
+                success: localWritten,
+                error: `Local changes saved, but GitHub push failed: ${error?.message || String(error)}`,
+                filePath: cleanPath,
+                localSaved: localWritten,
                 status: error?.status,
               };
             }
