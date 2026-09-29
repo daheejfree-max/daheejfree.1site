@@ -31,7 +31,7 @@ export default function AdminBot() {
     missing: string[];
   } | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Check backend integration status on mount with explicit error logging
   useEffect(() => {
@@ -180,9 +180,11 @@ export default function AdminBot() {
     }
   };
 
-  // Auto-scroll message container to bottom
+  // Auto-scroll message container internally without scrolling the parent page/window
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages, isStreaming]);
 
   // Comprehensive Data Stream & UI Message part renderer
@@ -510,7 +512,10 @@ export default function AdminBot() {
       </div>
 
       {/* 2. Message Area (scrollable, max-h-64) */}
-      <div className="max-h-64 min-h-[140px] overflow-y-auto p-4 space-y-3 bg-zinc-950/60 font-mono text-xs sm:text-sm">
+      <div
+        ref={chatContainerRef}
+        className="max-h-64 min-h-[140px] overflow-y-auto p-4 space-y-3 bg-zinc-950/60 font-mono text-xs sm:text-sm"
+      >
         {messages.length === 0 ? (
           <div className="h-full py-6 flex flex-col items-center justify-center text-center text-zinc-500 space-y-2">
             <Sparkles className="w-6 h-6 text-zinc-600 mb-1" />
@@ -627,8 +632,6 @@ export default function AdminBot() {
             )}
           </div>
         )}
-
-        <div ref={messagesEndRef} />
       </div>
 
       {/* 3. Input Area */}
