@@ -154,20 +154,23 @@ Current Environment Status:
 
 Key Platform Architecture & File Map:
 - Didit KYC Verification:
-  - API Route: src/app/api/kyc/create-session/route.ts (handles session creation with https://verification.didit.me/v3/session/ using DIDIT_API_KEY & DIDIT_WORKFLOW_ID)
-  - UI Component: src/components/KYCModal.tsx
+  - API Route: src/app/api/kyc/create-session/route.ts
+  - Webhook Route: src/app/api/webhooks/didit/route.ts
+  - UI Component: src/components/dashboard/KYCVerification.tsx
 - Razorpay / Payment Gateway:
-  - API Routes: src/app/api/payment/create-order/route.ts, src/app/api/payment/verify/route.ts
-  - UI Component: src/components/PaymentModal.tsx
+  - API Routes: src/app/api/razorpay/create-order/route.ts, src/app/api/payment/create/route.ts
+  - Hooks & Lib: src/hooks/useRazorpay.ts & src/lib/razorpay.ts
+  - UI Component: src/components/pricing/PricingView.tsx & src/components/subscriptions/SubscriptionModal.tsx
 - Supabase Client & DB:
   - src/lib/supabase.ts & supabase/schema.sql
 - Admin Control Panel:
   - src/app/admin/page.tsx & src/components/AdminBot.tsx
 
-Efficiency & Speed Guidelines:
-- Inspect ONLY the 1 or 2 files strictly relevant to the admin's request. Do not guess non-existent paths.
-- Once you inspect a file, do NOT read the same file again. Analyze the content you received and respond directly to the admin or proceed to commit.
-- Deliver concise, actionable, and rapid responses.
+Core Operational Workflow:
+- Inspect relevant files using \`readRepositoryFile\` (you can inspect multiple files across frontend, backend, hooks, and configs for a thorough diagnosis).
+- Use \`listDirectory\` when you need to inspect directory contents or locate specific routes and files.
+- If modifying code, use \`commitToGithub\` (which updates files locally in the workspace and pushes to GitHub if credentials exist).
+- Deliver a comprehensive, actionable, and clear diagnostic text response for the admin explaining what is functional, what is misconfigured or missing, and how to resolve it.
 - Tone: Professional, competent, helpful, concise.`;
 
     // Normalize UI messages into ModelMessage[] format for streamText
@@ -177,9 +180,56 @@ Efficiency & Speed Guidelines:
       model: google(modelName),
       system: systemPrompt,
       messages: modelMessages,
-      stopWhen: isStepCount(4),
+      prepareStep: ({ stepNumber }) => {
+        if (stepNumber >= 5) {
+          return { toolChoice: 'none' };
+        }
+        return {};
+      },
+      stopWhen: ({ steps }) => steps.length >= 6,
       maxRetries: 2,
       tools: {
+        listDirectory: tool({
+          description:
+            'List files and directories in a given repository folder (e.g. "src/app/api", "src/components", "src/hooks").',
+          inputSchema: z.object({
+            directoryPath: z.string().describe('The relative directory path to list, e.g. "src/app/api" or "src"'),
+          }),
+          execute: async ({ directoryPath }: { directoryPath: string }) => {
+            const sanitize = (raw: string) => raw.replace(/^\/+/, '').trim();
+            const targetDir = sanitize(directoryPath || 'src');
+            const localDirPath = path.resolve(process.cwd(), targetDir);
+
+            try {
+              if (fs.existsSync(localDirPath) && fs.statSync(localDirPath).isDirectory()) {
+                const entries = fs.readdirSync(localDirPath, { withFileTypes: true });
+                const items = entries
+                  .filter((e) => e.name !== 'node_modules' && e.name !== '.git' && e.name !== '.next' && e.name !== 'dist')
+                  .map((e) => ({
+                    name: e.name,
+                    type: e.isDirectory() ? 'directory' : 'file',
+                    path: path.join(targetDir, e.name).replace(/\\/g, '/'),
+                  }));
+                return {
+                  success: true,
+                  directory: targetDir,
+                  items,
+                  count: items.length,
+                };
+              }
+              return {
+                success: false,
+                error: `Directory '${targetDir}' not found.`,
+              };
+            } catch (err: any) {
+              return {
+                success: false,
+                error: `Error listing directory '${targetDir}': ${err?.message || String(err)}`,
+              };
+            }
+          },
+        }),
+
         readRepositoryFile: tool({
           description:
             'Read the content of an existing file from the repository to inspect existing code before making changes.',

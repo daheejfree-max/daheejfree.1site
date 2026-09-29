@@ -164,6 +164,9 @@ export default function AdminBot() {
     e?.preventDefault?.();
     if (!input || !input.trim()) return;
 
+    // Snapshot page scroll position to prevent browser focus jumping
+    const scrollPos = typeof window !== 'undefined' ? window.scrollY : 0;
+
     if (error && typeof clearError === 'function') {
       clearError();
     }
@@ -177,13 +180,19 @@ export default function AdminBot() {
       }
     } catch (submitErr) {
       console.error('[AdminBot Submit Handler Exception]:', submitErr);
+    } finally {
+      // Ensure the browser viewport remains perfectly stable at the user's current scroll position
+      if (typeof window !== 'undefined' && window.scrollY !== scrollPos) {
+        window.scrollTo({ top: scrollPos, behavior: 'instant' as any });
+      }
     }
   };
 
   // Auto-scroll message container internally without scrolling the parent page/window
   useEffect(() => {
     if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      const container = chatContainerRef.current;
+      container.scrollTop = container.scrollHeight;
     }
   }, [messages, isStreaming]);
 
@@ -514,7 +523,7 @@ export default function AdminBot() {
       {/* 2. Message Area (scrollable, max-h-64) */}
       <div
         ref={chatContainerRef}
-        className="max-h-64 min-h-[140px] overflow-y-auto p-4 space-y-3 bg-zinc-950/60 font-mono text-xs sm:text-sm"
+        className="max-h-64 min-h-[140px] overflow-y-auto overscroll-contain p-4 space-y-3 bg-zinc-950/60 font-mono text-xs sm:text-sm"
       >
         {messages.length === 0 ? (
           <div className="h-full py-6 flex flex-col items-center justify-center text-center text-zinc-500 space-y-2">
@@ -641,9 +650,9 @@ export default function AdminBot() {
             type="text"
             value={input}
             onChange={handleInputChange}
-            placeholder="Command autonomous developer agent (e.g. Inspect code or fix Didit)..."
-            disabled={isStreaming}
-            className="bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-500 w-full p-3 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-none text-xs sm:text-sm disabled:opacity-50"
+            placeholder={isStreaming ? "Agent is working..." : "Command autonomous developer agent (e.g. Inspect code or fix Didit)..."}
+            readOnly={isStreaming}
+            className="bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-500 w-full p-3 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-none text-xs sm:text-sm read-only:opacity-75"
           />
           <button
             type="submit"
