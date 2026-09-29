@@ -21,6 +21,7 @@ import {
   GitCommit,
   ExternalLink,
   Brain,
+  FolderTree,
 } from 'lucide-react';
 
 export default function AdminBot() {
@@ -333,6 +334,55 @@ export default function AdminBot() {
                 {state === 'result' && result?.error && (
                   <div className="mt-1.5 text-[10px] text-red-300 bg-red-950/50 p-1.5 rounded border border-red-500/20">
                     {result.error}
+                  </div>
+                )}
+              </div>
+            );
+          } else if (toolName === 'listDirectory') {
+            partsElements.push(
+              <div
+                key={`part-tool-${pIdx}`}
+                className="my-1.5 p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] font-mono"
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-zinc-200">
+                    <FolderTree className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="font-semibold text-amber-300">listDirectory</span>
+                    <span className="text-zinc-400 font-sans truncate max-w-[200px]" title={args.directoryPath}>
+                      {args.directoryPath || 'src'}
+                    </span>
+                  </div>
+                  {state === 'result' ? (
+                    result?.error ? (
+                      <span className="text-red-400 text-[10px] font-medium flex items-center gap-1 bg-red-950/50 px-2 py-0.5 rounded border border-red-800/40">
+                        <AlertCircle className="w-3 h-3 shrink-0" /> Error
+                      </span>
+                    ) : (
+                      <span className="text-amber-400 text-[10px] font-medium flex items-center gap-1 bg-amber-950/50 px-2 py-0.5 rounded border border-amber-800/40">
+                        <CheckCircle2 className="w-3 h-3 shrink-0" /> Found {result?.count ?? 0} items
+                      </span>
+                    )
+                  ) : (
+                    <span className="text-amber-400 text-[10px] font-medium flex items-center gap-1 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/40">
+                      <Loader2 className="w-3 h-3 animate-spin shrink-0" /> Scanning directory...
+                    </span>
+                  )}
+                </div>
+                {state === 'result' && result?.error && (
+                  <div className="mt-1.5 text-[10px] text-red-300 bg-red-950/50 p-1.5 rounded border border-red-500/20">
+                    {result.error}
+                  </div>
+                )}
+                {state === 'result' && Array.isArray(result?.items) && result.items.length > 0 && (
+                  <div className="mt-1.5 text-[10px] text-zinc-400 flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                    {result.items.slice(0, 12).map((item: any, iIdx: number) => (
+                      <span key={`item-${iIdx}`} className="bg-zinc-800/80 px-1.5 py-0.5 rounded text-zinc-300">
+                        {item.name}
+                      </span>
+                    ))}
+                    {result.items.length > 12 && (
+                      <span className="text-zinc-500 py-0.5">+{result.items.length - 12} more</span>
+                    )}
                   </div>
                 )}
               </div>

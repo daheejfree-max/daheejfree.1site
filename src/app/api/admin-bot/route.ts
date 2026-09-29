@@ -190,10 +190,10 @@ Key Platform Architecture & File Map:
   - src/app/admin/page.tsx & src/components/AdminBot.tsx
 
 Core Operational Workflow:
-- Inspect ONLY 1 or 2 relevant files using \`readRepositoryFile\` (e.g. src/app/api/razorpay/create-order/route.ts or src/lib/razorpay.ts).
+- Inspect relevant files using \`readRepositoryFile\` (you can inspect multiple files across frontend, backend, hooks, and configs for a thorough diagnosis).
+- Use \`listDirectory\` when you need to inspect directory contents or locate specific routes and files.
 - If modifying code, use \`commitToGithub\` (which updates files locally in the workspace and pushes to GitHub if credentials exist).
-- Immediately after inspecting or if you have the needed information, deliver a comprehensive, actionable, and clear text response for the admin.
-- Avoid looping tool calls. Synthesize findings and explain exactly what is functional, what is missing, and how to fix it.
+- Deliver a comprehensive, actionable, and clear diagnostic text response for the admin explaining what is functional, what is misconfigured or missing, and how to resolve it.
 - Tone: Professional, competent, helpful, concise.`;
 
     // 6. Normalize UI messages into ModelMessage[] format for streamText
@@ -205,15 +205,56 @@ Core Operational Workflow:
       system: systemPrompt,
       messages: modelMessages,
       prepareStep: ({ stepNumber }) => {
-        // Allow up to 2 tool execution steps, then force text synthesis step
-        if (stepNumber >= 2) {
+        // Allow up to 5 tool execution steps for thorough multi-file inspection, then force text synthesis step
+        if (stepNumber >= 5) {
           return { toolChoice: 'none' };
         }
         return {};
       },
-      stopWhen: ({ steps }) => steps.length >= 3,
+      stopWhen: ({ steps }) => steps.length >= 6,
       maxRetries: 2,
       tools: {
+        listDirectory: tool({
+          description:
+            'List files and directories in a given repository folder (e.g. "src/app/api", "src/components", "src/hooks").',
+          inputSchema: z.object({
+            directoryPath: z.string().describe('The relative directory path to list, e.g. "src/app/api" or "src"'),
+          }),
+          execute: async ({ directoryPath }) => {
+            const sanitize = (raw: string) => raw.replace(/^\/+/, '').trim();
+            const targetDir = sanitize(directoryPath || 'src');
+            const localDirPath = path.resolve(process.cwd(), targetDir);
+
+            try {
+              if (fs.existsSync(localDirPath) && fs.statSync(localDirPath).isDirectory()) {
+                const entries = fs.readdirSync(localDirPath, { withFileTypes: true });
+                const items = entries
+                  .filter((e) => e.name !== 'node_modules' && e.name !== '.git' && e.name !== '.next' && e.name !== 'dist')
+                  .map((e) => ({
+                    name: e.name,
+                    type: e.isDirectory() ? 'directory' : 'file',
+                    path: path.join(targetDir, e.name).replace(/\\/g, '/'),
+                  }));
+                return {
+                  success: true,
+                  directory: targetDir,
+                  items,
+                  count: items.length,
+                };
+              }
+              return {
+                success: false,
+                error: `Directory '${targetDir}' not found in local workspace.`,
+              };
+            } catch (err: any) {
+              return {
+                success: false,
+                error: `Error listing directory '${targetDir}': ${err?.message || String(err)}`,
+              };
+            }
+          },
+        }),
+
         readRepositoryFile: tool({
           description:
             'Read the content of an existing file from the repository to inspect existing code before making changes.',
