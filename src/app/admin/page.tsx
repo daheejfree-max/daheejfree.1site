@@ -408,56 +408,56 @@ export default function AdminControlPanel() {
       <AdminBot />
 
       {/* 1. Stats Overview Cards (3-Column Grid) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         {/* Total Users */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 relative overflow-hidden shadow-md dark:shadow-lg transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-6 relative overflow-hidden shadow-sm dark:shadow-md transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Total Users</span>
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-              <Users className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+              <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white tracking-tight">{stats.totalUsers}</span>
+          <div className="mt-3 sm:mt-4 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-4xl font-black text-zinc-900 dark:text-white tracking-tight">{stats.totalUsers}</span>
             <span className="text-xs text-zinc-500 font-medium">accounts</span>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+          <div className="mt-3 sm:mt-4 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             <span>Active database records</span>
           </div>
         </div>
 
         {/* Pending KYC */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 relative overflow-hidden shadow-md dark:shadow-lg transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-6 relative overflow-hidden shadow-sm dark:shadow-md transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Pending KYC</span>
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
-              <Clock className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-amber-600 dark:text-amber-400 tracking-tight">{stats.pendingKYCs}</span>
+          <div className="mt-3 sm:mt-4 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-4xl font-black text-amber-600 dark:text-amber-400 tracking-tight">{stats.pendingKYCs}</span>
             <span className="text-xs text-zinc-500 font-medium">awaiting review</span>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400/90">
+          <div className="mt-3 sm:mt-4 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400/90">
             <span className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
             <span>Requires identity vetting</span>
           </div>
         </div>
 
         {/* Premium */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 relative overflow-hidden shadow-md dark:shadow-lg transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-6 relative overflow-hidden shadow-sm dark:shadow-md transition-all hover:border-zinc-300 dark:hover:border-zinc-700 sm:col-span-2 md:col-span-1">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Premium</span>
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
-              <Crown className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
+              <Crown className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-purple-600 dark:text-purple-400 tracking-tight">{stats.premiumUsers}</span>
+          <div className="mt-3 sm:mt-4 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-4xl font-black text-purple-600 dark:text-purple-400 tracking-tight">{stats.premiumUsers}</span>
             <span className="text-xs text-zinc-500 font-medium">Gold / Diamond</span>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300/90">
+          <div className="mt-3 sm:mt-4 flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300/90">
             <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
             <span>Paid tier entitlements</span>
           </div>
@@ -465,27 +465,27 @@ export default function AdminControlPanel() {
       </div>
 
       {/* 2. Control Toolbar (Search, Filter Tabs & Refresh) */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-4 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-3 sm:space-y-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
           {/* Search Input */}
-          <div className="relative flex-1 max-w-md">
+          <div className="relative flex-1 w-full sm:max-w-md">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
             <input
               type="text"
               placeholder="Search by name, ID, phone, or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+              className="w-full pl-9 pr-4 py-2 rounded-xl text-base sm:text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
             />
           </div>
 
           {/* Quick Refresh Button */}
-          <div className="flex items-center gap-2 self-end md:self-auto">
+          <div className="flex items-center gap-2 self-stretch sm:self-auto">
             <button
               type="button"
               onClick={fetchUsers}
               disabled={loading}
-              className="px-3 py-2 rounded-xl text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+              className="w-full sm:w-auto px-3.5 py-2 rounded-xl text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer min-h-[40px]"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-500 dark:text-emerald-400' : ''}`} />
               <span>Refresh Directory</span>
@@ -493,12 +493,12 @@ export default function AdminControlPanel() {
           </div>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs border-t border-zinc-200 dark:border-zinc-800 pt-3">
+        {/* Filter Tabs (Horizontal touch scrolling with edge padding) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs border-t border-zinc-200 dark:border-zinc-800 pt-3 -mx-3.5 px-3.5 sm:mx-0 sm:px-0">
           <button
             type="button"
             onClick={() => setActiveTab('all')}
-            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer min-h-[36px] flex items-center ${
               activeTab === 'all'
                 ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-300 dark:border-zinc-700'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -509,7 +509,7 @@ export default function AdminControlPanel() {
           <button
             type="button"
             onClick={() => setActiveTab('pending_kyc')}
-            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer min-h-[36px] flex items-center ${
               activeTab === 'pending_kyc'
                 ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -520,7 +520,7 @@ export default function AdminControlPanel() {
           <button
             type="button"
             onClick={() => setActiveTab('verified_kyc')}
-            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer min-h-[36px] flex items-center ${
               activeTab === 'verified_kyc'
                 ? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -531,7 +531,7 @@ export default function AdminControlPanel() {
           <button
             type="button"
             onClick={() => setActiveTab('premium')}
-            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer min-h-[36px] flex items-center ${
               activeTab === 'premium'
                 ? 'bg-purple-500/20 text-purple-800 dark:text-purple-300 border border-purple-500/30'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -542,7 +542,7 @@ export default function AdminControlPanel() {
           <button
             type="button"
             onClick={() => setActiveTab('banned')}
-            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer min-h-[36px] flex items-center ${
               activeTab === 'banned'
                 ? 'bg-red-500/20 text-red-800 dark:text-red-300 border border-red-500/30'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -553,9 +553,10 @@ export default function AdminControlPanel() {
         </div>
       </div>
 
-      {/* 3. Comprehensive Users Data Table */}
+      {/* 3. Comprehensive Users Data Table & Mobile Cards */}
       <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-xl">
-        <div className="w-full overflow-x-auto">
+        {/* Desktop View: Full Table */}
+        <div className="hidden md:block w-full overflow-x-auto">
           <table className="w-full text-left text-xs text-zinc-700 dark:text-zinc-300 border-collapse min-w-[720px]">
             <thead>
               <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-950 text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
@@ -587,7 +588,6 @@ export default function AdminControlPanel() {
                   const isPending = user.kyc_status === 'pending' || user.kyc_status === 'unverified';
                   const isBanned = user.is_active === false || user.kyc_status === 'banned';
                   const currentTier = user.subscription_tier?.toLowerCase() || 'free';
-                  const isGoldOrDiamond = currentTier === 'gold' || currentTier === 'diamond' || currentTier === 'platinum';
 
                   return (
                     <tr key={user.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
@@ -706,7 +706,7 @@ export default function AdminControlPanel() {
                             </button>
                           )}
 
-                          {/* Unverify Button (Amber/Warning Outline) */}
+                          {/* Unverify Button */}
                           <button
                             type="button"
                             disabled={Boolean(actionLoadingId) || (!isVerified && user.kyc_status === 'pending' && !user.kyc_verified)}
@@ -722,7 +722,7 @@ export default function AdminControlPanel() {
                             <span>Unverify</span>
                           </button>
 
-                          {/* Grant Subscription Button (Gold or Diamond) */}
+                          {/* Grant Subscription Button */}
                           <button
                             type="button"
                             disabled={Boolean(actionLoadingId)}
@@ -744,7 +744,7 @@ export default function AdminControlPanel() {
                             <span>{currentTier === 'gold' ? '+ Diamond' : '+ Gold'}</span>
                           </button>
 
-                          {/* Set Free Button (Subtle Zinc/Gray Outline) */}
+                          {/* Set Free Button */}
                           <button
                             type="button"
                             disabled={Boolean(actionLoadingId) || currentTier === 'free'}
@@ -804,6 +804,223 @@ export default function AdminControlPanel() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View: Touch-First Candidate Cards (No Horizontal Scrolling Required) */}
+        <div className="block md:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+          {loading && users.length === 0 ? (
+            <div className="py-10 text-center text-zinc-500 p-4">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-500 dark:text-emerald-400" />
+              <span className="text-xs">Loading directory...</span>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="py-10 text-center text-zinc-500 p-4">
+              <Users className="w-6 h-6 mx-auto mb-2 text-zinc-400 dark:text-zinc-600" />
+              <span className="text-xs">No users match your criteria.</span>
+            </div>
+          ) : (
+            filteredUsers.map((user) => {
+              const isVerified = Boolean(user.kyc_verified || user.kyc_status === 'verified');
+              const isPending = user.kyc_status === 'pending' || user.kyc_status === 'unverified';
+              const isBanned = user.is_active === false || user.kyc_status === 'banned';
+              const currentTier = user.subscription_tier?.toLowerCase() || 'free';
+
+              return (
+                <div key={`mobile-card-${user.id}`} className="p-3.5 space-y-3 bg-white dark:bg-zinc-900">
+                  {/* Candidate Header */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {user.avatar_url ? (
+                        <img
+                          src={user.avatar_url}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          className="w-10 h-10 rounded-xl object-cover bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 flex items-center justify-center font-bold text-zinc-700 dark:text-zinc-300 shrink-0">
+                          {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-bold text-zinc-900 dark:text-white text-xs truncate max-w-[140px]">
+                            {user.full_name || 'Unnamed Candidate'}
+                          </p>
+                          {user.is_admin && (
+                            <span className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                              ADMIN
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-zinc-500 font-mono mt-0.5">
+                          ID: {user.id.substring(0, 8)}... {user.gender ? `• ${user.gender}` : ''}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Account Status Pill */}
+                    <div className="shrink-0">
+                      {isBanned ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800/60">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                          Suspended
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/40">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Active
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Badges Row */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* KYC Badge */}
+                    {isVerified ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                        <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        Verified KYC
+                      </span>
+                    ) : isPending ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                        <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                        Pending Review
+                      </span>
+                    ) : isBanned ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20">
+                        <XCircle className="w-3 h-3 text-red-600 dark:text-red-400" />
+                        Banned
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                        Unverified
+                      </span>
+                    )}
+
+                    {/* Tier Badge */}
+                    {currentTier === 'diamond' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20">
+                        <Crown className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
+                        Diamond
+                      </span>
+                    ) : currentTier === 'gold' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
+                        <Crown className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                        Gold
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                        Free Plan
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Mobile Action Buttons Grid */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    {!isVerified ? (
+                      <button
+                        type="button"
+                        disabled={Boolean(actionLoadingId)}
+                        onClick={() => handleAction('verify_kyc', user.id)}
+                        className="min-h-[40px] px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                      >
+                        {actionLoadingId === `verify_kyc-${user.id}` ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        )}
+                        <span>Approve KYC</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={Boolean(actionLoadingId)}
+                        onClick={() => handleAction('unverify_kyc', user.id)}
+                        className="min-h-[40px] px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-400 border border-amber-500/30 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                      >
+                        {actionLoadingId === `unverify_kyc-${user.id}` ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <ShieldAlert className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        )}
+                        <span>Unverify</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={Boolean(actionLoadingId)}
+                      onClick={() =>
+                        handleAction(
+                          'grant_subscription',
+                          user.id,
+                          { tier: currentTier === 'gold' ? 'diamond' : 'gold' }
+                        )
+                      }
+                      className="min-h-[40px] px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/30 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                    >
+                      {actionLoadingId === `grant_subscription-${user.id}` ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Crown className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                      )}
+                      <span>{currentTier === 'gold' ? '+ Diamond' : '+ Gold'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={Boolean(actionLoadingId) || currentTier === 'free'}
+                      onClick={() => handleAction('set_free', user.id, { tier: 'free' })}
+                      className="min-h-[40px] px-3 py-1.5 text-xs font-semibold rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                    >
+                      {actionLoadingId === `set_free-${user.id}` ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <ArrowDownCircle className="w-3.5 h-3.5 text-zinc-500" />
+                      )}
+                      <span>Set Free</span>
+                    </button>
+
+                    {isBanned ? (
+                      <button
+                        type="button"
+                        disabled={Boolean(actionLoadingId)}
+                        onClick={() => handleAction('unban_user', user.id)}
+                        className="min-h-[40px] px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                      >
+                        {actionLoadingId === `unban_user-${user.id}` ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        )}
+                        <span>Unban</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={Boolean(actionLoadingId) || user.is_admin}
+                        onClick={() => {
+                          if (window.confirm(`Suspend user ${user.full_name || user.id}?`)) {
+                            handleAction('ban_user', user.id);
+                          }
+                        }}
+                        className="min-h-[40px] px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                      >
+                        {actionLoadingId === `ban_user-${user.id}` ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <UserX className="w-3.5 h-3.5 text-red-600" />
+                        )}
+                        <span>Ban User</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

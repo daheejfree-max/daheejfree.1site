@@ -390,10 +390,17 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Left: Brand Logo */}
-          <div className="flex items-center">
+          <div className="flex items-center shrink-0">
+            <Logo
+              size="sm"
+              showSubtitle={false}
+              className="sm:hidden"
+              onClick={() => handleNavClick(currentProfile ? (isNavigationLocked ? 'onboarding' : 'matches') : 'landing')}
+            />
             <Logo
               size="md"
               showSubtitle={true}
+              className="hidden sm:flex"
               onClick={() => handleNavClick(currentProfile ? (isNavigationLocked ? 'onboarding' : 'matches') : 'landing')}
             />
           </div>

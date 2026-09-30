@@ -491,24 +491,25 @@ export default function AdminBot() {
           <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
             <Bot className="w-4 h-4" />
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             <span className="text-xs sm:text-sm font-semibold text-zinc-100 flex items-center gap-1.5">
               <span>🤖</span>
-              <span>DaheejFree Autonomous Developer Agent</span>
+              <span className="hidden sm:inline">DaheejFree Autonomous Developer Agent</span>
+              <span className="inline sm:hidden">DaheejFree Agent</span>
             </span>
 
             {envStatus?.githubConfigured ? (
-              <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+              <span className="flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span>GitHub Commits Active</span>
+                <span>GitHub Active</span>
               </span>
             ) : (
               <span
                 title="Agent is active in code analysis mode. Add GITHUB_PAT, GITHUB_OWNER, and GITHUB_REPO to Vercel env for autonomous commits."
-                className="flex items-center gap-1 text-[11px] font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full cursor-help"
+                className="flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full shrink-0 cursor-help"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                <span>Live Advisor Mode</span>
+                <span>Live Advisor</span>
               </span>
             )}
           </div>
@@ -531,7 +532,7 @@ export default function AdminBot() {
             <p className="font-sans text-xs text-zinc-400 font-medium">
               Autonomous developer agent ready to inspect code, debug Didit KYC, and draft updates.
             </p>
-            <div className="flex flex-wrap justify-center gap-2 pt-1 font-sans">
+            <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-1.5 sm:gap-2 pt-1 font-sans w-full max-w-sm sm:max-w-none">
               <button
                 type="button"
                 onClick={() => {
@@ -541,7 +542,7 @@ export default function AdminBot() {
                     setLocalInput('How do I fix Didit KYC verification issues?');
                   }
                 }}
-                className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-md text-[11px] text-zinc-300 transition-colors"
+                className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-md text-[11px] text-zinc-300 transition-colors text-center"
               >
                 💡 &ldquo;How do I fix Didit KYC issues?&rdquo;
               </button>
@@ -554,7 +555,7 @@ export default function AdminBot() {
                     setLocalInput('Inspect src/app/api/kyc/create-session/route.ts');
                   }
                 }}
-                className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-md text-[11px] text-zinc-300 transition-colors"
+                className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-md text-[11px] text-zinc-300 transition-colors text-center"
               >
                 🔍 &ldquo;Inspect KYC create-session route&rdquo;
               </button>
@@ -650,9 +651,9 @@ export default function AdminBot() {
             type="text"
             value={input}
             onChange={handleInputChange}
-            placeholder={isStreaming ? "Agent is working..." : "Command autonomous developer agent (e.g. Inspect code or fix Didit)..."}
+            placeholder={isStreaming ? "Agent is working..." : "Command developer agent (e.g. Inspect code)..."}
             readOnly={isStreaming}
-            className="bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-500 w-full p-3 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-none text-xs sm:text-sm read-only:opacity-75"
+            className="bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-500 w-full p-2.5 sm:p-3 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-none text-base sm:text-sm read-only:opacity-75"
           />
           <button
             type="submit"
