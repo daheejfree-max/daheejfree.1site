@@ -23,6 +23,30 @@
 
     <script src="https://checkout.razorpay.com/v1/checkout.js" async crossorigin="anonymous"></script>
     <script>
+      // Suppress Vite HMR WebSocket connection logs in AI Studio preview environment
+      (function () {
+        try {
+          var origWarn = console.warn;
+          var origError = console.error;
+          var origLog = console.log;
+          function isViteHmr(arg) {
+            return typeof arg === 'string' && (arg.indexOf('[vite]') !== -1 || arg.indexOf('WebSocket') !== -1);
+          }
+          console.warn = function () {
+            if (arguments[0] && isViteHmr(arguments[0])) return;
+            return origWarn.apply(console, arguments);
+          };
+          console.error = function () {
+            if (arguments[0] && isViteHmr(arguments[0])) return;
+            return origError.apply(console, arguments);
+          };
+          console.log = function () {
+            if (arguments[0] && isViteHmr(arguments[0])) return;
+            return origLog.apply(console, arguments);
+          };
+        } catch (e) {}
+      })();
+
       // Safeguard window.fetch against packages that attempt property assignment on read-only getter
       (function () {
         try {
