@@ -85,7 +85,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       aria-label="Mobile Navigation"
       className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border-t border-zinc-200/90 dark:border-zinc-800/90 px-2 py-1 pb-safe shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.4)] transition-colors"
     >
-      <div className="flex items-center justify-around max-w-md mx-auto h-14">
+      <div className={`grid ${isAdmin ? 'grid-cols-6' : 'grid-cols-5'} items-center max-w-lg mx-auto h-14`}>
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -94,7 +94,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               id={`bottom-nav-${item.id}`}
               type="button"
               onClick={() => onNavigate(item.id)}
-              className={`relative flex flex-col items-center justify-center min-h-[48px] min-w-[48px] px-2 rounded-xl transition-all duration-150 cursor-pointer active:scale-95 ${
+              className={`relative flex flex-col items-center justify-center min-h-[44px] w-full px-0.5 sm:px-1 rounded-xl transition-all duration-150 cursor-pointer active:scale-95 touch-manipulation select-none ${
                 item.isActive
                   ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                   : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
@@ -116,7 +116,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   </span>
                 )}
               </div>
-              <span className="text-[10px] tracking-tight mt-1 truncate max-w-[64px] font-medium">
+              <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-full font-medium">
                 {item.label}
               </span>
               {item.isActive && (
@@ -133,14 +133,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             type="button"
             onClick={() => onNavigate('admin')}
             title="Admin Console"
-            className={`relative flex flex-col items-center justify-center min-h-[48px] min-w-[48px] px-2 rounded-xl transition-all duration-150 cursor-pointer active:scale-95 ${
+            className={`relative flex flex-col items-center justify-center min-h-[44px] w-full px-0.5 sm:px-1 rounded-xl transition-all duration-150 cursor-pointer active:scale-95 touch-manipulation select-none ${
               currentTab === 'admin'
                 ? 'text-emerald-500 font-bold'
                 : 'text-zinc-400 hover:text-emerald-400'
             }`}
           >
             <Shield className="w-4 h-4 text-emerald-400" />
-            <span className="text-[9px] mt-1 font-semibold text-emerald-500/90">Admin</span>
+            <span className="text-[9px] mt-0.5 font-semibold text-emerald-500/90 truncate max-w-full">Admin</span>
           </button>
         )}
       </div>

@@ -378,8 +378,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       <header className={`sticky top-0 z-50 w-full transition-colors duration-200 border-b bg-white/90 backdrop-blur-md border-zinc-200 text-zinc-900 dark:bg-zinc-950/90 dark:backdrop-blur-md dark:border-zinc-800 dark:text-zinc-100 min-h-[44px] shrink-0 shadow-xs ${hideMobileNav ? '!hidden md:!block' : ''}`}>
-      {/* 1. Solemn Islamic Anti-Dowry Pledge Banner */}
-      <div className="bg-emerald-800 text-emerald-50 text-xs font-medium py-1.5 px-4 text-center tracking-wide dark:bg-emerald-950 dark:text-emerald-300 dark:border-b dark:border-emerald-900/50 flex items-center justify-center gap-2 shadow-xs">
+      {/* 1. Solemn Islamic Anti-Dowry Pledge Banner (Desktop only to respect 15% mobile sticky budget) */}
+      <div className="hidden sm:flex bg-emerald-800 text-emerald-50 text-xs font-medium py-1.5 px-4 text-center tracking-wide dark:bg-emerald-950 dark:text-emerald-300 dark:border-b dark:border-emerald-900/50 items-center justify-center gap-2 shadow-xs">
         <Shield className="w-3.5 h-3.5 text-emerald-200 flex-shrink-0" />
         <span className="truncate max-w-2xl sm:max-w-none">
           <strong>Solemn Islamic Anti-Dowry Pledge:</strong> 100% Dowry-Free (Bila-Daheej) Nikah Platform. No demands, zero extortion, pure Sunnah simplicity.
@@ -387,8 +387,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* 2. Main Navigation Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Left: Brand Logo */}
           <div className="flex items-center shrink-0">
             <Logo
@@ -680,7 +680,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setMobileMenuOpen(!mobileMenuOpen);
                 }
               }}
-              className="md:hidden relative p-2 rounded-full border border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors cursor-pointer flex items-center justify-center"
+              className="md:hidden relative p-2 min-h-[44px] min-w-[44px] rounded-full border border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors cursor-pointer flex items-center justify-center shrink-0"
               aria-label={currentProfile ? "Toggle profile menu" : "Toggle navigation menu"}
             >
               {currentProfile?.avatar_url ? (

@@ -1493,7 +1493,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search candidates by name, city..."
-                className="w-full min-h-[44px] bg-white dark:bg-zinc-900 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 pl-9 pr-3 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-800 focus:outline-none focus:border-emerald-500 transition-colors"
+                className="w-full min-h-[44px] bg-white dark:bg-zinc-900 text-base sm:text-sm text-zinc-900 dark:text-zinc-100 pl-9 pr-3 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-800 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
           </div>
@@ -2202,7 +2202,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                       if (moderationWarning) setModerationWarning(null);
                     }}
                     placeholder={`Message ${selectedPartner.full_name} respectfully...`}
-                    className="flex-1 min-h-[44px] bg-zinc-50 dark:bg-zinc-900 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 px-4 py-2.5 rounded-2xl border border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors shadow-inner"
+                    className="flex-1 min-h-[44px] bg-zinc-50 dark:bg-zinc-900 text-base sm:text-sm text-zinc-900 dark:text-zinc-100 px-4 py-2.5 rounded-2xl border border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors shadow-inner"
                   />
 
                   <button

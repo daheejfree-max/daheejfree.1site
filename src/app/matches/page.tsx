@@ -242,7 +242,7 @@ export default function MatchesPage({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by name, profession, city, sect..."
-              className="w-full bg-white dark:bg-zinc-900 rounded-full shadow-sm border border-zinc-200 dark:border-zinc-800 pl-12 pr-6 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+              className="w-full bg-white dark:bg-zinc-900 rounded-full shadow-sm border border-zinc-200 dark:border-zinc-800 pl-12 pr-6 py-3 text-base sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
             />
           </div>
 
@@ -252,7 +252,7 @@ export default function MatchesPage({
               <button
                 type="button"
                 onClick={() => setGenderFilter('all')}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap snap-start ${
+                className={`min-h-[38px] px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap snap-start flex items-center justify-center ${
                   genderFilter === 'all'
                     ? 'bg-emerald-600 text-white shadow-sm font-bold'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -263,7 +263,7 @@ export default function MatchesPage({
               <button
                 type="button"
                 onClick={() => setGenderFilter('female')}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap snap-start ${
+                className={`min-h-[38px] px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap snap-start flex items-center justify-center ${
                   genderFilter === 'female'
                     ? 'bg-emerald-600 text-white shadow-sm font-bold'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -274,7 +274,7 @@ export default function MatchesPage({
               <button
                 type="button"
                 onClick={() => setGenderFilter('male')}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap snap-start ${
+                className={`min-h-[38px] px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap snap-start flex items-center justify-center ${
                   genderFilter === 'male'
                     ? 'bg-emerald-600 text-white shadow-sm font-bold'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -287,7 +287,7 @@ export default function MatchesPage({
             <button
               type="button"
               onClick={() => setKycOnly(!kycOnly)}
-              className={`px-4 py-2.5 rounded-full text-xs font-semibold border flex items-center gap-2 transition-all cursor-pointer shrink-0 snap-start whitespace-nowrap shadow-xs ${
+              className={`min-h-[44px] px-4 py-2 rounded-full text-xs font-semibold border flex items-center gap-2 transition-all cursor-pointer shrink-0 snap-start whitespace-nowrap shadow-xs ${
                 kycOnly
                   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-bold'
                   : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200'

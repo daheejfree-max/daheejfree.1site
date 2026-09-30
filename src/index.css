@@ -42,10 +42,11 @@
 html {
   min-height: 100%;
   min-height: 100dvh;
-  height: 100%;
   background-color: #fafafa;
   color: #18181b;
   overflow-x: hidden;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 html.dark {
@@ -56,11 +57,10 @@ html.dark {
 body {
   min-height: 100%;
   min-height: 100dvh;
-  height: 100%;
-  overscroll-behavior-y: none;
   background-color: inherit;
   color: inherit;
   overflow-x: hidden;
+  touch-action: manipulation;
 }
 
 /* Mobile Safe Area Utility Classes */

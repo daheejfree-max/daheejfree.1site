@@ -164,8 +164,13 @@ export default function AdminBot() {
     e?.preventDefault?.();
     if (!input || !input.trim()) return;
 
-    // Snapshot page scroll position to prevent browser focus jumping
+    // Snapshot current window scroll position before submission
     const scrollPos = typeof window !== 'undefined' ? window.scrollY : 0;
+
+    // Safely blur active element to prevent mobile browsers from ejecting focus down the DOM
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
 
     if (error && typeof clearError === 'function') {
       clearError();
@@ -181,9 +186,15 @@ export default function AdminBot() {
     } catch (submitErr) {
       console.error('[AdminBot Submit Handler Exception]:', submitErr);
     } finally {
-      // Ensure the browser viewport remains perfectly stable at the user's current scroll position
-      if (typeof window !== 'undefined' && window.scrollY !== scrollPos) {
+      // Ensure the browser window scroll position remains locked where user is reading
+      if (typeof window !== 'undefined') {
         window.scrollTo({ top: scrollPos, behavior: 'instant' as any });
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: scrollPos, behavior: 'instant' as any });
+        });
+        setTimeout(() => {
+          window.scrollTo({ top: scrollPos, behavior: 'instant' as any });
+        }, 50);
       }
     }
   };
@@ -657,8 +668,11 @@ export default function AdminBot() {
           />
           <button
             type="submit"
-            disabled={isStreaming || !input.trim()}
-            className="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-medium text-xs sm:text-sm rounded-lg transition-colors flex items-center gap-1.5 shrink-0 shadow-sm"
+            disabled={!input.trim()}
+            aria-busy={isStreaming}
+            className={`min-h-[44px] px-4 py-2.5 sm:py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs sm:text-sm rounded-lg transition-colors flex items-center gap-1.5 shrink-0 shadow-sm disabled:bg-zinc-800 disabled:text-zinc-600 cursor-pointer ${
+              isStreaming ? 'pointer-events-none opacity-80' : ''
+            }`}
           >
             {isStreaming ? (
               <Loader2 className="w-4 h-4 animate-spin" />
