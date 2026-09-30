@@ -5,8 +5,9 @@
 // ==============================================================================
 
 import React from 'react';
-import { Shield, Heart, Scale, Lock, FileText, ShieldAlert, CheckCircle2, Globe } from 'lucide-react';
+import { Shield, Heart, Scale, Lock, FileText, ShieldAlert, CheckCircle2, Globe, Smartphone } from 'lucide-react';
 import { LanguageSelector } from '../common/LanguageSelector';
+import { PWAInstallButton } from '../pwa/PWAInstallButton';
 
 interface FooterProps {
   onNavigate?: (tab: string) => void;
@@ -134,6 +135,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   <span>Anti-Dowry Registry</span>
                 </a>
               </li>
+              <li className="pt-2">
+                <PWAInstallButton variant="badge" />
+              </li>
             </ul>
           </div>
         </div>
@@ -150,12 +154,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500 flex items-center gap-1 font-medium">
-              <Globe className="w-3.5 h-3.5 text-emerald-500" />
-              Language:
-            </span>
-            <LanguageSelector direction="up" variant="compact" />
+          <div className="flex items-center gap-3">
+            <PWAInstallButton variant="navbar" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500 flex items-center gap-1 font-medium">
+                <Globe className="w-3.5 h-3.5 text-emerald-500" />
+                Language:
+              </span>
+              <LanguageSelector direction="up" variant="compact" />
+            </div>
           </div>
         </div>
       </div>

@@ -69,6 +69,8 @@ import { sendCallInvite } from './lib/callSignaling';
 import { HardKYCGate } from './components/kyc/HardKYCGate';
 import { OnboardingGuard, hasAcceptedLegalConsent } from './components/auth/OnboardingGuard';
 import { GoogleTranslateBridge } from './components/common/GoogleTranslateBridge';
+import { OfflineIndicator } from './components/pwa/OfflineIndicator';
+import { PWAInstallBanner } from './components/pwa/PWAInstallBanner';
 import { ProfileSecureView, SubscriptionTier } from './types';
 import { daheejStore } from './lib/supabase/store';
 import { supabase } from './lib/supabase/client';
@@ -1032,6 +1034,11 @@ export default function App() {
             !currentProfile.wali_phone)
         )}
       />
+      {/* PWA Floating Install Banner (Suppresses when installed or dismissed) */}
+      {currentTab !== 'call' && <PWAInstallBanner />}
+
+      {/* Network Connectivity Offline Indicator */}
+      <OfflineIndicator />
     </div>
   );
 }

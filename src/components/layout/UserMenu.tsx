@@ -26,6 +26,7 @@ import { Logo } from '../brand/Logo';
 import { supabase } from '../../lib/supabase/client';
 import { signOutSupabase } from '../../lib/supabase/auth';
 import { daheejStore } from '../../lib/supabase/store';
+import { PWAInstallButton } from '../pwa/PWAInstallButton';
 
 export interface UserMenuProps {
   isOpen: boolean;
@@ -280,6 +281,11 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             <Shield className="w-5 h-5 md:w-4 md:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>Anti-Dowry Registry Certificate</span>
           </button>
+        </div>
+
+        {/* PWA Application Install Option */}
+        <div className="pt-2 mt-2 border-t border-zinc-200 dark:border-zinc-800">
+          <PWAInstallButton variant="menu" onInstalled={onClose} />
         </div>
 
         {/* Admin God Mode (Strictly guarded by database verified status) */}

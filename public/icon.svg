@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="50%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#065f46" />
+    </linearGradient>
+    <linearGradient id="starGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="50%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background with rounded squircle geometry -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGradient)" />
+
+  <!-- Outer Islamic geometric border circle -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#10b981" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="8 8" />
+  <circle cx="256" cy="256" r="195" fill="none" stroke="#34d399" stroke-width="2" stroke-opacity="0.25" />
+
+  <!-- Subtle glow backdrop -->
+  <circle cx="256" cy="240" r="140" fill="#10b981" opacity="0.15" filter="url(#glow)" />
+
+  <!-- Central Star of Dignity & Sunnah (5-point star from DaheejFree logo) -->
+  <path d="M256 95 L298 198 L409 208 L325 282 L350 391 L256 334 L162 391 L187 282 L103 208 L214 198 Z" 
+        fill="url(#starGradient)" 
+        stroke="#6ee7b7" 
+        stroke-width="8" 
+        stroke-linejoin="round"
+        filter="url(#glow)" />
+
+  <!-- Inner Golden Crescent Accent (Zero Dowry / Prophetic Blessing) -->
+  <path d="M256 160 C210 160 175 198 175 244 C175 290 210 328 256 328 C280 328 301 318 316 302 C286 312 248 296 248 244 C248 196 284 174 316 186 C301 170 280 160 256 160 Z"
+        fill="url(#accentGradient)"
+        opacity="0.95" />
+
+  <!-- Shield of Protection (Privacy & Wali Governance) -->
+  <path d="M256 350 L275 375 C265 385 256 390 256 390 C256 390 247 385 237 375 Z"
+        fill="#34d399" />
+</svg>

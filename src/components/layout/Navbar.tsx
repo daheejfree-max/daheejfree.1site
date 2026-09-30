@@ -38,6 +38,7 @@ import { signOutSupabase } from '../../lib/supabase/auth';
 import { supabase } from '../../lib/supabase/client';
 import { daheejStore } from '../../lib/supabase/store';
 import { NotificationsBell } from '../notifications/NotificationsBell';
+import { PWAInstallButton } from '../pwa/PWAInstallButton';
 
 interface NavbarProps {
   currentTab: string;
@@ -557,6 +558,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
+            {/* Desktop PWA App Install Button */}
+            <div className="hidden md:block">
+              <PWAInstallButton variant="navbar" />
+            </div>
+
             {/* Desktop Theme Toggle */}
             <div className="hidden sm:block">
               <ThemeToggle />
@@ -567,8 +573,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               <LanguageSelector />
             </div>
 
-            {/* Mobile Quick Action Buttons (Lang & Theme) */}
+            {/* Mobile Quick Action Buttons (PWA Install, Lang & Theme) */}
             <div className="flex sm:hidden items-center gap-1.5">
+              {/* Mobile Quick PWA Install Button */}
+              <PWAInstallButton variant="compact" />
+
               {/* Mobile Quick Language Button */}
               <button
                 type="button"
@@ -806,6 +815,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Install App Card in Mobile Drawer */}
+              <div className="px-3 pt-3">
+                <PWAInstallButton variant="menu" onInstalled={() => setMobileMenuOpen(false)} />
+              </div>
 
               {/* Navigation Links Sections */}
               <div className="p-3 space-y-4">
