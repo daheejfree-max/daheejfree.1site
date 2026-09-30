@@ -99,11 +99,14 @@ export async function initiateRazorpayCheckout(
 
     // 2. Server-to-Server Order Creation
     // Calls secure POST /api/payments/create-order route
+    const amountInPaise = billingCycle === 'yearly' ? 479000 : 49900;
     const orderRes = await fetch('/api/payments/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         tier,
+        amount: amountInPaise,
+        interval: billingCycle,
         billingCycle,
         profileId,
         currency: 'INR',

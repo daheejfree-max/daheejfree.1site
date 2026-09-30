@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import { notifyMatchProposalReceived } from './src/lib/email';
+import { POST as createOrderRouteHandler } from './src/app/api/payments/create-order/route';
 
 dotenv.config();
 
@@ -585,155 +586,17 @@ app.get(PAYMENT_CREATE_ROUTES, async (req, res) => {
 app.post(PAYMENT_CREATE_ROUTES, async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   try {
-    const { tier = 'gold', profileId: pId, userId, user_id, billingCycle = 'monthly', currency = 'INR' } = req.body || {};
-    const profileId = pId || userId || user_id;
-
-    if (!tier || !profileId) {
-      return res.status(400).json({ success: false, error: 'Missing required parameters: tier or profileId' });
-    }
-
-    const TIER_PRICING: Record<string, { amountPaise: number; name: string }> = {
-      free: { amountPaise: 0, name: 'Free Sunnah Plan' },
-      gold: { amountPaise: 49900, name: 'Gold Matrimonial' },
-      platinum: { amountPaise: 79900, name: 'Platinum Matrimonial' },
-      diamond: { amountPaise: 99900, name: 'Diamond Wali Access' },
-    };
-
-    const planConfig = TIER_PRICING[tier.toLowerCase()] || TIER_PRICING.gold;
-
-    if (tier.toLowerCase() === 'free' || planConfig.amountPaise === 0) {
-      const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-      if (supabaseUrl && serviceRoleKey) {
-        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-        await supabaseAdmin
-          .from('profiles')
-          .update({
-            subscription_tier: 'free',
-            subscription_status: 'active',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', profileId);
-      }
-      return res.json({ success: true, tier: 'free', isFree: true });
-    }
-
-    const rawKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || '';
-    const rawKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
-
-    const keyId = rawKeyId.trim().replace(/^["']|["']$/g, '');
-    const keySecret = rawKeySecret.trim().replace(/^["']|["']$/g, '');
-
-    const isTestKey = keyId.startsWith('rzp_test_');
-
-    if (!keyId || !keySecret) {
-      console.warn('[Razorpay Order] API credentials not set. Falling back to test-mode order.');
-      const mockOrderId = `order_sim_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      return res.json({
-        success: true,
-        order_id: mockOrderId,
-        orderId: mockOrderId,
-        id: mockOrderId,
-        amount: planConfig.amountPaise,
-        currency: currency || 'INR',
-        key_id: keyId || 'rzp_test_fallback',
-        keyId: keyId || 'rzp_test_fallback',
-        tier,
-        isSimulated: true,
-      });
-    }
-
-    const authHeader = `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString('base64')}`;
-    const orderPayload = {
-      amount: planConfig.amountPaise,
-      currency: currency || 'INR',
-      receipt: `rcpt_${String(profileId).slice(0, 8)}_${Date.now()}`,
-      notes: {
-        profile_id: profileId,
-        user_id: profileId,
-        supabase_id: profileId,
-        tier: tier.toLowerCase(),
-        billing_cycle: billingCycle,
+    const fullUrl = `http://localhost:${PORT}${req.originalUrl || req.url}`;
+    const webReq = new Request(fullUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    };
-
-    let rzpResponse: any = null;
-    try {
-      rzpResponse = await fetch('https://api.razorpay.com/v1/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: authHeader,
-        },
-        body: JSON.stringify(orderPayload),
-      });
-    } catch (fetchErr) {
-      console.warn('[Razorpay Upstream Network Error]:', fetchErr);
-    }
-
-    if (!rzpResponse || !rzpResponse.ok) {
-      let errText = '';
-      try {
-        errText = rzpResponse ? await rzpResponse.text() : 'Network unreachable';
-      } catch {
-        errText = 'Upstream Razorpay error';
-      }
-
-      console.warn(`[Razorpay Order API] Upstream returned status ${rzpResponse?.status}: ${errText}`);
-      const isAuthError = rzpResponse?.status === 401 || errText.includes('Authentication failed');
-
-      if (isAuthError || isTestKey) {
-        console.info('[Razorpay Order API] Activating test-mode order fallback for test environment.');
-        const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-        if (supabaseUrl && serviceRoleKey) {
-          const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-          await supabaseAdmin
-            .from('profiles')
-            .update({
-              subscription_tier: tier.toLowerCase(),
-              subscription_status: 'active',
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', profileId);
-        }
-
-        const mockOrderId = `order_sim_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        return res.json({
-          success: true,
-          order_id: mockOrderId,
-          orderId: mockOrderId,
-          id: mockOrderId,
-          amount: planConfig.amountPaise,
-          currency: currency || 'INR',
-          key_id: keyId,
-          keyId,
-          tier,
-          isSimulated: true,
-          notice: 'Razorpay test mode order activated.',
-        });
-      }
-
-      return res.status(502).json({ success: false, error: `Razorpay order creation failed: ${errText}` });
-    }
-
-    let orderData: Record<string, string> = {};
-    try {
-      orderData = await rzpResponse.json();
-    } catch {
-      return res.status(502).json({ success: false, error: 'Razorpay returned invalid JSON response' });
-    }
-    return res.json({
-      success: true,
-      order_id: orderData.id,
-      orderId: orderData.id,
-      id: orderData.id,
-      amount: orderData.amount,
-      currency: orderData.currency,
-      key_id: keyId,
-      keyId,
-      tier,
+      body: JSON.stringify(req.body || {}),
     });
+    const webRes = await createOrderRouteHandler(webReq);
+    const data = await webRes.json().catch(() => ({}));
+    return res.status(webRes.status).json(data);
   } catch (error) {
     console.error('[Razorpay Order Creation] Exception:', error);
     res.status(500).json({ success: false, error: (error as Error)?.message || 'Failed to initialize Razorpay checkout' });

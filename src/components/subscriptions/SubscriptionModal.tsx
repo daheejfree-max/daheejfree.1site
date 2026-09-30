@@ -97,15 +97,27 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     setLoadingTier(tier);
 
     try {
+      // Calculate exact plan pricing
+      const planConfig = SUBSCRIPTION_PLANS[tier];
+      const planAmount =
+        billingCycle === 'yearly' && planConfig?.priceINR > 0
+          ? Math.round(planConfig.priceINR * 9.6)
+          : (planConfig?.priceINR || 0);
+      const amount = planAmount * 100;
+      const interval = billingCycle;
+
       // 1. Fetch server-generated order from /api/payments/create-order
+      // Passes required payload: { tier, amount, interval }
       const orderRes = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tier,
+          amount,
+          interval,
           billingCycle,
-          profileId: currentProfile.id,
-          userId: currentProfile.id,
+          profileId: currentProfile?.id || '',
+          userId: currentProfile?.id || '',
           currency: 'INR',
         }),
       });
@@ -405,6 +417,9 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                 <button
                   type="button"
                   id={`btn-plan-${t}`}
+                  data-action="select-plan"
+                  data-testid={`select-plan-${t}`}
+                  aria-label={isCurrent ? 'Current Plan' : isIncluded ? 'Included in Your Plan' : `Select Plan ${plan.name}`}
                   onClick={() => handleSelectPlan(t)}
                   disabled={isButtonDisabled}
                   className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
