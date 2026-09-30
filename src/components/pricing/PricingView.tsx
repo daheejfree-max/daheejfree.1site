@@ -47,10 +47,41 @@ export const PricingView: React.FC<PricingViewProps> = ({
   // Filter to strict 3 tiers
   const visibleTiers: SubscriptionTier[] = ['free', 'gold', 'diamond'];
 
+  // Canonical Tier Hierarchy (Level 0: free, Level 1: gold, Level 2: diamond)
+  const TIER_LEVELS: Record<string, number> = {
+    free: 0,
+    gold: 1,
+    platinum: 2,
+    diamond: 2,
+  };
+
+  const userTier = (currentProfile?.subscription_tier || currentTier || 'free').toLowerCase();
+  const userLevel = TIER_LEVELS[userTier] ?? 0;
+
   const handleUpgrade = async (tierName: SubscriptionTier) => {
     if (!currentProfile) {
       if (onNavigateRegister) {
         onNavigateRegister();
+      }
+      return;
+    }
+
+    const planLevel = TIER_LEVELS[tierName] ?? 0;
+
+    // Block plan degradation
+    if (planLevel < userLevel) {
+      setErrorMessage('Plan downgrade is not permitted. Your current plan includes all these features.');
+      return;
+    }
+
+    if (planLevel === userLevel) {
+      return;
+    }
+
+    // For Free Sunnah card, completely prevent opening a checkout session
+    if (tierName === 'free') {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('navigate-tab', { detail: 'profile' }));
       }
       return;
     }
@@ -60,7 +91,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
     setErrorMessage(null);
 
     // Razorpay Flow (Server-to-Server order creation & client modal trigger)
-    if (paymentGateway === 'razorpay' && tierName !== 'free') {
+    if (paymentGateway === 'razorpay') {
       const res = await initiateRazorpayCheckout({
         tier: tierName,
         billingCycle,
@@ -89,7 +120,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       return;
     }
 
-    // Fallback or explicit Dodo / Free Tier Flow
+    // Fallback or explicit Dodo Flow
     const res = await initiateDodoCheckout({
       tier: tierName,
       billingCycle,
@@ -103,11 +134,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
     if (res.success) {
       if (!res.checkoutUrl) {
         onSubscriptionUpdated();
-        setSuccessMessage(
-          tierName === 'free'
-            ? 'Plan successfully switched to Free Basic.'
-            : `Alhamdulillah! Subscription upgraded to ${SUBSCRIPTION_PLANS[tierName].name}.`
-        );
+        setSuccessMessage(`Alhamdulillah! Subscription upgraded to ${SUBSCRIPTION_PLANS[tierName].name}.`);
         try {
           confetti({
             particleCount: 100,
@@ -214,10 +241,14 @@ export const PricingView: React.FC<PricingViewProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {visibleTiers.map((t) => {
           const plan = SUBSCRIPTION_PLANS[t];
-          const isCurrent = Boolean(currentProfile) && (currentTier === t || (t === 'diamond' && currentTier === 'platinum'));
+          const planLevel = TIER_LEVELS[t] ?? 0;
+          const isCurrent = Boolean(currentProfile) && (planLevel === userLevel);
+          const isIncluded = Boolean(currentProfile) && (planLevel < userLevel);
+          const isUpgrade = !currentProfile || (planLevel > userLevel);
           const isDiamond = t === 'diamond';
           const isGold = t === 'gold';
           const isLoading = loadingTier === t;
+          const isButtonDisabled = isCurrent || isIncluded || isLoading;
 
           const price =
             billingCycle === 'yearly' && plan.priceINR > 0
@@ -324,16 +355,18 @@ export const PricingView: React.FC<PricingViewProps> = ({
               {/* Action Button */}
               <div>
                 <button
+                  type="button"
+                  id={`btn-pricing-plan-${t}`}
                   onClick={() => handleUpgrade(t)}
-                  disabled={isCurrent || isLoading}
-                  className={`w-full py-3.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                    isCurrent
+                  disabled={isButtonDisabled}
+                  className={`w-full py-3.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                    isButtonDisabled
                       ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed border border-zinc-200 dark:border-zinc-700'
                       : isDiamond
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 hover:scale-[1.01]'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 hover:scale-[1.01] cursor-pointer'
                       : isGold
-                      ? 'bg-amber-500 hover:bg-amber-600 text-zinc-950 font-extrabold shadow-md hover:scale-[1.01]'
-                      : 'bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-100 text-white dark:text-zinc-900 shadow-sm'
+                      ? 'bg-amber-500 hover:bg-amber-600 text-zinc-950 font-extrabold shadow-md hover:scale-[1.01] cursor-pointer'
+                      : 'bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-100 text-white dark:text-zinc-900 shadow-sm cursor-pointer'
                   }`}
                 >
                   {isLoading ? (
@@ -341,17 +374,20 @@ export const PricingView: React.FC<PricingViewProps> = ({
                   ) : isCurrent ? (
                     <span className="flex items-center gap-1.5">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-                      Active Plan
+                      Current Plan
+                    </span>
+                  ) : isIncluded ? (
+                    <span className="flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-zinc-400" />
+                      Included in Your Plan
                     </span>
                   ) : (
-                    <span>
-                      {t === 'free' ? 'Switch to Free' : `Upgrade to ${plan.name}`}
-                    </span>
+                    <span>Upgrade Plan</span>
                   )}
                 </button>
                 <div className="flex items-center justify-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500 mt-2.5">
                   <CreditCard className="w-3 h-3" />
-                  <span>Secure checkout via Dodo Payments</span>
+                  <span>Secure checkout via Razorpay</span>
                 </div>
               </div>
             </div>

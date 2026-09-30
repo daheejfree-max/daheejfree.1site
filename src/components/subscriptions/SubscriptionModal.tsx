@@ -1,8 +1,9 @@
 'use client';
 
 // ==============================================================================
-// 3-TIER SUBSCRIPTION MODAL WITH DODO PAYMENTS (PRODUCTION MODE)
-// Strictly 3 Tiers: Free (Upgraded), Gold, and Diamond
+// 3-TIER SUBSCRIPTION MODAL (DAHEEJFREE MATRIMONIAL PLATFORM)
+// Strictly 3 Tiers: Free (Sunnah Base), Gold, and Diamond
+// Strictly Prevents Plan Degradation & Uses /api/payments/create-order Endpoint
 // ==============================================================================
 
 import React, { useState } from 'react';
@@ -15,10 +16,14 @@ import {
   CreditCard,
   CheckCircle,
   AlertCircle,
+  Lock,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { SubscriptionTier, BillingCycle, Profile } from '../../types';
-import { SUBSCRIPTION_PLANS, initiateDodoCheckout } from '../../lib/dodoPayments';
+import { SUBSCRIPTION_PLANS } from '../../lib/dodoPayments';
+import { loadRazorpayScript } from '../../lib/razorpay';
+import { daheejStore } from '../../lib/supabase/store';
+import { supabase } from '../../lib/supabase/client';
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -26,7 +31,16 @@ interface SubscriptionModalProps {
   currentTier: SubscriptionTier;
   currentProfile: Profile | null;
   onSubscriptionUpdated: () => void;
+  onNavigate?: (tab: string) => void;
 }
+
+// Canonical Tier Hierarchy (Level 0: free, Level 1: gold, Level 2: diamond)
+export const TIER_LEVELS: Record<string, number> = {
+  free: 0,
+  gold: 1,
+  platinum: 2, // Alias for diamond tier
+  diamond: 2,
+};
 
 export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   isOpen,
@@ -34,6 +48,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   currentTier,
   currentProfile,
   onSubscriptionUpdated,
+  onNavigate,
 }) => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [loadingTier, setLoadingTier] = useState<SubscriptionTier | null>(null);
@@ -44,44 +59,185 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
   const visibleTiers: SubscriptionTier[] = ['free', 'gold', 'diamond'];
 
+  // Read current user's profile state to determine exact tier level
+  const userTier = (currentProfile?.subscription_tier || currentTier || 'free').toLowerCase();
+  const userLevel = TIER_LEVELS[userTier] ?? 0;
+
   const handleSelectPlan = async (tier: SubscriptionTier) => {
     if (!currentProfile) return;
-    setLoadingTier(tier);
+
     setSuccessMessage(null);
     setErrorMessage(null);
 
-    const res = await initiateDodoCheckout({
-      tier,
-      billingCycle,
-      profileId: currentProfile.id,
-      customerEmail: currentProfile.wali_email || undefined,
-      customerName: currentProfile.full_name,
-    });
+    const planLevel = TIER_LEVELS[tier] ?? 0;
 
-    setLoadingTier(null);
+    // Block plan degradation / downgrades
+    if (planLevel < userLevel) {
+      setErrorMessage('Plan downgrade is not permitted. Your current plan includes all these features.');
+      return;
+    }
 
-    if (res.success) {
-      if (!res.checkoutUrl) {
+    if (planLevel === userLevel) {
+      return; // Already on current plan
+    }
+
+    // For the "Free Sunnah" card, completely prevent opening a checkout session;
+    // free accounts should only redirect to profile completion.
+    if (tier === 'free') {
+      onClose();
+      if (onNavigate) {
+        onNavigate('profile');
+      } else if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('navigate-tab', { detail: 'profile' }));
+        window.location.hash = '#profile';
+      }
+      return;
+    }
+
+    setLoadingTier(tier);
+
+    try {
+      // 1. Fetch server-generated order from /api/payments/create-order
+      const orderRes = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tier,
+          billingCycle,
+          profileId: currentProfile.id,
+          userId: currentProfile.id,
+          currency: 'INR',
+        }),
+      });
+
+      const orderData = await orderRes.json().catch(() => ({}));
+
+      if (!orderRes.ok || !orderData.success) {
+        throw new Error(orderData.error || `Payment order initiation failed (HTTP ${orderRes.status})`);
+      }
+
+      // 2. Dynamically load official Razorpay SDK script
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        throw new Error('Razorpay payment gateway script could not be loaded. Please check your internet connection.');
+      }
+
+      // Handle free or simulated/test sandbox orders directly
+      if (orderData.isFree || orderData.isSimulated) {
+        daheejStore.updateProfile(currentProfile.id, {
+          subscription_tier: tier,
+          membership_tier: tier,
+        });
+
+        try {
+          await supabase
+            .from('profiles')
+            .update({
+              subscription_tier: tier,
+              subscription_status: 'active',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', currentProfile.id);
+        } catch (dbErr) {
+          console.warn('[Subscription] Profile update note:', dbErr);
+        }
+
         onSubscriptionUpdated();
-        setSuccessMessage(
-          tier === 'free'
-            ? 'Plan switched to Free Basic.'
-            : `Alhamdulillah! Upgraded to ${SUBSCRIPTION_PLANS[tier].name}.`
-        );
+        setSuccessMessage(`Alhamdulillah! Subscription upgraded to ${SUBSCRIPTION_PLANS[tier].name}.`);
+
         try {
           confetti({
-            particleCount: 80,
-            spread: 70,
+            particleCount: 100,
+            spread: 80,
             origin: { y: 0.6 },
           });
         } catch (e) {}
 
         setTimeout(() => {
           onClose();
-        }, 1200);
+        }, 1500);
+        setLoadingTier(null);
+        return;
       }
-    } else {
-      setErrorMessage(res.error || 'Failed to initiate Dodo Payments checkout.');
+
+      // 3. Launch official Razorpay Checkout Modal
+      const orderId = orderData.order_id || orderData.id;
+      const keyId = orderData.key_id || orderData.keyId;
+
+      if (!orderId || !keyId) {
+        throw new Error('Server order response did not provide a valid order_id or key_id.');
+      }
+
+      const rzpOptions = {
+        key: keyId,
+        amount: orderData.amount,
+        currency: orderData.currency || 'INR',
+        name: 'DaheejFree Matrimonial',
+        description: `${SUBSCRIPTION_PLANS[tier].name} (${billingCycle}) - 100% Dowry Free`,
+        image: '/icon.svg',
+        order_id: orderId,
+        handler: async function (response: any) {
+          console.info('[Razorpay] Payment successful:', response);
+          daheejStore.updateProfile(currentProfile.id, {
+            subscription_tier: tier,
+            membership_tier: tier,
+          });
+
+          try {
+            await supabase
+              .from('profiles')
+              .update({
+                subscription_tier: tier,
+                subscription_status: 'active',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', currentProfile.id);
+          } catch (dbErr) {
+            console.warn('[Subscription] Profile update note:', dbErr);
+          }
+
+          onSubscriptionUpdated();
+          setSuccessMessage(`Alhamdulillah! Subscription upgraded to ${SUBSCRIPTION_PLANS[tier].name}.`);
+
+          try {
+            confetti({
+              particleCount: 100,
+              spread: 80,
+              origin: { y: 0.6 },
+            });
+          } catch (e) {}
+
+          setTimeout(() => {
+            onClose();
+          }, 1500);
+        },
+        prefill: {
+          name: currentProfile.full_name || '',
+          email: currentProfile.wali_email || '',
+          contact: currentProfile.wali_phone || '',
+        },
+        notes: {
+          profile_id: currentProfile.id,
+          tier: tier,
+          billing_cycle: billingCycle,
+        },
+        theme: {
+          color: '#059669',
+        },
+        modal: {
+          ondismiss: function () {
+            setLoadingTier(null);
+          },
+        },
+      };
+
+      const razorpayInstance = new (window as any).Razorpay(rzpOptions);
+      razorpayInstance.open();
+    } catch (err: any) {
+      console.error('[SubscriptionModal] Checkout error:', err);
+      setErrorMessage(err?.message || 'Failed to initiate payment checkout.');
+    } finally {
+      setLoadingTier(null);
     }
   };
 
@@ -91,7 +247,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          className="absolute top-5 right-5 p-2 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          aria-label="Close pricing modal"
         >
           <X className="w-5 h-5" />
         </button>
@@ -129,8 +286,9 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           <div className="flex items-center justify-center pt-2">
             <div className="bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl flex items-center gap-1">
               <button
+                type="button"
                 onClick={() => setBillingCycle('monthly')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   billingCycle === 'monthly'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-zinc-600 dark:text-zinc-400'
@@ -139,8 +297,9 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                 Monthly
               </button>
               <button
+                type="button"
                 onClick={() => setBillingCycle('yearly')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer ${
                   billingCycle === 'yearly'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-zinc-600 dark:text-zinc-400'
@@ -159,7 +318,10 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {visibleTiers.map((t) => {
             const plan = SUBSCRIPTION_PLANS[t];
-            const isCurrent = currentTier === t || (t === 'diamond' && currentTier === 'platinum');
+            const planLevel = TIER_LEVELS[t] ?? 0;
+            const isCurrent = planLevel === userLevel;
+            const isIncluded = planLevel < userLevel;
+            const isUpgrade = planLevel > userLevel;
             const isDiamond = t === 'diamond';
             const isGold = t === 'gold';
             const isLoading = loadingTier === t;
@@ -169,10 +331,27 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                 ? Math.round(plan.priceINR * 9.6)
                 : plan.priceINR;
 
+            // Plan button state & label logic strictly following requirement:
+            // - plan.level === user.level: Disable button, label it "Current Plan"
+            // - plan.level < user.level: Disable button, label it "Included in Your Plan" (prevent degradation)
+            // - plan.level > user.level: Keep button active, label it "Upgrade Plan"
+            let buttonLabel = 'Upgrade Plan';
+            if (isLoading) {
+              buttonLabel = 'Processing...';
+            } else if (isCurrent) {
+              buttonLabel = 'Current Plan';
+            } else if (isIncluded) {
+              buttonLabel = 'Included in Your Plan';
+            } else {
+              buttonLabel = 'Upgrade Plan';
+            }
+
+            const isButtonDisabled = isCurrent || isIncluded || isLoading;
+
             return (
               <div
                 key={t}
-                className={`rounded-2xl p-5 flex flex-col justify-between relative border ${
+                className={`rounded-2xl p-5 flex flex-col justify-between relative border transition-all ${
                   isDiamond
                     ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 shadow-lg'
                     : isGold
@@ -224,24 +403,34 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                 </div>
 
                 <button
+                  type="button"
+                  id={`btn-plan-${t}`}
                   onClick={() => handleSelectPlan(t)}
-                  disabled={isCurrent || isLoading}
-                  className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    isCurrent
-                      ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed'
+                  disabled={isButtonDisabled}
+                  className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                    isButtonDisabled
+                      ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed border border-zinc-200 dark:border-zinc-700'
                       : isDiamond
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md active:scale-98 cursor-pointer'
                       : isGold
-                      ? 'bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold'
-                      : 'bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-100 text-white dark:text-zinc-900'
+                      ? 'bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold active:scale-98 cursor-pointer'
+                      : 'bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-100 text-white dark:text-zinc-900 cursor-pointer'
                   }`}
                 >
                   {isLoading ? (
                     <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin inline-block" />
                   ) : isCurrent ? (
-                    'Current Plan'
+                    <span className="inline-flex items-center gap-1.5">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                      Current Plan
+                    </span>
+                  ) : isIncluded ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-zinc-400" />
+                      Included in Your Plan
+                    </span>
                   ) : (
-                    'Select Plan'
+                    <span>Upgrade Plan</span>
                   )}
                 </button>
               </div>
@@ -251,7 +440,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
         <div className="text-center text-[10px] text-zinc-400 dark:text-zinc-500 mt-6 flex items-center justify-center gap-1.5">
           <CreditCard className="w-3.5 h-3.5" />
-          <span>Production Payments powered by Dodo Payments</span>
+          <span>Secure checkout powered by Razorpay (Server Order Integration)</span>
         </div>
       </div>
     </div>

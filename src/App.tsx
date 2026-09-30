@@ -950,6 +950,7 @@ export default function App() {
         currentTier={tier}
         currentProfile={currentProfile}
         onSubscriptionUpdated={refreshState}
+        onNavigate={(tab) => setCurrentTab(tab)}
       />
 
       {/* Google Fast-Track Onboarding Modal */}

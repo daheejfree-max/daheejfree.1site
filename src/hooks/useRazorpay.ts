@@ -98,8 +98,8 @@ export async function initiateRazorpayCheckout(
     }
 
     // 2. Server-to-Server Order Creation
-    // Calls secure POST /api/razorpay/create-order route
-    const orderRes = await fetch('/api/razorpay/create-order', {
+    // Calls secure POST /api/payments/create-order route
+    const orderRes = await fetch('/api/payments/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

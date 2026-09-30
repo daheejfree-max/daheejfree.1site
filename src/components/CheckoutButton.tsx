@@ -110,8 +110,8 @@ export const CheckoutButton: React.FC<CheckoutButtonProps> = ({
           throw new Error('Could not load Razorpay payment gateway script. Please check your internet connection.');
         }
 
-        // 2. Fetch server-generated order_id from /api/razorpay/create-order
-        const orderRes = await fetch('/api/razorpay/create-order', {
+        // 2. Fetch server-generated order_id from /api/payments/create-order
+        const orderRes = await fetch('/api/payments/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
