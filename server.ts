@@ -557,14 +557,18 @@ app.post(['/api/webhooks/dodo', '/api/payments/dodo/webhook'], async (req, res) 
 // 2.1 RAZORPAY CHECKOUT ORDER INITIALIZATION & SUBSCRIPTION
 // ==============================================================================
 const PAYMENT_CREATE_ROUTES = [
+  '/api/payments/create-order',
+  '/api/payments/create-order/',
+  '/api/payment/create-order',
+  '/api/payment/create-order/',
   '/api/razorpay/create-order',
+  '/api/razorpay/create-order/',
+  '/api/create-order',
+  '/api/create-order/',
   '/api/checkout/razorpay',
   '/api/razorpay/subscription',
-  '/api/payment/create-order',
   '/api/payment/create',
-  '/api/payments/create-order',
   '/api/payments/create',
-  '/api/create-order',
   '/api/payment/order',
   '/api/razorpay/order',
   '/api/payment',

@@ -111,11 +111,14 @@ export const CheckoutButton: React.FC<CheckoutButtonProps> = ({
         }
 
         // 2. Fetch server-generated order_id from /api/payments/create-order
+        const planAmount = billingCycle === 'yearly' ? 479000 : 49900;
         const orderRes = await fetch('/api/payments/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             tier,
+            amount: planAmount,
+            interval: billingCycle,
             billingCycle,
             profileId: effectiveUserId,
             userId: effectiveUserId,
