@@ -115,153 +115,84 @@ export default function LandingGatewayPage({
 
   return (
     <div className="min-h-[100dvh] bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 selection:bg-emerald-500 selection:text-white dark:selection:text-zinc-950 transition-colors">
-      {/* Hero Section with Islamic Geometric Pattern & Bride/Groom Silhouette/Art */}
-      <section className="relative overflow-hidden pt-12 pb-24 sm:pt-20 sm:pb-32 border-b border-zinc-200 dark:border-zinc-800/80">
-        {/* Islamic Star & Geometric Background Overlay */}
-        <div className="absolute inset-0 opacity-10 dark:opacity-20 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/20 via-zinc-950/70 to-zinc-950 pointer-events-none" />
+      {/* Hero Section: Clean Obsidian Dark Aesthetic */}
+      <section className="relative overflow-hidden bg-zinc-950 pt-16 pb-20 sm:pt-24 sm:pb-28 border-b border-zinc-800/80">
+        {/* Soft, Faint Emerald Glow at Top Center */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[280px] bg-emerald-500/10 blur-[130px] rounded-full pointer-events-none" />
 
-        {/* Decorative Islamic Arch & Bride / Groom Silhouette Visual Banner */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-6xl h-full opacity-15 dark:opacity-25 pointer-events-none flex justify-center items-start overflow-hidden">
-          <div className="w-[800px] h-[500px] rounded-b-[400px] border-b-2 border-emerald-500/40 bg-gradient-to-b from-emerald-600/10 to-transparent flex items-end justify-center pb-8">
-            <div className="flex items-center gap-6 text-emerald-400">
-              <Heart className="w-12 h-12 animate-pulse text-amber-400" />
-            </div>
-          </div>
-        </div>
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-8">
-          {/* Shariah Compliance Eyebrow */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950/90 border border-emerald-300 dark:border-emerald-500/50 text-emerald-800 dark:text-emerald-300 text-xs font-semibold shadow-sm dark:shadow-xl dark:shadow-emerald-950/80">
-            <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Islamic Anti-Dowry Matrimonial Standard • 100% Shariah Aligned</span>
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
+          {/* 1. Single Subtle Status Pill */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 text-xs font-medium shadow-xs">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>100% Dowry-Free • Shariah-Compliant Matrimony</span>
           </div>
 
-          {/* Bride & Groom Art / Silhouette Visual Card */}
-          <div className="max-w-xl mx-auto p-4 rounded-3xl bg-white/80 dark:bg-zinc-900/90 border border-emerald-500/30 dark:border-emerald-500/40 shadow-2xl backdrop-blur-md flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                <Users className="w-6 h-6" />
-              </div>
-              <div className="text-left">
-                <p className="text-xs font-bold text-zinc-900 dark:text-white">Pure Islamic Union</p>
-                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Halal Bride & Groom Matchmaking</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-xs font-bold">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Bila-Daheej</span>
-            </div>
-          </div>
-
-          {/* Main Title */}
-          <div className="max-w-4xl mx-auto space-y-4">
-            <h1 className="text-4xl sm:text-6xl font-black text-zinc-900 dark:text-white tracking-tight leading-[1.1]">
+          {/* 2. Headline & Subheadline */}
+          <div className="max-w-3xl mx-auto space-y-4">
+            <h1 className="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.12]">
               Pure, Modest &{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-600 to-amber-600 dark:from-emerald-400 dark:via-teal-300 dark:to-amber-300">
+              <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
                 100% Dowry-Free
               </span>{' '}
               Islamic Matrimony
             </h1>
-            <p className="text-base sm:text-lg text-zinc-600 dark:text-zinc-300 max-w-3xl mx-auto leading-relaxed">
-              Designed with <strong>2-way mutual photo consent</strong>, <strong>Didit-verified identity profiles</strong>,
-              and strict <strong>anti-dowry enforcement</strong> to safeguard the dignity of Muslim brides, grooms, and families.
+            <p className="text-zinc-400 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed mt-4">
+              Designed with mutual photo consent, government-verified identity profiles, and strict anti-dowry enforcement to safeguard the dignity of Muslim families.
             </p>
           </div>
 
-          {/* Action CTAs */}
-          <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
+          {/* 3. Radical CTA Consolidation (Max 2 Buttons) */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-4">
             <button
               id="hero-btn-explore"
               onClick={onExploreMatches}
-              className="px-7 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm flex items-center gap-2.5 shadow-lg shadow-emerald-700/20 dark:shadow-emerald-950/80 transition-all hover:scale-105"
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition-all cursor-pointer"
             >
-              <Users className="w-4 h-4" />
-              <span>{isAuthenticated ? 'Go to Dashboard (Explore Matches)' : 'Explore Verified Matches'}</span>
+              <span>{isAuthenticated ? 'Go to Dashboard' : 'Explore Verified Matches'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
-
-            {!isAuthenticated && (
-              <button
-                id="hero-btn-register"
-                onClick={onOpenRegister}
-                className="px-6 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-zinc-950 font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-amber-600/20 transition-all hover:scale-105"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Register (Bila-Daheej)</span>
-              </button>
-            )}
 
             <button
               id="hero-btn-pricing"
               onClick={onOpenPricing}
-              className="px-6 py-3.5 rounded-2xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-800 font-bold text-sm flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
+              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 font-medium text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
-              <Crown className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-              <span>View Matrimonial Plans (₹0 - ₹999)</span>
-            </button>
-
-            <button
-              id="hero-btn-pledge"
-              onClick={onOpenPledge}
-              className="px-6 py-3.5 rounded-2xl bg-emerald-50 dark:bg-zinc-900/60 hover:bg-emerald-100 dark:hover:bg-zinc-800/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-900/60 font-semibold text-sm flex items-center gap-2 transition-colors shadow-sm"
-            >
-              <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Read Anti-Dowry Charter</span>
+              <span>View Plans & Features</span>
             </button>
           </div>
 
-          {/* Google Fast Registration Hero Callout */}
-          {!isAuthenticated && (
-            <div className="max-w-md mx-auto pt-2">
-              <div className="p-3 bg-white/80 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm">
-                <div className="flex items-center justify-between gap-3 text-left">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Instant Google Registration</span>
-                    </p>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">1-click Supabase Auth onboarding</p>
-                  </div>
-                  <button
-                    id="hero-btn-google-quick"
-                    onClick={onOpenRegister}
-                    className="px-4 py-2 rounded-xl bg-zinc-900 dark:bg-zinc-800 hover:bg-zinc-800 text-white font-bold text-xs flex items-center gap-2 transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" />
-                      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z" />
-                      <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z" />
-                      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
-                    </svg>
-                    <span>Sign In</span>
-                  </button>
-                </div>
+          {/* 4. Bottom Feature / Stat Cards Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mt-12 text-left">
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 backdrop-blur-sm">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-3">
+                <Scale className="w-4 h-4" />
               </div>
+              <p className="text-sm font-semibold text-white">₹0 Dowry Guarantee</p>
+              <p className="text-xs text-zinc-400 mt-1">Strict zero-extortion rule</p>
             </div>
-          )}
 
-          {/* Trust Metric Counters */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto pt-8 border-t border-zinc-200 dark:border-zinc-800/60 text-left">
-            <div className="bg-white dark:bg-zinc-900/70 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-sm">
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">₹0</p>
-              <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-300">Dowry Allowed</p>
-              <p className="text-[11px] text-zinc-500 mt-0.5">Strict zero-extortion rule</p>
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 backdrop-blur-sm">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
+                <Eye className="w-4 h-4" />
+              </div>
+              <p className="text-sm font-semibold text-white">2-Way Consent</p>
+              <p className="text-xs text-zinc-400 mt-1">Mutual photo permissions</p>
             </div>
-            <div className="bg-white dark:bg-zinc-900/70 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-sm">
-              <p className="text-2xl font-black text-amber-600 dark:text-amber-400">2-Way</p>
-              <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-300">Photo Consent</p>
-              <p className="text-[11px] text-zinc-500 mt-0.5">Mutual affirmative grant</p>
+
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 backdrop-blur-sm">
+              <div className="w-8 h-8 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 mb-3">
+                <BadgeCheck className="w-4 h-4" />
+              </div>
+              <p className="text-sm font-semibold text-white">Government ID Verified</p>
+              <p className="text-xs text-zinc-400 mt-1">Biometric Didit.me protocol</p>
             </div>
-            <div className="bg-white dark:bg-zinc-900/70 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-sm">
-              <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">100%</p>
-              <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-300">Didit Verified</p>
-              <p className="text-[11px] text-zinc-500 mt-0.5">Automated KYC Protocol</p>
-            </div>
-            <div className="bg-white dark:bg-zinc-900/70 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-sm">
-              <p className="text-2xl font-black text-teal-600 dark:text-teal-400">P2P</p>
-              <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-300">WebRTC Calls</p>
-              <p className="text-[11px] text-zinc-500 mt-0.5">Private encrypted media</p>
+
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 backdrop-blur-sm">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-3">
+                <Lock className="w-4 h-4" />
+              </div>
+              <p className="text-sm font-semibold text-white">Encrypted Privacy</p>
+              <p className="text-xs text-zinc-400 mt-1">Private P2P browser calls</p>
             </div>
           </div>
         </div>

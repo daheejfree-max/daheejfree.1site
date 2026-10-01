@@ -21,6 +21,9 @@
       ],
       "next/navigation": [
         "./src/lib/navigation.ts"
+      ],
+      "next/server": [
+        "./src/lib/nextServer.ts"
       ]
     },
     "allowImportingTsExtensions": true,

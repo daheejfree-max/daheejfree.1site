@@ -5,11 +5,4 @@
 // ==============================================================================
 
 export const dynamic = 'force-dynamic';
-export {
-  createOrder,
-  POST,
-  GET,
-  TIER_PRICING_PAISE,
-  type CreateOrderRequest,
-  type CreateOrderResponse,
-} from '../../../../src/app/api/payments/create-order/route';
+export { POST, GET } from '../../../../src/app/api/payments/create-order/route';

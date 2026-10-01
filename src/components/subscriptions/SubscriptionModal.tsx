@@ -122,10 +122,19 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         }),
       });
 
+      if (!orderRes.ok) {
+        const data = await orderRes.json().catch(() => ({}));
+        setErrorMessage(data?.error || data?.message || `Payment order initiation failed (HTTP ${orderRes.status})`);
+        setLoadingTier(null);
+        return;
+      }
+
       const orderData = await orderRes.json().catch(() => ({}));
 
-      if (!orderRes.ok || !orderData.success) {
-        throw new Error(orderData.error || `Payment order initiation failed (HTTP ${orderRes.status})`);
+      if (!orderData || !orderData.success) {
+        setErrorMessage(orderData?.error || "Order creation failed on server");
+        setLoadingTier(null);
+        return;
       }
 
       // 2. Dynamically load official Razorpay SDK script
