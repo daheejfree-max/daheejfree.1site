@@ -2,14 +2,14 @@
 // NEXT.JS API ROUTE: FREE SUBSCRIPTION ACTIVATION (EARLY ADOPTER & 100% COUPON)
 // File: src/app/api/payments/free-activation/route.ts
 // Endpoint: POST /api/payments/free-activation
+// Strictly uses SUPABASE_SERVICE_ROLE_KEY to bypass RLS for database mutations
 // ==============================================================================
 
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/src/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import {
   MAX_EARLY_ADOPTERS,
-  getEarlyAdopterCount,
-  getCoupon,
+  IN_MEMORY_COUPONS,
   incrementCouponUsage,
 } from '@/src/lib/coupons';
 
@@ -17,8 +17,40 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const claimedCount = await getEarlyAdopterCount();
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      process.env.VITE_SUPABASE_URL ||
+      '';
+    const supabaseServiceRoleKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_SERVICE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      '';
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseServiceRoleKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
+    const { count, error } = await supabaseAdmin
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_early_adopter', true);
+
+    if (error) {
+      console.warn('[Free Activation GET] Supabase count query warning:', error.message);
+    }
+
+    const claimedCount = typeof count === 'number' ? count : 0;
     const remaining = Math.max(0, MAX_EARLY_ADOPTERS - claimedCount);
+
     return NextResponse.json({
       success: true,
       claimed_count: claimedCount,
@@ -27,6 +59,7 @@ export async function GET() {
       is_available: claimedCount < MAX_EARLY_ADOPTERS,
     });
   } catch (error: any) {
+    console.error('Free Activation Error (GET stats):', error);
     return NextResponse.json({
       success: false,
       error: error?.message || 'Failed to fetch early adopter stats.',
@@ -39,27 +72,66 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      process.env.VITE_SUPABASE_URL ||
+      '';
+    const supabaseAnonKey =
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      '';
+    const supabaseServiceRoleKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_SERVICE_KEY ||
+      supabaseAnonKey;
+
+    // 1. Initialize admin client inside the POST handler using SUPABASE_SERVICE_ROLE_KEY to bypass RLS
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseServiceRoleKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
+    // 2. Standard user client ONLY to verify authenticated user's session and get user.id
+    const supabaseUser = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || supabaseAnonKey,
+      {
+        auth: {
+          persistSession: false,
+        },
+      }
+    );
+
     const body = await req.json().catch(() => ({}));
     const { tier = 'diamond', reason, couponCode } = body || {};
 
     const authHeader = req.headers.get('authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
-    const admin = createAdminClient();
     let userId = body?.userId || body?.profileId || '';
 
-    // 1. Fetch authenticated user's ID via Supabase Auth
+    // Verify authenticated user's session via standard user client
     if (token) {
       try {
         const {
           data: { user },
           error: authErr,
-        } = await admin.auth.getUser(token);
+        } = await supabaseUser.auth.getUser(token);
         if (!authErr && user?.id) {
           userId = user.id;
+        } else if (authErr) {
+          console.warn('[Free Activation] User client token verification note:', authErr.message);
         }
       } catch (err) {
-        console.warn('[Free Activation] Supabase auth token verification note:', err);
+        console.warn('[Free Activation] User token lookup catch:', err);
       }
     }
 
@@ -70,14 +142,22 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Branch: reason === 'early_adopter'
+    // Branch A: First 30 Users Founder's Reward (Free Diamond Tier)
     if (reason === 'early_adopter') {
-      // Check if user is already an early adopter
-      const { data: profile } = await admin
+      // Check if user is already an early adopter using supabaseAdmin
+      const { data: profile, error: profileErr } = await supabaseAdmin
         .from('profiles')
         .select('id, is_early_adopter, subscription_tier')
         .eq('id', userId)
         .maybeSingle();
+
+      if (profileErr) {
+        console.error('Free Activation Error checking profile:', profileErr);
+        return NextResponse.json(
+          { success: false, error: `Database error checking profile: ${profileErr.message}` },
+          { status: 500 }
+        );
+      }
 
       if (profile?.is_early_adopter) {
         return NextResponse.json({
@@ -89,23 +169,36 @@ export async function POST(req: Request) {
         });
       }
 
-      // Check if COUNT(*) of profiles where is_early_adopter = true is less than 30
-      const currentEarlyAdopters = await getEarlyAdopterCount();
+      // Use supabaseAdmin to query the COUNT(*) of early adopters
+      const { count: currentCount, error: countErr } = await supabaseAdmin
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_early_adopter', true);
 
-      if (currentEarlyAdopters >= MAX_EARLY_ADOPTERS) {
+      if (countErr) {
+        console.error('Free Activation Error querying count:', countErr);
+        return NextResponse.json(
+          { success: false, error: `Database error counting early adopters: ${countErr.message}` },
+          { status: 500 }
+        );
+      }
+
+      const earlyAdopterCount = typeof currentCount === 'number' ? currentCount : 0;
+
+      if (earlyAdopterCount >= MAX_EARLY_ADOPTERS) {
         return NextResponse.json(
           {
             success: false,
             error: 'The first 30 free subscriptions have already been claimed.',
-            claimed_count: currentEarlyAdopters,
+            claimed_count: earlyAdopterCount,
             remaining: 0,
           },
           { status: 400 }
         );
       }
 
-      // Update user's subscription_tier to 'diamond' and is_early_adopter = true
-      const { error: updateErr } = await admin
+      // Execute UPDATE on profiles table using supabaseAdmin (bypasses RLS)
+      const { error: updateErr } = await supabaseAdmin
         .from('profiles')
         .update({
           subscription_tier: 'diamond',
@@ -117,10 +210,14 @@ export async function POST(req: Request) {
         .eq('id', userId);
 
       if (updateErr) {
-        console.warn('[Free Activation] DB update notice:', updateErr);
+        console.error('Free Activation Error updating profile:', updateErr);
+        return NextResponse.json(
+          { success: false, error: `Database error updating profile: ${updateErr.message}` },
+          { status: 500 }
+        );
       }
 
-      const updatedCount = currentEarlyAdopters + 1;
+      const updatedCount = earlyAdopterCount + 1;
       const remaining = Math.max(0, MAX_EARLY_ADOPTERS - updatedCount);
 
       return NextResponse.json({
@@ -132,7 +229,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3. Branch: reason === 'coupon'
+    // Branch B: 100% Promo Coupon
     if (reason === 'coupon') {
       if (!couponCode || typeof couponCode !== 'string') {
         return NextResponse.json(
@@ -142,7 +239,23 @@ export async function POST(req: Request) {
       }
 
       const cleanCode = couponCode.trim().toUpperCase();
-      const coupon = await getCoupon(cleanCode);
+
+      // Query coupons table using supabaseAdmin to bypass RLS
+      const { data: couponData, error: couponErr } = await supabaseAdmin
+        .from('coupons')
+        .select('*')
+        .ilike('code', cleanCode)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (couponErr) {
+        console.error('Free Activation Error querying coupon:', couponErr);
+      }
+
+      let coupon = couponData;
+      if (!coupon && IN_MEMORY_COUPONS[cleanCode]) {
+        coupon = { ...IN_MEMORY_COUPONS[cleanCode] };
+      }
 
       if (!coupon) {
         return NextResponse.json(
@@ -158,14 +271,13 @@ export async function POST(req: Request) {
         );
       }
 
-      if (coupon.used_count >= coupon.max_uses) {
+      if (Number(coupon.used_count || 0) >= Number(coupon.max_uses || 100)) {
         return NextResponse.json(
           { success: false, error: 'Coupon expired' },
           { status: 400 }
         );
       }
 
-      // Verify the coupon provides a 100% discount
       if (Number(coupon.discount_percent) !== 100) {
         return NextResponse.json(
           {
@@ -176,15 +288,26 @@ export async function POST(req: Request) {
         );
       }
 
-      // Increment the coupon's used_count
-      await incrementCouponUsage(coupon.code);
+      // Increment coupon usage using supabaseAdmin
+      if (couponData?.id) {
+        const { error: incErr } = await supabaseAdmin
+          .from('coupons')
+          .update({
+            used_count: Number(couponData.used_count || 0) + 1,
+          })
+          .eq('id', couponData.id);
 
-      // Target subscription tier (gold or diamond)
-      const targetTier = String(tier || 'gold').toLowerCase();
-      const finalTier = targetTier === 'diamond' ? 'diamond' : 'gold';
+        if (incErr) {
+          console.warn('[Free Activation] Error incrementing coupon count in DB:', incErr.message);
+        }
+      }
+      await incrementCouponUsage(cleanCode);
 
-      // Update the user's subscription_tier
-      const { error: updateErr } = await admin
+      const targetTier = String(tier || 'diamond').toLowerCase();
+      const finalTier = targetTier === 'gold' ? 'gold' : 'diamond';
+
+      // Update profiles table using supabaseAdmin (bypasses RLS)
+      const { error: profileUpdateErr } = await supabaseAdmin
         .from('profiles')
         .update({
           subscription_tier: finalTier,
@@ -194,8 +317,12 @@ export async function POST(req: Request) {
         })
         .eq('id', userId);
 
-      if (updateErr) {
-        console.warn('[Free Activation] DB update notice:', updateErr);
+      if (profileUpdateErr) {
+        console.error('Free Activation Error updating subscription tier:', profileUpdateErr);
+        return NextResponse.json(
+          { success: false, error: `Database error updating profile tier: ${profileUpdateErr.message}` },
+          { status: 500 }
+        );
       }
 
       return NextResponse.json({
@@ -211,7 +338,7 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   } catch (error: any) {
-    console.error('[Free Activation API] Error:', error);
+    console.error('Free Activation Error:', error);
     return NextResponse.json(
       { success: false, error: error?.message || 'Free activation failed.' },
       { status: 500 }

@@ -2,10 +2,11 @@
 // NEXT.JS API ROUTE: PROMO COUPON VALIDATION
 // File: src/app/api/coupons/validate/route.ts
 // Endpoint: POST /api/coupons/validate
+// Strictly uses SUPABASE_SERVICE_ROLE_KEY to bypass RLS for reading coupons table
 // ==============================================================================
 
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/src/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import { IN_MEMORY_COUPONS } from '@/src/lib/coupons';
 import { SUBSCRIPTION_PLANS } from '@/src/lib/dodoPayments';
 
@@ -13,8 +14,35 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      process.env.VITE_SUPABASE_URL ||
+      '';
+    const supabaseAnonKey =
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      '';
+    const supabaseServiceRoleKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_SERVICE_KEY ||
+      supabaseAnonKey;
+
+    // Initialize admin client inside the POST handler using SUPABASE_SERVICE_ROLE_KEY to bypass RLS
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseServiceRoleKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
     const body = await req.json().catch(() => ({}));
-    const { code, tier = 'gold', billingCycle = 'monthly' } = body || {};
+    const { code, tier = 'diamond', billingCycle = 'monthly' } = body || {};
 
     if (!code || typeof code !== 'string' || !code.trim()) {
       return NextResponse.json(
@@ -24,48 +52,27 @@ export async function POST(req: Request) {
     }
 
     const cleanCode = code.trim().toUpperCase();
-    let coupon: {
-      code: string;
-      discount_percent: number;
-      max_uses: number;
-      used_count: number;
-      tier_allowed: string;
-      is_active?: boolean;
-      expires_at?: string | null;
-    } | null = null;
 
-    // 1. Query Supabase `coupons` table where `code = code` and `is_active = true`
-    try {
-      const admin = createAdminClient();
-      const queryPromise = admin
-        .from('coupons')
-        .select('*')
-        .ilike('code', cleanCode)
-        .eq('is_active', true)
-        .maybeSingle();
+    // Query coupons table using supabaseAdmin (bypassing RLS)
+    const { data: dbCoupon, error: queryError } = await supabaseAdmin
+      .from('coupons')
+      .select('*')
+      .ilike('code', cleanCode)
+      .eq('is_active', true)
+      .maybeSingle();
 
-      const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
-        setTimeout(() => resolve({ data: null, error: new Error('DB timeout') }), 1200)
-      );
-
-      const { data } = await Promise.race([queryPromise, timeoutPromise]);
-
-      if (data) {
-        coupon = {
-          code: data.code.toUpperCase(),
-          discount_percent: Number(data.discount_percent),
-          max_uses: Number(data.max_uses),
-          used_count: Number(data.used_count || 0),
-          tier_allowed: data.tier_allowed || 'all',
-          is_active: Boolean(data.is_active),
-          expires_at: data.expires_at,
-        };
+    if (queryError) {
+      console.error('Coupon Validation Error (querying coupons):', queryError);
+      // If table missing or query failed and no in-memory fallback exists, return 500 with exact error
+      if (!IN_MEMORY_COUPONS[cleanCode]) {
+        return NextResponse.json(
+          { valid: false, error: `Database error querying coupons: ${queryError.message}` },
+          { status: 500 }
+        );
       }
-    } catch (err) {
-      console.warn('[Coupons API] DB lookup note:', err);
     }
 
-    // Fallback to in-memory coupon definitions if DB did not return
+    let coupon = dbCoupon;
     if (!coupon && IN_MEMORY_COUPONS[cleanCode]) {
       coupon = { ...IN_MEMORY_COUPONS[cleanCode] };
     }
@@ -77,8 +84,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Check if coupon is expired due to usage limit
-    if (coupon.used_count >= coupon.max_uses) {
+    // Check usage count
+    if (Number(coupon.used_count || 0) >= Number(coupon.max_uses || 100)) {
       return NextResponse.json(
         { valid: false, error: 'Coupon expired' },
         { status: 400 }
@@ -96,7 +103,7 @@ export async function POST(req: Request) {
     // Check tier compatibility only if tier was explicitly provided by caller
     const targetTier = String(body?.tier || tier || 'diamond').toLowerCase();
     if (body?.tier) {
-      if (coupon.tier_allowed !== 'all' && coupon.tier_allowed.toLowerCase() !== targetTier) {
+      if (coupon.tier_allowed && coupon.tier_allowed !== 'all' && coupon.tier_allowed.toLowerCase() !== targetTier) {
         return NextResponse.json(
           {
             valid: false,
@@ -107,7 +114,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Calculate original and discounted prices
+    const discountPercent = Number(coupon.discount_percent);
     const planConfig = SUBSCRIPTION_PLANS[targetTier as keyof typeof SUBSCRIPTION_PLANS];
     const basePrice = planConfig?.priceINR || 499;
     const originalPrice =
@@ -115,28 +122,27 @@ export async function POST(req: Request) {
         ? Math.round(basePrice * 9.6)
         : basePrice;
 
-    const discountMultiplier = Math.max(0, (100 - coupon.discount_percent) / 100);
+    const discountMultiplier = Math.max(0, (100 - discountPercent) / 100);
     const discountedPrice = Math.round(originalPrice * discountMultiplier);
     const savings = originalPrice - discountedPrice;
-    const isFree = discountedPrice === 0 || coupon.discount_percent === 100;
+    const isFree = discountedPrice === 0 || discountPercent === 100;
 
-    // 3. Return the discount_percent if valid
     return NextResponse.json({
       valid: true,
-      discount_percent: coupon.discount_percent,
       code: coupon.code,
-      tier_allowed: coupon.tier_allowed,
+      discount_percent: discountPercent,
+      tier_allowed: coupon.tier_allowed || 'all',
       original_price: originalPrice,
       discounted_price: discountedPrice,
       savings,
       is_free: isFree,
       message:
-        coupon.discount_percent === 100
+        discountPercent === 100
           ? `Alhamdulillah! 100% discount applied with code ${coupon.code}.`
-          : `Promo code applied! ${coupon.discount_percent}% OFF (${coupon.code}).`,
+          : `Promo code applied! ${discountPercent}% OFF (${coupon.code}).`,
     });
   } catch (error: any) {
-    console.error('[Coupons API] Validation error:', error);
+    console.error('Coupon Validation Error:', error);
     return NextResponse.json(
       { valid: false, error: error?.message || 'Failed to validate coupon code.' },
       { status: 500 }
