@@ -99,12 +99,16 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
   const visibleTiers: SubscriptionTier[] = ['free', 'gold', 'diamond'];
 
-  // Read current user's profile state to determine exact tier level
+  // Canonical Tier Hierarchy (Level 0: free, Level 1: gold, Level 2: diamond)
   const userTier = (currentProfile?.subscription_tier || currentTier || 'free').toLowerCase();
   const userLevel = TIER_LEVELS[userTier] ?? 0;
   const isEarlyAdopter = Boolean(currentProfile?.is_early_adopter);
+  const isEarlyAdopterEligible =
+    !isEarlyAdopter &&
+    userLevel === 0 &&
+    ((earlyAccessInfo?.claimed_count ?? 0) < 30 || (earlyAccessInfo?.remaining ?? 0) > 0);
 
-  // Early Supporter Auto-Claim Handler
+  // Early Supporter Auto-Claim Handler (Grants Free Diamond Membership)
   const handleClaimEarlyAccess = async () => {
     if (!currentProfile) return;
     setIsClaimingEarlyAccess(true);
@@ -112,10 +116,21 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     setSuccessMessage(null);
 
     try {
-      const res = await fetch('/api/payments/claim-early-access', {
+      let authToken = '';
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        authToken = sessionData.session?.access_token || '';
+      } catch {}
+
+      const res = await fetch('/api/payments/free-activation', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         body: JSON.stringify({
+          tier: 'diamond',
+          reason: 'early_adopter',
           userId: currentProfile.id,
           profileId: currentProfile.id,
         }),
@@ -131,8 +146,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
       // Update local profile store
       daheejStore.updateProfile(currentProfile.id, {
-        subscription_tier: 'gold',
-        membership_tier: 'gold',
+        subscription_tier: 'diamond',
+        membership_tier: 'diamond',
         is_early_adopter: true,
       });
 
@@ -140,7 +155,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         await supabase
           .from('profiles')
           .update({
-            subscription_tier: 'gold',
+            subscription_tier: 'diamond',
             subscription_status: 'active',
             is_early_adopter: true,
             updated_at: new Date().toISOString(),
@@ -151,7 +166,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       }
 
       onSubscriptionUpdated();
-      setSuccessMessage(data.message || 'Alhamdulillah! Early supporter perk activated: Gold Tier.');
+      setSuccessMessage(data.message || "🎉 Founder's Reward activated! Diamond Membership granted.");
 
       try {
         confetti({
@@ -176,7 +191,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     if (e) e.preventDefault();
     const cleanCode = couponCodeInput.trim().toUpperCase();
     if (!cleanCode) {
-      setCouponError('Please enter a coupon code.');
+      setCouponError('Please enter a promo code.');
       return;
     }
 
@@ -189,7 +204,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: cleanCode,
-          tier: 'gold',
+          tier: 'diamond',
           billingCycle,
         }),
       });
@@ -269,13 +284,102 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           appliedCoupon.tier_allowed.toLowerCase() === tier.toLowerCase());
 
       const discountPercent = isCouponValidForTier ? appliedCoupon.discount_percent : 0;
-      const discountedPriceINR = Math.max(0, Math.round(basePriceINR * (1 - discountPercent / 100)));
-      const isFreeFulfillment = discountedPriceINR === 0 || discountPercent === 100;
+      let discountedPriceINR = Math.max(0, Math.round(basePriceINR * (1 - discountPercent / 100)));
+
+      // Check if this tier qualifies for the 100% Free Founder's Reward (first 30 users)
+      const isEarlyDiamondClaim = isEarlyAdopterEligible && tier === 'diamond';
+      if (isEarlyDiamondClaim) {
+        discountedPriceINR = 0;
+      }
+
+      // =========================================================================
+      // RAZORPAY BYPASS:
+      // If final calculated price is ₹0 (first 30 users or 100% coupon),
+      // bypass Razorpay completely, call /api/payments/free-activation, show toast
+      // =========================================================================
+      if (discountedPriceINR === 0 || discountPercent === 100) {
+        let authToken = '';
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          authToken = sessionData.session?.access_token || '';
+        } catch {}
+
+        const activationReason = isEarlyDiamondClaim ? 'early_adopter' : 'coupon';
+
+        const freeRes = await fetch('/api/payments/free-activation', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          },
+          body: JSON.stringify({
+            tier,
+            reason: activationReason,
+            couponCode: appliedCoupon?.code,
+            userId: currentProfile.id,
+            profileId: currentProfile.id,
+          }),
+        });
+
+        const freeData = await freeRes.json().catch(() => ({}));
+
+        if (!freeRes.ok || !freeData.success) {
+          setErrorMessage(freeData?.error || 'Free activation failed.');
+          setLoadingTier(null);
+          return;
+        }
+
+        // Update local profile store
+        daheejStore.updateProfile(currentProfile.id, {
+          subscription_tier: tier,
+          membership_tier: tier,
+          is_early_adopter: isEarlyDiamondClaim || Boolean(freeData.is_early_adopter),
+        });
+
+        try {
+          await supabase
+            .from('profiles')
+            .update({
+              subscription_tier: tier,
+              subscription_status: 'active',
+              is_early_adopter: isEarlyDiamondClaim || Boolean(freeData.is_early_adopter),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', currentProfile.id);
+        } catch (dbErr) {
+          console.warn('[Subscription] Profile update note:', dbErr);
+        }
+
+        onSubscriptionUpdated();
+        setSuccessMessage(
+          freeData.message ||
+            `Alhamdulillah! Free activation successful: ${SUBSCRIPTION_PLANS[tier].name}${
+              appliedCoupon ? ` (Promo ${appliedCoupon.code} applied)` : ''
+            }.`
+        );
+
+        try {
+          confetti({
+            particleCount: 110,
+            spread: 85,
+            origin: { y: 0.6 },
+          });
+        } catch (e) {}
+
+        setTimeout(() => {
+          onClose();
+        }, 1600);
+        setLoadingTier(null);
+        return;
+      }
+
+      // =========================================================================
+      // STANDARD PAID CHECKOUT FLOW (price > ₹0):
+      // Calls /api/payments/create-order with server-verified discounted amount
+      // =========================================================================
       const amountPaise = discountedPriceINR * 100;
       const interval = billingCycle;
 
-      // 1. Fetch server-generated order from /api/payments/create-order
-      // Passes required payload: { tier, amount, interval, couponCode }
       const orderRes = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -306,8 +410,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         return;
       }
 
-      // Handle free or 100% coupon fulfillment directly without Razorpay
-      if (orderData.isFree || orderData.isSimulated || isFreeFulfillment) {
+      // Handle server-simulated or free response
+      if (orderData.isFree || orderData.isSimulated) {
         daheejStore.updateProfile(currentProfile.id, {
           subscription_tier: tier,
           membership_tier: tier,
@@ -348,13 +452,13 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         return;
       }
 
-      // 2. Dynamically load official Razorpay SDK script for paid checkout
+      // Dynamically load official Razorpay SDK script for paid checkout
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
         throw new Error('Razorpay payment gateway script could not be loaded. Please check your internet connection.');
       }
 
-      // 3. Launch official Razorpay Checkout Modal
+      // Launch official Razorpay Checkout Modal
       const orderId = orderData.order_id || orderData.id;
       const keyId = orderData.key_id || orderData.keyId;
 
@@ -478,26 +582,19 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           )}
         </div>
 
-        {/* Early Adopter Perk: First 30 Users Free */}
-        {!isEarlyAdopter && userLevel === 0 && (earlyAccessInfo?.is_available ?? true) && (
+        {/* Founder's Reward Banner: First 30 Users Free Diamond */}
+        {!isEarlyAdopter && userLevel === 0 && ((earlyAccessInfo?.claimed_count ?? 0) < 30) && (
           <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-zinc-900 to-teal-950/90 border border-emerald-500/40 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
             <div className="flex items-center gap-3.5">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-zinc-950 flex items-center justify-center font-extrabold shadow-md shrink-0">
                 <Gift className="w-5 h-5 text-zinc-950" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-400 text-zinc-950">
-                    First 30 Users Free
-                  </span>
-                  {earlyAccessInfo && (
-                    <span className="text-xs font-semibold text-emerald-400">
-                      {earlyAccessInfo.remaining} of {earlyAccessInfo.max_early_adopters} spots left
-                    </span>
-                  )}
-                </div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  🎉 Founder's Reward: Free Diamond Membership for the first 30 users!
+                </h4>
                 <p className="text-xs text-zinc-300 mt-1">
-                  As an early supporter, claim <strong>100% Free Gold Tier</strong> for your matrimonial search.
+                  {Math.max(0, 30 - (earlyAccessInfo?.claimed_count || 0))} of 30 spots remaining. Claim your 100% free Diamond upgrade now.
                 </p>
               </div>
             </div>
@@ -512,98 +609,12 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               ) : (
                 <>
                   <Crown className="w-3.5 h-3.5" />
-                  <span>Claim Free Gold</span>
+                  <span>Claim Free Diamond</span>
                 </>
               )}
             </button>
           </div>
         )}
-
-        {/* Promo / Discount Coupon Section */}
-        <div className="mb-6 p-3.5 sm:p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/80">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Tag className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                Have a Promo or Discount Code?
-              </span>
-              {appliedCoupon && (
-                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
-                  {appliedCoupon.code} ({appliedCoupon.discount_percent}% OFF)
-                </span>
-              )}
-            </div>
-
-            {appliedCoupon ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  {appliedCoupon.discount_percent}% discount applied
-                </span>
-                <button
-                  type="button"
-                  onClick={handleRemoveCoupon}
-                  className="text-xs text-zinc-400 hover:text-rose-500 underline cursor-pointer ml-1"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleApplyCoupon} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={couponCodeInput}
-                  onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
-                  placeholder="e.g. SUNNAH100"
-                  className="w-36 sm:w-44 px-3 py-1.5 text-xs font-mono font-bold tracking-wider rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white uppercase focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={isValidatingCoupon || !couponCodeInput.trim()}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold cursor-pointer transition-colors shadow-xs"
-                >
-                  {isValidatingCoupon ? 'Validating...' : 'Apply'}
-                </button>
-              </form>
-            )}
-          </div>
-
-          {couponError && (
-            <p className="text-[11px] text-rose-500 mt-2 font-medium flex items-center gap-1">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              {couponError}
-            </p>
-          )}
-
-          {!appliedCoupon && !couponError && (
-            <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px] text-zinc-500 dark:text-zinc-400">
-              <span>Available codes:</span>
-              <button
-                type="button"
-                onClick={() => setCouponCodeInput('SUNNAH100')}
-                className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
-              >
-                SUNNAH100 (100% OFF)
-              </button>
-              <span>•</span>
-              <button
-                type="button"
-                onClick={() => setCouponCodeInput('BARAKAH50')}
-                className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
-              >
-                BARAKAH50 (50% OFF)
-              </button>
-              <span>•</span>
-              <button
-                type="button"
-                onClick={() => setCouponCodeInput('DAHEEJFREE20')}
-                className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
-              >
-                DAHEEJFREE20 (20% OFF)
-              </button>
-            </div>
-          )}
-        </div>
 
         {/* Billing Cycle Toggle */}
         <div className="flex items-center justify-center mb-6">
@@ -659,8 +670,14 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                 appliedCoupon.tier_allowed.toLowerCase() === t.toLowerCase());
 
             const discountPercent = isCouponApplicable ? appliedCoupon.discount_percent : 0;
-            const finalPrice = Math.max(0, Math.round(basePrice * (1 - discountPercent / 100)));
-            const hasDiscount = discountPercent > 0;
+            let finalPrice = Math.max(0, Math.round(basePrice * (1 - discountPercent / 100)));
+
+            const isEarlyDiamondFree = isEarlyAdopterEligible && isDiamond;
+            if (isEarlyDiamondFree) {
+              finalPrice = 0;
+            }
+
+            const hasDiscount = discountPercent > 0 || isEarlyDiamondFree;
             const isFullyDiscounted = hasDiscount && finalPrice === 0;
 
             const isButtonDisabled = isCurrent || isIncluded || isLoading;
@@ -678,7 +695,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               >
                 {isDiamond && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[9px] font-extrabold uppercase py-0.5 px-3 rounded-full shadow">
-                    Complete Plan
+                    {isEarlyDiamondFree ? "Founder's Free Diamond" : "Complete Plan"}
                   </div>
                 )}
 
@@ -699,7 +716,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                   <div className="my-3 pb-3 border-b border-zinc-100 dark:border-zinc-800">
                     <div className="flex items-baseline gap-2">
                       {hasDiscount && basePrice > 0 && (
-                        <span className="text-sm font-semibold line-through text-zinc-400 dark:text-zinc-500">
+                        <span className="text-sm font-semibold line-through text-zinc-500">
                           ₹{basePrice.toLocaleString()}
                         </span>
                       )}
@@ -708,7 +725,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                       </span>
                       {hasDiscount && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                          {discountPercent}% OFF
+                          {isEarlyDiamondFree ? "Founder's Reward" : `${discountPercent}% OFF`}
                         </span>
                       )}
                       {finalPrice > 0 && (
@@ -739,6 +756,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                       ? 'Current Plan'
                       : isIncluded
                       ? 'Included in Your Plan'
+                      : isEarlyDiamondFree
+                      ? 'Claim Free Diamond'
                       : isFullyDiscounted
                       ? 'Claim Free Subscription'
                       : `Select Plan ${plan.name}`
@@ -769,6 +788,11 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                       <Lock className="w-3.5 h-3.5 text-zinc-400" />
                       Included in Your Plan
                     </span>
+                  ) : isEarlyDiamondFree ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-emerald-200" />
+                      Claim Free Diamond
+                    </span>
                   ) : isFullyDiscounted ? (
                     <span className="inline-flex items-center gap-1.5">
                       <Sparkles className="w-4 h-4 text-emerald-200" />
@@ -781,6 +805,92 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               </div>
             );
           })}
+        </div>
+
+        {/* Promo / Discount Coupon Section (Positioned Below Pricing Cards) */}
+        <div className="mt-6 p-3.5 sm:p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Tag className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                Have a promo code?
+              </span>
+              {appliedCoupon && (
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                  {appliedCoupon.code} ({appliedCoupon.discount_percent}% OFF)
+                </span>
+              )}
+            </div>
+
+            {appliedCoupon ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  {appliedCoupon.discount_percent}% discount applied
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRemoveCoupon}
+                  className="text-xs text-zinc-400 hover:text-rose-500 underline cursor-pointer ml-1"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleApplyCoupon} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={couponCodeInput}
+                  onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                  placeholder="Have a promo code?"
+                  className="w-36 sm:w-44 px-3 py-1.5 text-xs font-mono font-bold tracking-wider rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white uppercase focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={isValidatingCoupon || !couponCodeInput.trim()}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold cursor-pointer transition-colors shadow-xs"
+                >
+                  {isValidatingCoupon ? 'Validating...' : 'Apply'}
+                </button>
+              </form>
+            )}
+          </div>
+
+          {couponError && (
+            <p className="text-[11px] text-rose-500 mt-2 font-medium flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              {couponError}
+            </p>
+          )}
+
+          {!appliedCoupon && !couponError && (
+            <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px] text-zinc-500 dark:text-zinc-400">
+              <span>Available codes:</span>
+              <button
+                type="button"
+                onClick={() => setCouponCodeInput('SUNNAH100')}
+                className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+              >
+                SUNNAH100 (100% OFF)
+              </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => setCouponCodeInput('BARAKAH50')}
+                className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+              >
+                BARAKAH50 (50% OFF)
+              </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => setCouponCodeInput('DAHEEJFREE20')}
+                className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+              >
+                DAHEEJFREE20 (20% OFF)
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="text-center text-[10px] text-zinc-400 dark:text-zinc-500 mt-6 flex items-center justify-center gap-1.5">

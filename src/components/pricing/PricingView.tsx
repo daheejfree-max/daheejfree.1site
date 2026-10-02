@@ -98,8 +98,12 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const userTier = (currentProfile?.subscription_tier || currentTier || 'free').toLowerCase();
   const userLevel = TIER_LEVELS[userTier] ?? 0;
   const isEarlyAdopter = Boolean(currentProfile?.is_early_adopter);
+  const isEarlyAdopterEligible =
+    !isEarlyAdopter &&
+    userLevel === 0 &&
+    ((earlyAccessInfo?.claimed_count ?? 0) < 30 || (earlyAccessInfo?.remaining ?? 0) > 0);
 
-  // Early Supporter Auto-Claim Handler
+  // Early Supporter Auto-Claim Handler (Free Diamond Membership)
   const handleClaimEarlyAccess = async () => {
     if (!currentProfile) {
       if (onNavigateRegister) onNavigateRegister();
@@ -111,10 +115,21 @@ export const PricingView: React.FC<PricingViewProps> = ({
     setSuccessMessage(null);
 
     try {
-      const res = await fetch('/api/payments/claim-early-access', {
+      let authToken = '';
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        authToken = sessionData.session?.access_token || '';
+      } catch {}
+
+      const res = await fetch('/api/payments/free-activation', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         body: JSON.stringify({
+          tier: 'diamond',
+          reason: 'early_adopter',
           userId: currentProfile.id,
           profileId: currentProfile.id,
         }),
@@ -129,8 +144,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
       }
 
       daheejStore.updateProfile(currentProfile.id, {
-        subscription_tier: 'gold',
-        membership_tier: 'gold',
+        subscription_tier: 'diamond',
+        membership_tier: 'diamond',
         is_early_adopter: true,
       });
 
@@ -138,7 +153,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
         await supabase
           .from('profiles')
           .update({
-            subscription_tier: 'gold',
+            subscription_tier: 'diamond',
             subscription_status: 'active',
             is_early_adopter: true,
             updated_at: new Date().toISOString(),
@@ -149,7 +164,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       }
 
       onSubscriptionUpdated();
-      setSuccessMessage(data.message || 'Alhamdulillah! Early supporter perk activated: Gold Tier.');
+      setSuccessMessage(data.message || "🎉 Founder's Reward activated! Diamond Membership granted.");
 
       try {
         confetti({
@@ -248,32 +263,43 @@ export const PricingView: React.FC<PricingViewProps> = ({
     setSuccessMessage(null);
     setErrorMessage(null);
 
-    // Check if coupon gives 100% discount
+    // Check if coupon gives 100% discount or user qualifies for Founder's Free Diamond
     const isCouponApplicable =
       appliedCoupon &&
       (appliedCoupon.tier_allowed === 'all' ||
         appliedCoupon.tier_allowed.toLowerCase() === tierName.toLowerCase());
 
     const is100PercentOff = isCouponApplicable && appliedCoupon?.discount_percent === 100;
+    const isEarlyDiamondClaim = isEarlyAdopterEligible && tierName === 'diamond';
+    const isFreeActivation = is100PercentOff || isEarlyDiamondClaim;
 
-    // If 100% off, fulfill directly via create-order free endpoint without opening gateway
-    if (is100PercentOff) {
+    // Razorpay Bypass: If final calculated price is ₹0 (first 30 users or 100% coupon)
+    if (isFreeActivation) {
       try {
-        const orderRes = await fetch('/api/payments/create-order', {
+        let authToken = '';
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          authToken = sessionData.session?.access_token || '';
+        } catch {}
+
+        const freeRes = await fetch('/api/payments/free-activation', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          },
           body: JSON.stringify({
             tier: tierName,
-            interval: billingCycle,
+            reason: isEarlyDiamondClaim ? 'early_adopter' : 'coupon',
             couponCode: appliedCoupon?.code,
-            profileId: currentProfile.id,
             userId: currentProfile.id,
+            profileId: currentProfile.id,
           }),
         });
 
-        const orderData = await orderRes.json().catch(() => ({}));
-        if (!orderRes.ok || !orderData.success) {
-          setErrorMessage(orderData?.error || 'Failed to claim free subscription.');
+        const freeData = await freeRes.json().catch(() => ({}));
+        if (!freeRes.ok || !freeData.success) {
+          setErrorMessage(freeData?.error || 'Failed to claim free subscription.');
           setLoadingTier(null);
           return;
         }
@@ -281,6 +307,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
         daheejStore.updateProfile(currentProfile.id, {
           subscription_tier: tierName,
           membership_tier: tierName,
+          is_early_adopter: isEarlyDiamondClaim || Boolean(freeData.is_early_adopter),
         });
 
         try {
@@ -289,6 +316,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
             .update({
               subscription_tier: tierName,
               subscription_status: 'active',
+              is_early_adopter: isEarlyDiamondClaim || Boolean(freeData.is_early_adopter),
               updated_at: new Date().toISOString(),
             })
             .eq('id', currentProfile.id);
@@ -297,7 +325,12 @@ export const PricingView: React.FC<PricingViewProps> = ({
         }
 
         onSubscriptionUpdated();
-        setSuccessMessage(`Alhamdulillah! Free subscription activated with code ${appliedCoupon.code}.`);
+        setSuccessMessage(
+          freeData.message ||
+            `Alhamdulillah! Free activation successful: ${SUBSCRIPTION_PLANS[tierName].name}${
+              appliedCoupon ? ` (Promo ${appliedCoupon.code} applied)` : ''
+            }.`
+        );
 
         try {
           confetti({
@@ -409,26 +442,19 @@ export const PricingView: React.FC<PricingViewProps> = ({
         )}
       </div>
 
-      {/* Early Adopter Perk: First 30 Users Free Banner */}
-      {!isEarlyAdopter && userLevel === 0 && (earlyAccessInfo?.is_available ?? true) && (
+      {/* Founder's Reward Banner: First 30 Users Free Diamond */}
+      {!isEarlyAdopter && userLevel === 0 && ((earlyAccessInfo?.claimed_count ?? 0) < 30) && (
         <div className="max-w-4xl mx-auto p-5 rounded-3xl bg-gradient-to-r from-emerald-950/90 via-zinc-900 to-teal-950/90 border border-emerald-500/40 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-zinc-950 flex items-center justify-center font-extrabold shadow-md shrink-0">
               <Gift className="w-6 h-6 text-zinc-950" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-400 text-zinc-950">
-                  First 30 Users Free
-                </span>
-                {earlyAccessInfo && (
-                  <span className="text-xs font-semibold text-emerald-400">
-                    {earlyAccessInfo.remaining} of {earlyAccessInfo.max_early_adopters} spots left
-                  </span>
-                )}
-              </div>
+              <h4 className="text-base font-bold text-white flex items-center gap-2">
+                🎉 Founder's Reward: Free Diamond Membership for the first 30 users!
+              </h4>
               <p className="text-xs text-zinc-300 mt-1">
-                As an early supporter of dowry-free matrimony, activate <strong>100% Free Gold Tier</strong> for your account.
+                {Math.max(0, 30 - (earlyAccessInfo?.claimed_count || 0))} of 30 spots remaining. Activate full Diamond tier to connect directly with Wali guardians.
               </p>
             </div>
           </div>
@@ -443,102 +469,12 @@ export const PricingView: React.FC<PricingViewProps> = ({
             ) : (
               <>
                 <Crown className="w-4 h-4" />
-                <span>Claim Free Gold</span>
+                <span>Claim Free Diamond</span>
               </>
             )}
           </button>
         </div>
       )}
-
-      {/* Promo / Discount Coupon Section */}
-      <div className="max-w-4xl mx-auto p-4 rounded-3xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-              <Tag className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                Have a Promo or Discount Code?
-              </span>
-              {appliedCoupon && (
-                <span className="ml-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
-                  {appliedCoupon.code} Active ({appliedCoupon.discount_percent}% OFF)
-                </span>
-              )}
-            </div>
-          </div>
-
-          {appliedCoupon ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                <CheckCircle className="w-3.5 h-3.5" />
-                {appliedCoupon.discount_percent}% discount applied
-              </span>
-              <button
-                type="button"
-                onClick={handleRemoveCoupon}
-                className="text-xs text-zinc-400 hover:text-rose-500 underline cursor-pointer ml-1"
-              >
-                Remove
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleApplyCoupon} className="flex items-center gap-2">
-              <input
-                type="text"
-                value={couponCodeInput}
-                onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
-                placeholder="e.g. SUNNAH100"
-                className="w-40 sm:w-48 px-3.5 py-1.5 text-xs font-mono font-bold tracking-wider rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white uppercase focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={isValidatingCoupon || !couponCodeInput.trim()}
-                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold cursor-pointer transition-colors shadow-xs"
-              >
-                {isValidatingCoupon ? 'Validating...' : 'Apply'}
-              </button>
-            </form>
-          )}
-        </div>
-
-        {couponError && (
-          <p className="text-[11px] text-rose-500 mt-2 font-medium flex items-center gap-1">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            {couponError}
-          </p>
-        )}
-
-        {!appliedCoupon && !couponError && (
-          <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-800 text-[10px] text-zinc-500 dark:text-zinc-400">
-            <span>Available codes:</span>
-            <button
-              type="button"
-              onClick={() => setCouponCodeInput('SUNNAH100')}
-              className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
-            >
-              SUNNAH100 (100% OFF)
-            </button>
-            <span>•</span>
-            <button
-              type="button"
-              onClick={() => setCouponCodeInput('BARAKAH50')}
-              className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
-            >
-              BARAKAH50 (50% OFF)
-            </button>
-            <span>•</span>
-            <button
-              type="button"
-              onClick={() => setCouponCodeInput('DAHEEJFREE20')}
-              className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
-            >
-              DAHEEJFREE20 (20% OFF)
-            </button>
-          </div>
-        )}
-      </div>
 
       {/* Billing Cycle Toggle & Gateway Selector */}
       <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -768,6 +704,96 @@ export const PricingView: React.FC<PricingViewProps> = ({
             </div>
           );
         })}
+      </div>
+
+      {/* Promo / Discount Coupon Section (Positioned Below Pricing Cards) */}
+      <div className="max-w-4xl mx-auto p-4 rounded-3xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+              <Tag className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                Have a promo code?
+              </span>
+              {appliedCoupon && (
+                <span className="ml-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                  {appliedCoupon.code} Active ({appliedCoupon.discount_percent}% OFF)
+                </span>
+              )}
+            </div>
+          </div>
+
+          {appliedCoupon ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <CheckCircle className="w-3.5 h-3.5" />
+                {appliedCoupon.discount_percent}% discount applied
+              </span>
+              <button
+                type="button"
+                onClick={handleRemoveCoupon}
+                className="text-xs text-zinc-400 hover:text-rose-500 underline cursor-pointer ml-1"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleApplyCoupon} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={couponCodeInput}
+                onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                placeholder="Have a promo code?"
+                className="w-40 sm:w-48 px-3.5 py-1.5 text-xs font-mono font-bold tracking-wider rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white uppercase focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={isValidatingCoupon || !couponCodeInput.trim()}
+                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold cursor-pointer transition-colors shadow-xs"
+              >
+                {isValidatingCoupon ? 'Validating...' : 'Apply'}
+              </button>
+            </form>
+          )}
+        </div>
+
+        {couponError && (
+          <p className="text-[11px] text-rose-500 mt-2 font-medium flex items-center gap-1">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            {couponError}
+          </p>
+        )}
+
+        {!appliedCoupon && !couponError && (
+          <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-800 text-[10px] text-zinc-500 dark:text-zinc-400">
+            <span>Available codes:</span>
+            <button
+              type="button"
+              onClick={() => setCouponCodeInput('SUNNAH100')}
+              className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+            >
+              SUNNAH100 (100% OFF)
+            </button>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={() => setCouponCodeInput('BARAKAH50')}
+              className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+            >
+              BARAKAH50 (50% OFF)
+            </button>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={() => setCouponCodeInput('DAHEEJFREE20')}
+              className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+            >
+              DAHEEJFREE20 (20% OFF)
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Bottom Guarantee Banner */}

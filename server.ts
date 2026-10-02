@@ -16,6 +16,10 @@ import {
   POST as claimEarlyAccessRouteHandler,
   GET as getEarlyAccessStatusRouteHandler,
 } from './src/app/api/payments/claim-early-access/route';
+import {
+  POST as freeActivationRouteHandler,
+  GET as freeActivationGetRouteHandler,
+} from './src/app/api/payments/free-activation/route';
 
 dotenv.config();
 
@@ -656,6 +660,32 @@ app.all(['/api/payments/claim-early-access', '/api/payments/claim-early-access/'
   } catch (err: any) {
     console.error('[EarlyAccess API] Route error:', err);
     return res.status(500).json({ success: false, error: err?.message || 'Early access claim failed' });
+  }
+});
+
+app.all(['/api/payments/free-activation', '/api/payments/free-activation/'], async (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const fullUrl = `http://localhost:${PORT}${req.originalUrl || req.url}`;
+    if (req.method === 'GET') {
+      const webRes = await freeActivationGetRouteHandler();
+      const data = await webRes.json().catch(() => ({}));
+      return res.status(webRes.status).json(data);
+    }
+    const webReq = new Request(fullUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
+      },
+      body: JSON.stringify(req.body || {}),
+    });
+    const webRes = await freeActivationRouteHandler(webReq);
+    const data = await webRes.json().catch(() => ({}));
+    return res.status(webRes.status).json(data);
+  } catch (err: any) {
+    console.error('[Free Activation API] Route error:', err);
+    return res.status(500).json({ success: false, error: err?.message || 'Free activation failed' });
   }
 });
 
