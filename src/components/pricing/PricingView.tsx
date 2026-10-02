@@ -553,8 +553,18 @@ export const PricingView: React.FC<PricingViewProps> = ({
               appliedCoupon.tier_allowed.toLowerCase() === t.toLowerCase());
 
           const discountPercent = isCouponApplicable ? appliedCoupon.discount_percent : 0;
-          const finalPrice = Math.max(0, Math.round(basePrice * (1 - discountPercent / 100)));
-          const hasDiscount = discountPercent > 0;
+          const isEarlyDiamondFree =
+            !isEarlyAdopter &&
+            userLevel === 0 &&
+            ((earlyAccessInfo?.claimed_count ?? 0) < 30) &&
+            isDiamond;
+
+          let finalPrice = Math.max(0, Math.round(basePrice * (1 - discountPercent / 100)));
+          if (isEarlyDiamondFree) {
+            finalPrice = 0;
+          }
+
+          const hasDiscount = discountPercent > 0 || isEarlyDiamondFree;
           const isFullyDiscounted = hasDiscount && finalPrice === 0;
 
           const isButtonDisabled = isCurrent || isIncluded || isLoading;
@@ -573,7 +583,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
               {isDiamond && (
                 <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[10px] font-extrabold uppercase tracking-wider py-1 px-4 rounded-full shadow-md flex items-center gap-1">
                   <Crown className="w-3 h-3 fill-amber-300 text-amber-300" />
-                  Most Complete Matrimonial Plan
+                  {isEarlyDiamondFree ? "Founder's Free Diamond" : "Most Complete Matrimonial Plan"}
                 </div>
               )}
 
@@ -620,7 +630,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                 <div className="my-5 pb-5 border-b border-zinc-100 dark:border-zinc-800/80">
                   <div className="flex items-baseline gap-2">
                     {hasDiscount && basePrice > 0 && (
-                      <span className="text-sm font-semibold line-through text-zinc-400 dark:text-zinc-500">
+                      <span className="text-sm font-semibold line-through text-zinc-500">
                         ₹{basePrice.toLocaleString()}
                       </span>
                     )}
@@ -629,7 +639,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                     </span>
                     {hasDiscount && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                        {discountPercent}% OFF
+                        {isEarlyDiamondFree ? "Founder's Reward" : `${discountPercent}% OFF`}
                       </span>
                     )}
                     {finalPrice > 0 && (
@@ -689,6 +699,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
                   <>
                     <Lock className="w-4 h-4 text-zinc-400" />
                     <span>Included in Your Plan</span>
+                  </>
+                ) : isEarlyDiamondFree ? (
+                  <>
+                    <Sparkles className="w-4 h-4 text-emerald-200" />
+                    <span>Claim Free Diamond</span>
                   </>
                 ) : isFullyDiscounted ? (
                   <>

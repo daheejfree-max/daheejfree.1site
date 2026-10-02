@@ -15,9 +15,9 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-function withTimeout<T>(promise: Promise<T>, ms = 2500): Promise<T> {
+async function withTimeout<T = any>(thenable: PromiseLike<T> | Promise<T>, ms = 2500): Promise<T> {
   return Promise.race([
-    promise,
+    Promise.resolve(thenable),
     new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), ms)),
   ]);
 }
