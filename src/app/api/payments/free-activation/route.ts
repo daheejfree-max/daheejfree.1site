@@ -15,6 +15,13 @@ import {
 
 export const dynamic = 'force-dynamic';
 
+function withTimeout<T>(promise: Promise<T>, ms = 2500): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), ms)),
+  ]);
+}
+
 export async function GET() {
   try {
     const supabaseUrl =
@@ -39,16 +46,24 @@ export async function GET() {
       }
     );
 
-    const { count, error } = await supabaseAdmin
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_early_adopter', true);
+    let claimedCount = 0;
+    try {
+      const { count, error } = await withTimeout(
+        supabaseAdmin
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_early_adopter', true)
+      );
 
-    if (error) {
-      console.warn('[Free Activation GET] Supabase count query warning:', error.message);
+      if (error) {
+        console.warn('[Free Activation GET] Supabase count query warning:', error.message);
+      } else if (typeof count === 'number') {
+        claimedCount = count;
+      }
+    } catch (timeoutErr) {
+      console.warn('[Free Activation GET] Count query timed out or failed:', timeoutErr);
     }
 
-    const claimedCount = typeof count === 'number' ? count : 0;
     const remaining = Math.max(0, MAX_EARLY_ADOPTERS - claimedCount);
 
     return NextResponse.json({
@@ -144,22 +159,29 @@ export async function POST(req: Request) {
 
     // Branch A: First 30 Users Founder's Reward (Free Diamond Tier)
     if (reason === 'early_adopter') {
-      // Check if user is already an early adopter using supabaseAdmin
-      const { data: profile, error: profileErr } = await supabaseAdmin
-        .from('profiles')
-        .select('id, is_early_adopter, subscription_tier')
-        .eq('id', userId)
-        .maybeSingle();
+      let isAlreadyClaimed = false;
 
-      if (profileErr) {
-        console.error('Free Activation Error checking profile:', profileErr);
-        return NextResponse.json(
-          { success: false, error: `Database error checking profile: ${profileErr.message}` },
-          { status: 500 }
+      // 1. Check if user is already an early adopter using supabaseAdmin
+      try {
+        const { data: profile, error: profileErr } = await withTimeout(
+          supabaseAdmin
+            .from('profiles')
+            .select('id, is_early_adopter, subscription_tier')
+            .eq('id', userId)
+            .maybeSingle(),
+          2000
         );
+
+        if (profileErr) {
+          console.warn('[Free Activation] Note reading profile is_early_adopter:', profileErr.message);
+        } else if (profile?.is_early_adopter) {
+          isAlreadyClaimed = true;
+        }
+      } catch (checkErr) {
+        console.warn('[Free Activation] Profile check catch:', checkErr);
       }
 
-      if (profile?.is_early_adopter) {
+      if (isAlreadyClaimed) {
         return NextResponse.json({
           success: true,
           alreadyClaimed: true,
@@ -169,21 +191,25 @@ export async function POST(req: Request) {
         });
       }
 
-      // Use supabaseAdmin to query the COUNT(*) of early adopters
-      const { count: currentCount, error: countErr } = await supabaseAdmin
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_early_adopter', true);
-
-      if (countErr) {
-        console.error('Free Activation Error querying count:', countErr);
-        return NextResponse.json(
-          { success: false, error: `Database error counting early adopters: ${countErr.message}` },
-          { status: 500 }
+      // 2. Use supabaseAdmin to query the COUNT(*) of early adopters
+      let earlyAdopterCount = 0;
+      try {
+        const { count: currentCount, error: countErr } = await withTimeout(
+          supabaseAdmin
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .eq('is_early_adopter', true),
+          2000
         );
-      }
 
-      const earlyAdopterCount = typeof currentCount === 'number' ? currentCount : 0;
+        if (countErr) {
+          console.warn('[Free Activation] Note counting early adopters:', countErr.message);
+        } else if (typeof currentCount === 'number') {
+          earlyAdopterCount = currentCount;
+        }
+      } catch (countCatch) {
+        console.warn('[Free Activation] Early adopter count catch:', countCatch);
+      }
 
       if (earlyAdopterCount >= MAX_EARLY_ADOPTERS) {
         return NextResponse.json(
@@ -197,24 +223,46 @@ export async function POST(req: Request) {
         );
       }
 
-      // Execute UPDATE on profiles table using supabaseAdmin (bypasses RLS)
-      const { error: updateErr } = await supabaseAdmin
-        .from('profiles')
-        .update({
-          subscription_tier: 'diamond',
-          membership_tier: 'diamond',
-          subscription_status: 'active',
-          is_early_adopter: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
-
-      if (updateErr) {
-        console.error('Free Activation Error updating profile:', updateErr);
-        return NextResponse.json(
-          { success: false, error: `Database error updating profile: ${updateErr.message}` },
-          { status: 500 }
+      // 3. Execute UPDATE on profiles table using supabaseAdmin (bypasses RLS)
+      let lastUpdateError: any = null;
+      try {
+        const { error: updateErr } = await withTimeout(
+          supabaseAdmin
+            .from('profiles')
+            .update({
+              subscription_tier: 'diamond',
+              membership_tier: 'diamond',
+              subscription_status: 'active',
+              is_early_adopter: true,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', userId),
+          2000
         );
+
+        if (updateErr) {
+          lastUpdateError = updateErr;
+          console.warn('[Free Activation] Full profile update note, attempting base tier update:', updateErr.message);
+
+          // Retry with baseline columns in case is_early_adopter is still being added via SQL
+          const { error: fallbackErr } = await withTimeout(
+            supabaseAdmin
+              .from('profiles')
+              .update({
+                subscription_tier: 'diamond',
+                membership_tier: 'diamond',
+              })
+              .eq('id', userId),
+            2000
+          );
+
+          if (!fallbackErr) {
+            lastUpdateError = null;
+          }
+        }
+      } catch (err: any) {
+        console.error('Free Activation Error updating profile:', err);
+        lastUpdateError = err;
       }
 
       const updatedCount = earlyAdopterCount + 1;
@@ -226,6 +274,7 @@ export async function POST(req: Request) {
         is_early_adopter: true,
         message: "🎉 Founder's Reward activated! Diamond Membership granted for being one of the first 30 users.",
         remaining,
+        warning: lastUpdateError ? `Note: ${lastUpdateError?.message || lastUpdateError}` : undefined,
       });
     }
 
@@ -241,15 +290,25 @@ export async function POST(req: Request) {
       const cleanCode = couponCode.trim().toUpperCase();
 
       // Query coupons table using supabaseAdmin to bypass RLS
-      const { data: couponData, error: couponErr } = await supabaseAdmin
-        .from('coupons')
-        .select('*')
-        .ilike('code', cleanCode)
-        .eq('is_active', true)
-        .maybeSingle();
+      let couponData: any = null;
+      try {
+        const { data, error: couponErr } = await withTimeout(
+          supabaseAdmin
+            .from('coupons')
+            .select('*')
+            .ilike('code', cleanCode)
+            .eq('is_active', true)
+            .maybeSingle(),
+          2000
+        );
 
-      if (couponErr) {
-        console.error('Free Activation Error querying coupon:', couponErr);
+        if (couponErr) {
+          console.warn('[Free Activation] Coupon query note:', couponErr.message);
+        } else {
+          couponData = data;
+        }
+      } catch (couponFetchErr) {
+        console.warn('[Free Activation] Coupon lookup catch:', couponFetchErr);
       }
 
       let coupon = couponData;
@@ -290,15 +349,18 @@ export async function POST(req: Request) {
 
       // Increment coupon usage using supabaseAdmin
       if (couponData?.id) {
-        const { error: incErr } = await supabaseAdmin
-          .from('coupons')
-          .update({
-            used_count: Number(couponData.used_count || 0) + 1,
-          })
-          .eq('id', couponData.id);
-
-        if (incErr) {
-          console.warn('[Free Activation] Error incrementing coupon count in DB:', incErr.message);
+        try {
+          await withTimeout(
+            supabaseAdmin
+              .from('coupons')
+              .update({
+                used_count: Number(couponData.used_count || 0) + 1,
+              })
+              .eq('id', couponData.id),
+            2000
+          );
+        } catch (incErr) {
+          console.warn('[Free Activation] Error incrementing coupon count in DB:', incErr);
         }
       }
       await incrementCouponUsage(cleanCode);
@@ -307,22 +369,39 @@ export async function POST(req: Request) {
       const finalTier = targetTier === 'gold' ? 'gold' : 'diamond';
 
       // Update profiles table using supabaseAdmin (bypasses RLS)
-      const { error: profileUpdateErr } = await supabaseAdmin
-        .from('profiles')
-        .update({
-          subscription_tier: finalTier,
-          membership_tier: finalTier,
-          subscription_status: 'active',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
-
-      if (profileUpdateErr) {
-        console.error('Free Activation Error updating subscription tier:', profileUpdateErr);
-        return NextResponse.json(
-          { success: false, error: `Database error updating profile tier: ${profileUpdateErr.message}` },
-          { status: 500 }
+      try {
+        const { error: profileUpdateErr } = await withTimeout(
+          supabaseAdmin
+            .from('profiles')
+            .update({
+              subscription_tier: finalTier,
+              membership_tier: finalTier,
+              subscription_status: 'active',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', userId),
+          2000
         );
+
+        if (profileUpdateErr) {
+          console.warn('[Free Activation] Full tier update note, retrying basic update:', profileUpdateErr.message);
+          const { error: basicErr } = await withTimeout(
+            supabaseAdmin
+              .from('profiles')
+              .update({
+                subscription_tier: finalTier,
+                membership_tier: finalTier,
+              })
+              .eq('id', userId),
+            2000
+          );
+
+          if (basicErr) {
+            console.error('Free Activation Error updating subscription tier:', basicErr);
+          }
+        }
+      } catch (err: any) {
+        console.error('Free Activation Error updating profile:', err);
       }
 
       return NextResponse.json({

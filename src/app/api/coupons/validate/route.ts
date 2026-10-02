@@ -53,23 +53,38 @@ export async function POST(req: Request) {
 
     const cleanCode = code.trim().toUpperCase();
 
-    // Query coupons table using supabaseAdmin (bypassing RLS)
-    const { data: dbCoupon, error: queryError } = await supabaseAdmin
-      .from('coupons')
-      .select('*')
-      .ilike('code', cleanCode)
-      .eq('is_active', true)
-      .maybeSingle();
+    // Query coupons table using supabaseAdmin (bypassing RLS) with 3.5s timeout
+    let dbCoupon: any = null;
+    let dbError: any = null;
+    try {
+      const queryPromise = supabaseAdmin
+        .from('coupons')
+        .select('*')
+        .ilike('code', cleanCode)
+        .eq('is_active', true)
+        .maybeSingle();
 
-    if (queryError) {
-      console.error('Coupon Validation Error (querying coupons):', queryError);
-      // If table missing or query failed and no in-memory fallback exists, return 500 with exact error
-      if (!IN_MEMORY_COUPONS[cleanCode]) {
-        return NextResponse.json(
-          { valid: false, error: `Database error querying coupons: ${queryError.message}` },
-          { status: 500 }
-        );
+      const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: new Error('Database query timed out') }), 3500)
+      );
+
+      const result = await Promise.race([queryPromise, timeoutPromise]);
+      if (result.error) {
+        dbError = result.error;
+        console.warn('Coupon Validation Error (querying coupons):', result.error.message || result.error);
+      } else {
+        dbCoupon = result.data;
       }
+    } catch (err: any) {
+      dbError = err;
+      console.error('Coupon Validation Error:', err);
+    }
+
+    if (dbError && !IN_MEMORY_COUPONS[cleanCode]) {
+      return NextResponse.json(
+        { valid: false, error: `Database error querying coupons: ${dbError.message || dbError}` },
+        { status: 500 }
+      );
     }
 
     let coupon = dbCoupon;
