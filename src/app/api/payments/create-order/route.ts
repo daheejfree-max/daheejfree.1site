@@ -6,6 +6,8 @@
 
 import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
+import { SUBSCRIPTION_PLANS } from '@/src/lib/dodoPayments';
+import { validateCoupon, incrementCouponUsage } from '@/src/lib/coupons';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +27,8 @@ export interface CreateOrderRequest {
   userId?: string;
   user_id?: string;
   currency?: string;
+  couponCode?: string;
+  coupon?: string;
 }
 
 export interface CreateOrderResponse {
@@ -36,57 +40,107 @@ export interface CreateOrderResponse {
   key_id?: string;
   tier?: string;
   interval?: string;
+  isFree?: boolean;
+  discount_percent?: number;
   error?: string;
 }
 
 export async function POST(req: Request) {
   try {
-    // 1. Audit the environment variables
+    const body = await req.json().catch(() => ({}));
+    const {
+      tier = 'gold',
+      interval = 'monthly',
+      billingCycle,
+      couponCode,
+      coupon,
+      profileId,
+      userId,
+    } = body || {};
+
+    const normalizedTier = String(tier).toLowerCase();
+    const effectiveInterval = String(billingCycle || interval).toLowerCase() === 'yearly' ? 'yearly' : 'monthly';
+
+    // 1. Calculate canonical server-side base amount to prevent client tampering
+    const planConfig = SUBSCRIPTION_PLANS[normalizedTier as keyof typeof SUBSCRIPTION_PLANS];
+    const basePriceINR = planConfig?.priceINR ?? (normalizedTier === 'diamond' ? 999 : 499);
+    const originalPaise =
+      effectiveInterval === 'yearly' && basePriceINR > 0
+        ? Math.round(basePriceINR * 9.6 * 100)
+        : Math.round(basePriceINR * 100);
+
+    // 2. Validate Coupon and recalculate server-verified discounted amount
+    const codeToValidate = (couponCode || coupon || '').trim();
+    let discountPercent = 0;
+    let validatedCouponCode: string | null = null;
+
+    if (codeToValidate) {
+      const couponResult = await validateCoupon(codeToValidate, normalizedTier);
+      if (!couponResult.valid || !couponResult.coupon) {
+        return NextResponse.json(
+          { error: couponResult.error || 'Invalid promo code provided.' },
+          { status: 400 }
+        );
+      }
+      discountPercent = couponResult.coupon.discount_percent;
+      validatedCouponCode = couponResult.coupon.code;
+    }
+
+    // Apply verified discount
+    const discountMultiplier = Math.max(0, (100 - discountPercent) / 100);
+    const verifiedAmountPaise = Math.round(originalPaise * discountMultiplier);
+
+    // 3. Free Tier or 100% Promo Coupon fulfillment bypass
+    if (normalizedTier === 'free' || verifiedAmountPaise === 0 || discountPercent === 100) {
+      if (validatedCouponCode) {
+        await incrementCouponUsage(validatedCouponCode);
+      }
+      return NextResponse.json({
+        success: true,
+        isFree: true,
+        tier: normalizedTier,
+        order_id: `free_${validatedCouponCode ? 'coupon_' : ''}${Date.now()}`,
+        id: `free_${validatedCouponCode ? 'coupon_' : ''}${Date.now()}`,
+        amount: 0,
+        currency: 'INR',
+        discount_percent: discountPercent,
+        coupon_applied: validatedCouponCode,
+      });
+    }
+
+    // 4. Audit Razorpay environment variables for paid checkout orders
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
       return NextResponse.json(
-        { error: "Missing Razorpay API keys in environment variables" },
+        { error: 'Missing Razorpay API keys in environment variables' },
         { status: 500 }
       );
     }
 
-    const body = await req.json().catch(() => ({}));
-    const { tier = 'gold', amount = 499, interval = 'monthly' } = body || {};
-
-    // 2. Free Tier bypass
-    if (tier === 'free' || Number(amount) === 0) {
-      return NextResponse.json({
-        success: true,
-        isFree: true,
-        tier: 'free',
-        order_id: `free_${Date.now()}`,
-        id: `free_${Date.now()}`,
-        amount: 0,
-        currency: 'INR',
-      });
-    }
-
-    // 3. Initialize Razorpay instance
+    // 5. Initialize Razorpay instance
     const razorpay = new Razorpay({
       key_id: process.env.RAZORPAY_KEY_ID,
       key_secret: process.env.RAZORPAY_KEY_SECRET,
     });
 
-    // 4. Verify payload sent to razorpay.orders.create
-    // amount: Must be an integer in paise. Use Math.round(Number(amount) * 100).
-    const numAmount = Number(amount || 0);
-    const amountInPaise = numAmount >= 10000 ? Math.round(numAmount) : Math.round(Number(amount) * 100);
-
+    // 6. Verify payload sent to razorpay.orders.create
+    // amount: Must be an integer in paise.
     const orderOptions = {
-      amount: amountInPaise,
-      currency: "INR",
+      amount: verifiedAmountPaise,
+      currency: 'INR',
       receipt: `receipt_${Date.now()}`,
       notes: {
-        tier,
-        interval,
+        tier: normalizedTier,
+        interval: effectiveInterval,
+        coupon: validatedCouponCode || '',
+        profileId: profileId || userId || '',
       },
     };
 
     const order = await razorpay.orders.create(orderOptions);
+
+    if (validatedCouponCode) {
+      await incrementCouponUsage(validatedCouponCode);
+    }
 
     return NextResponse.json({
       success: true,
@@ -95,20 +149,19 @@ export async function POST(req: Request) {
       amount: Number(order.amount),
       currency: order.currency,
       key_id: process.env.RAZORPAY_KEY_ID,
-      tier,
-      interval,
+      tier: normalizedTier,
+      interval: effectiveInterval,
+      discount_percent: discountPercent,
+      coupon_applied: validatedCouponCode,
     });
   } catch (error: any) {
-    console.error("Order creation failed:", error);
+    console.error('Order creation failed:', error);
     const errorMsg =
       error?.error?.description ||
       error?.message ||
       error?.description ||
-      "Order creation failed on server";
-    return NextResponse.json(
-      { error: errorMsg },
-      { status: 500 }
-    );
+      'Order creation failed on server';
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
 

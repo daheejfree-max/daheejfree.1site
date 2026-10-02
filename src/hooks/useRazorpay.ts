@@ -23,6 +23,7 @@ export interface RazorpayPaymentOptions {
   userEmail?: string;
   userName?: string;
   userPhone?: string;
+  couponCode?: string;
   onSuccess?: (response: RazorpaySuccessResponse) => void;
   onFailure?: (error: string) => void;
   onDismiss?: () => void;
@@ -108,6 +109,7 @@ export async function initiateRazorpayCheckout(
         amount: amountInPaise,
         interval: billingCycle,
         billingCycle,
+        couponCode: options.couponCode,
         profileId,
         currency: 'INR',
       }),

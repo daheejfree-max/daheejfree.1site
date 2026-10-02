@@ -1,6 +1,148 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      // 1. Mock 'vite-hmr' WebSocket to prevent connection failure logs/throws in AI Studio preview
+      (function () {
+        try {
+          if (typeof window !== 'undefined' && window.WebSocket) {
+            var NativeWebSocket = window.WebSocket;
+            function isViteHmrReq(url, protocols) {
+              if (protocols === 'vite-hmr') return true;
+              if (typeof protocols === 'string' && protocols.indexOf('vite-hmr') !== -1) return true;
+              if (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1) return true;
+              if (typeof url === 'string' && (url.indexOf('token=') !== -1 || url.indexOf('vite') !== -1)) return true;
+              return false;
+            }
+
+            var MockHmrWebSocket = function (url, protocols) {
+              if (isViteHmrReq(url, protocols)) {
+                var noop = function () {};
+                return {
+                  readyState: 1, // WebSocket.OPEN
+                  send: noop,
+                  close: noop,
+                  addEventListener: noop,
+                  removeEventListener: noop,
+                  dispatchEvent: function () { return false; },
+                  onopen: null,
+                  onclose: null,
+                  onerror: null,
+                  onmessage: null,
+                  binaryType: 'blob',
+                  bufferedAmount: 0,
+                  extensions: '',
+                  protocol: 'vite-hmr',
+                  url: String(url || ''),
+                };
+              }
+              return new NativeWebSocket(url, protocols);
+            };
+
+            MockHmrWebSocket.prototype = NativeWebSocket.prototype;
+            MockHmrWebSocket.CONNECTING = 0;
+            MockHmrWebSocket.OPEN = 1;
+            MockHmrWebSocket.CLOSING = 2;
+            MockHmrWebSocket.CLOSED = 3;
+            window.WebSocket = MockHmrWebSocket;
+          }
+        } catch (e) {}
+
+        // 2. Suppress Vite HMR / WebSocket log noise across all console methods & global errors
+        try {
+          var origWarn = console.warn;
+          var origError = console.error;
+          var origInfo = console.info;
+          var origLog = console.log;
+
+          function isViteHmr(args) {
+            if (!args) return false;
+            for (var i = 0; i < args.length; i++) {
+              var arg = args[i];
+              if (typeof arg === 'string') {
+                if (
+                  arg.indexOf('[vite]') !== -1 ||
+                  arg.indexOf('WebSocket') !== -1 ||
+                  arg.indexOf('vite-hmr') !== -1 ||
+                  arg.indexOf('dev-ready') !== -1
+                ) {
+                  return true;
+                }
+              } else if (arg && typeof arg === 'object') {
+                var msg = String(arg.message || arg.reason || arg.description || '');
+                if (
+                  msg.indexOf('[vite]') !== -1 ||
+                  msg.indexOf('WebSocket') !== -1 ||
+                  msg.indexOf('vite-hmr') !== -1 ||
+                  msg.indexOf('dev-ready') !== -1
+                ) {
+                  return true;
+                }
+              }
+            }
+            return false;
+          }
+
+          console.warn = function () {
+            if (isViteHmr(arguments)) return;
+            return origWarn.apply(console, arguments);
+          };
+          console.error = function () {
+            if (isViteHmr(arguments)) return;
+            return origError.apply(console, arguments);
+          };
+          console.info = function () {
+            if (isViteHmr(arguments)) return;
+            return origInfo.apply(console, arguments);
+          };
+          console.log = function () {
+            if (isViteHmr(arguments)) return;
+            return origLog.apply(console, arguments);
+          };
+
+          // Suppress unhandled error events from vite client websocket failure
+          window.addEventListener(
+            'error',
+            function (e) {
+              if (e && isViteHmr([e.message, e.filename, e.error])) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+              }
+            },
+            true
+          );
+
+          window.addEventListener(
+            'unhandledrejection',
+            function (e) {
+              if (e && isViteHmr([e.reason])) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+              }
+            },
+            true
+          );
+        } catch (e) {}
+
+        // 3. Safeguard window.fetch against packages that attempt property assignment on read-only getter
+        try {
+          if (typeof window !== 'undefined' && window.fetch) {
+            var nativeFetch = window.fetch.bind(window);
+            var activeFetch = nativeFetch;
+            Object.defineProperty(window, 'fetch', {
+              get: function () {
+                return activeFetch;
+              },
+              set: function (fn) {
+                activeFetch = typeof fn === 'function' ? fn : nativeFetch;
+              },
+              configurable: true,
+              enumerable: true,
+            });
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
     <title>DaheejFree Matrimonial Platform</title>
@@ -22,53 +164,6 @@
     <link rel="manifest" href="/manifest.json" />
 
     <script src="https://checkout.razorpay.com/v1/checkout.js" async crossorigin="anonymous"></script>
-    <script>
-      // Suppress Vite HMR WebSocket connection logs in AI Studio preview environment
-      (function () {
-        try {
-          var origWarn = console.warn;
-          var origError = console.error;
-          var origLog = console.log;
-          function isViteHmr(arg) {
-            return typeof arg === 'string' && (arg.indexOf('[vite]') !== -1 || arg.indexOf('WebSocket') !== -1);
-          }
-          console.warn = function () {
-            if (arguments[0] && isViteHmr(arguments[0])) return;
-            return origWarn.apply(console, arguments);
-          };
-          console.error = function () {
-            if (arguments[0] && isViteHmr(arguments[0])) return;
-            return origError.apply(console, arguments);
-          };
-          console.log = function () {
-            if (arguments[0] && isViteHmr(arguments[0])) return;
-            return origLog.apply(console, arguments);
-          };
-        } catch (e) {}
-      })();
-
-      // Safeguard window.fetch against packages that attempt property assignment on read-only getter
-      (function () {
-        try {
-          if (typeof window !== 'undefined' && window.fetch) {
-            var nativeFetch = window.fetch.bind(window);
-            var activeFetch = nativeFetch;
-            Object.defineProperty(window, 'fetch', {
-              get: function () {
-                return activeFetch;
-              },
-              set: function (fn) {
-                activeFetch = typeof fn === 'function' ? fn : nativeFetch;
-              },
-              configurable: true,
-              enumerable: true,
-            });
-          }
-        } catch (e) {
-          // Ignore
-        }
-      })();
-    </script>
   </head>
   <body>
     <div id="root"></div>

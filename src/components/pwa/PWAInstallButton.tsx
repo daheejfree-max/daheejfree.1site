@@ -27,16 +27,8 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
   const [, setInstalling] = useState<boolean>(false);
 
-  // If already running inside installed standalone PWA, hide install trigger
+  // If already running inside installed standalone PWA or app is installed, suppress all install triggers
   if (isInstalled) {
-    if (variant === 'menu') {
-      return (
-        <div className="flex items-center gap-3 py-2.5 px-3 rounded-xl text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-500/20">
-          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-          <span>DaheejFree App Installed</span>
-        </div>
-      );
-    }
     return null;
   }
 

@@ -39,6 +39,7 @@ import { LanguageSelector } from '../common/LanguageSelector';
 import { compressImageFile } from '../../lib/imageCompressor';
 import { KycVerifyButton } from '../KycVerifyButton';
 import { PWAInstallButton } from '../pwa/PWAInstallButton';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { Smartphone } from 'lucide-react';
 
 interface KYCVerificationProps {
@@ -58,6 +59,7 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
   onOpenPricing,
   onAccountDeleted,
 }) => {
+  const { isInstalled } = usePWAInstall();
   const [fullName, setFullName] = useState(profile?.full_name || '');
   const [nickname, setNickname] = useState(profile?.nickname || '');
   const [waliEmail, setWaliEmail] = useState(profile?.wali_email || '');
@@ -353,32 +355,34 @@ export const KYCVerification: React.FC<KYCVerificationProps> = ({
         </div>
       </div>
 
-      {/* INSTALL APP (PWA) SECTION */}
-      <div className="bg-white dark:bg-zinc-900 border border-emerald-500/30 dark:border-emerald-500/20 rounded-3xl p-6 sm:p-8 shadow-sm dark:shadow-xl transition-colors space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-500/40 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shadow-sm shrink-0">
-              <Smartphone className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-zinc-900 dark:text-white">
-                  Install DaheejFree as an App
-                </h3>
-                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-xs">
-                  Native PWA
-                </span>
+      {/* INSTALL APP (PWA) SECTION - Suppressed when already installed */}
+      {!isInstalled && (
+        <div className="bg-white dark:bg-zinc-900 border border-emerald-500/30 dark:border-emerald-500/20 rounded-3xl p-6 sm:p-8 shadow-sm dark:shadow-xl transition-colors space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-500/40 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shadow-sm shrink-0">
+                <Smartphone className="w-6 h-6" />
               </div>
-              <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
-                Install on your Android, iPhone, iPad, or desktop computer for 1-tap launching and offline access.
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-zinc-900 dark:text-white">
+                    Install DaheejFree as an App
+                  </h3>
+                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-xs">
+                    Native PWA
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+                  Install on your Android, iPhone, iPad, or desktop computer for 1-tap launching and offline access.
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="sm:shrink-0">
-            <PWAInstallButton variant="hero" />
+            <div className="sm:shrink-0">
+              <PWAInstallButton variant="hero" />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* GLOBAL LANGUAGE & TRANSLATION SETTINGS */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-sm dark:shadow-xl transition-colors space-y-4">

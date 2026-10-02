@@ -11,6 +11,11 @@ import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import { notifyMatchProposalReceived } from './src/lib/email';
 import { POST as createOrderRouteHandler } from './src/app/api/payments/create-order/route';
+import { POST as validateCouponRouteHandler } from './src/app/api/coupons/validate/route';
+import {
+  POST as claimEarlyAccessRouteHandler,
+  GET as getEarlyAccessStatusRouteHandler,
+} from './src/app/api/payments/claim-early-access/route';
 
 dotenv.config();
 
@@ -604,6 +609,53 @@ app.post(PAYMENT_CREATE_ROUTES, async (req, res) => {
   } catch (error: any) {
     console.error("Order creation failed:", error);
     return res.status(500).json({ error: error?.message || error?.description || "Order creation failed on server" });
+  }
+});
+
+// ==============================================================================
+// 2.15 PROMO COUPON VALIDATION & FIRST 30 USERS EARLY ACCESS
+// ==============================================================================
+app.post(['/api/coupons/validate', '/api/coupons/validate/', '/api/payments/validate-coupon'], async (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const fullUrl = `http://localhost:${PORT}${req.originalUrl || req.url}`;
+    const webReq = new Request(fullUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body || {}),
+    });
+    const webRes = await validateCouponRouteHandler(webReq);
+    const data = await webRes.json().catch(() => ({}));
+    return res.status(webRes.status).json(data);
+  } catch (err: any) {
+    console.error('[Coupons API] Route error:', err);
+    return res.status(500).json({ valid: false, error: err?.message || 'Coupon validation failed' });
+  }
+});
+
+app.all(['/api/payments/claim-early-access', '/api/payments/claim-early-access/', '/api/payments/early-access-status'], async (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const fullUrl = `http://localhost:${PORT}${req.originalUrl || req.url}`;
+    if (req.method === 'GET') {
+      const webRes = await getEarlyAccessStatusRouteHandler();
+      const data = await webRes.json().catch(() => ({}));
+      return res.status(webRes.status).json(data);
+    }
+    const webReq = new Request(fullUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
+      },
+      body: JSON.stringify(req.body || {}),
+    });
+    const webRes = await claimEarlyAccessRouteHandler(webReq);
+    const data = await webRes.json().catch(() => ({}));
+    return res.status(webRes.status).json(data);
+  } catch (err: any) {
+    console.error('[EarlyAccess API] Route error:', err);
+    return res.status(500).json({ success: false, error: err?.message || 'Early access claim failed' });
   }
 });
 

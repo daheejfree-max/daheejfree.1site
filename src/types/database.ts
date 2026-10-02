@@ -51,6 +51,7 @@ export interface Profile {
   last_seen?: string;
   subscription_tier: SubscriptionTier;
   membership_tier?: SubscriptionTier;
+  is_early_adopter?: boolean;
   candidate_role?: string;
   role?: string;
   // Extended matrimonial fields
@@ -251,4 +252,16 @@ export interface SecurityAuditLog {
   action_type: string;
   metadata?: Record<string, any>;
   recorded_at: string;
+}
+
+export interface Coupon {
+  id?: string;
+  code: string;
+  discount_percent: number;
+  max_uses: number;
+  used_count: number;
+  tier_allowed: 'gold' | 'diamond' | 'all';
+  is_active?: boolean;
+  expires_at?: string | null;
+  created_at?: string;
 }

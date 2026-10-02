@@ -12,11 +12,16 @@ export const PWAInstallBanner: React.FC = () => {
     if (typeof window === 'undefined') return;
 
     try {
+      if (localStorage.getItem('pwa_installed') === 'true') {
+        setDismissed(true);
+        return;
+      }
+
       const dismissTimestamp = localStorage.getItem('pwa_banner_dismissed_at');
       if (dismissTimestamp) {
         const timePassed = Date.now() - parseInt(dismissTimestamp, 10);
-        // Don't show again if dismissed within last 3 days
-        if (timePassed < 3 * 24 * 60 * 60 * 1000) {
+        // Don't show again if dismissed within last 7 days
+        if (timePassed < 7 * 24 * 60 * 60 * 1000) {
           setDismissed(true);
           return;
         }
@@ -27,8 +32,16 @@ export const PWAInstallBanner: React.FC = () => {
 
     // Delay banner appearance slightly so it doesn't interrupt immediate initial load
     const timer = setTimeout(() => {
+      // Re-verify installation state before showing
+      try {
+        if (localStorage.getItem('pwa_installed') === 'true') {
+          return;
+        }
+      } catch {
+        // ignore
+      }
       setDismissed(false);
-    }, 2500);
+    }, 3500);
 
     return () => clearTimeout(timer);
   }, []);

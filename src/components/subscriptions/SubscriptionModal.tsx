@@ -3,10 +3,11 @@
 // ==============================================================================
 // 3-TIER SUBSCRIPTION MODAL (DAHEEJFREE MATRIMONIAL PLATFORM)
 // Strictly 3 Tiers: Free (Sunnah Base), Gold, and Diamond
+// Includes Promo / Discount Coupon System & First 30 Users Free Auto-Claim
 // Strictly Prevents Plan Degradation & Uses /api/payments/create-order Endpoint
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Crown,
   Check,
@@ -17,6 +18,8 @@ import {
   CheckCircle,
   AlertCircle,
   Lock,
+  Tag,
+  Gift,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { SubscriptionTier, BillingCycle, Profile } from '../../types';
@@ -55,6 +58,43 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Promo Coupon State
+  const [couponCodeInput, setCouponCodeInput] = useState<string>('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discount_percent: number;
+    tier_allowed: string;
+    message: string;
+  } | null>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState<boolean>(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+
+  // Early Adopter Status State
+  const [earlyAccessInfo, setEarlyAccessInfo] = useState<{
+    claimed_count: number;
+    max_early_adopters: number;
+    remaining: number;
+    is_available: boolean;
+  } | null>(null);
+  const [isClaimingEarlyAccess, setIsClaimingEarlyAccess] = useState<boolean>(false);
+
+  // Query early access spots when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+    fetch('/api/payments/claim-early-access')
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted && data?.success) {
+          setEarlyAccessInfo(data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const visibleTiers: SubscriptionTier[] = ['free', 'gold', 'diamond'];
@@ -62,6 +102,125 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   // Read current user's profile state to determine exact tier level
   const userTier = (currentProfile?.subscription_tier || currentTier || 'free').toLowerCase();
   const userLevel = TIER_LEVELS[userTier] ?? 0;
+  const isEarlyAdopter = Boolean(currentProfile?.is_early_adopter);
+
+  // Early Supporter Auto-Claim Handler
+  const handleClaimEarlyAccess = async () => {
+    if (!currentProfile) return;
+    setIsClaimingEarlyAccess(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const res = await fetch('/api/payments/claim-early-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentProfile.id,
+          profileId: currentProfile.id,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        setErrorMessage(data?.error || 'Unable to claim early supporter perk.');
+        setIsClaimingEarlyAccess(false);
+        return;
+      }
+
+      // Update local profile store
+      daheejStore.updateProfile(currentProfile.id, {
+        subscription_tier: 'gold',
+        membership_tier: 'gold',
+        is_early_adopter: true,
+      });
+
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            subscription_tier: 'gold',
+            subscription_status: 'active',
+            is_early_adopter: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentProfile.id);
+      } catch (dbErr) {
+        console.warn('[EarlyAccess] Profile update note:', dbErr);
+      }
+
+      onSubscriptionUpdated();
+      setSuccessMessage(data.message || 'Alhamdulillah! Early supporter perk activated: Gold Tier.');
+
+      try {
+        confetti({
+          particleCount: 120,
+          spread: 90,
+          origin: { y: 0.5 },
+        });
+      } catch (e) {}
+
+      setTimeout(() => {
+        onClose();
+      }, 1800);
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to claim early supporter perk.');
+    } finally {
+      setIsClaimingEarlyAccess(false);
+    }
+  };
+
+  // Promo Coupon Validation Handler
+  const handleApplyCoupon = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanCode = couponCodeInput.trim().toUpperCase();
+    if (!cleanCode) {
+      setCouponError('Please enter a coupon code.');
+      return;
+    }
+
+    setIsValidatingCoupon(true);
+    setCouponError(null);
+
+    try {
+      const res = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: cleanCode,
+          tier: 'gold',
+          billingCycle,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.valid) {
+        setCouponError(data?.error || 'Invalid or expired promo code.');
+        setAppliedCoupon(null);
+        return;
+      }
+
+      setAppliedCoupon({
+        code: data.code,
+        discount_percent: data.discount_percent,
+        tier_allowed: data.tier_allowed,
+        message: data.message,
+      });
+      setCouponError(null);
+      setSuccessMessage(data.message);
+    } catch (err: any) {
+      setCouponError(err?.message || 'Error validating promo code.');
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCodeInput('');
+    setCouponError(null);
+  };
 
   const handleSelectPlan = async (tier: SubscriptionTier) => {
     if (!currentProfile) return;
@@ -97,25 +256,35 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     setLoadingTier(tier);
 
     try {
-      // Calculate exact plan pricing
+      // Calculate exact plan pricing with coupon applied
       const planConfig = SUBSCRIPTION_PLANS[tier];
-      const planAmount =
+      const basePriceINR =
         billingCycle === 'yearly' && planConfig?.priceINR > 0
           ? Math.round(planConfig.priceINR * 9.6)
           : (planConfig?.priceINR || 0);
-      const amount = planAmount * 100;
+
+      const isCouponValidForTier =
+        appliedCoupon &&
+        (appliedCoupon.tier_allowed === 'all' ||
+          appliedCoupon.tier_allowed.toLowerCase() === tier.toLowerCase());
+
+      const discountPercent = isCouponValidForTier ? appliedCoupon.discount_percent : 0;
+      const discountedPriceINR = Math.max(0, Math.round(basePriceINR * (1 - discountPercent / 100)));
+      const isFreeFulfillment = discountedPriceINR === 0 || discountPercent === 100;
+      const amountPaise = discountedPriceINR * 100;
       const interval = billingCycle;
 
       // 1. Fetch server-generated order from /api/payments/create-order
-      // Passes required payload: { tier, amount, interval }
+      // Passes required payload: { tier, amount, interval, couponCode }
       const orderRes = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tier,
-          amount,
+          amount: amountPaise,
           interval,
           billingCycle,
+          couponCode: isCouponValidForTier ? appliedCoupon?.code : undefined,
           profileId: currentProfile?.id || '',
           userId: currentProfile?.id || '',
           currency: 'INR',
@@ -132,19 +301,13 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       const orderData = await orderRes.json().catch(() => ({}));
 
       if (!orderData || !orderData.success) {
-        setErrorMessage(orderData?.error || "Order creation failed on server");
+        setErrorMessage(orderData?.error || 'Order creation failed on server');
         setLoadingTier(null);
         return;
       }
 
-      // 2. Dynamically load official Razorpay SDK script
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        throw new Error('Razorpay payment gateway script could not be loaded. Please check your internet connection.');
-      }
-
-      // Handle free or simulated/test sandbox orders directly
-      if (orderData.isFree || orderData.isSimulated) {
+      // Handle free or 100% coupon fulfillment directly without Razorpay
+      if (orderData.isFree || orderData.isSimulated || isFreeFulfillment) {
         daheejStore.updateProfile(currentProfile.id, {
           subscription_tier: tier,
           membership_tier: tier,
@@ -164,21 +327,31 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         }
 
         onSubscriptionUpdated();
-        setSuccessMessage(`Alhamdulillah! Subscription upgraded to ${SUBSCRIPTION_PLANS[tier].name}.`);
+        setSuccessMessage(
+          `Alhamdulillah! Subscription upgraded to ${SUBSCRIPTION_PLANS[tier].name}${
+            appliedCoupon ? ` (Promo ${appliedCoupon.code} applied)` : ''
+          }.`
+        );
 
         try {
           confetti({
-            particleCount: 100,
-            spread: 80,
+            particleCount: 110,
+            spread: 85,
             origin: { y: 0.6 },
           });
         } catch (e) {}
 
         setTimeout(() => {
           onClose();
-        }, 1500);
+        }, 1600);
         setLoadingTier(null);
         return;
+      }
+
+      // 2. Dynamically load official Razorpay SDK script for paid checkout
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        throw new Error('Razorpay payment gateway script could not be loaded. Please check your internet connection.');
       }
 
       // 3. Launch official Razorpay Checkout Modal
@@ -241,6 +414,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           profile_id: currentProfile.id,
           tier: tier,
           billing_cycle: billingCycle,
+          coupon: appliedCoupon?.code || '',
         },
         theme: {
           color: '#059669',
@@ -275,7 +449,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         </button>
 
         {/* Header */}
-        <div className="text-center space-y-2 mb-8">
+        <div className="text-center space-y-2 mb-6">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
             <Shield className="w-3.5 h-3.5" />
             Shariah-Compliant Matrimony
@@ -302,36 +476,163 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               <span>{successMessage}</span>
             </div>
           )}
+        </div>
 
-          {/* Billing Toggle */}
-          <div className="flex items-center justify-center pt-2">
-            <div className="bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setBillingCycle('monthly')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  billingCycle === 'monthly'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-zinc-600 dark:text-zinc-400'
-                }`}
-              >
-                Monthly
-              </button>
-              <button
-                type="button"
-                onClick={() => setBillingCycle('yearly')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer ${
-                  billingCycle === 'yearly'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-zinc-600 dark:text-zinc-400'
-                }`}
-              >
-                Yearly
-                <span className="text-[9px] bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 px-1 py-0.2 rounded font-bold">
-                  20% OFF
+        {/* Early Adopter Perk: First 30 Users Free */}
+        {!isEarlyAdopter && userLevel === 0 && (earlyAccessInfo?.is_available ?? true) && (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-zinc-900 to-teal-950/90 border border-emerald-500/40 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-zinc-950 flex items-center justify-center font-extrabold shadow-md shrink-0">
+                <Gift className="w-5 h-5 text-zinc-950" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-400 text-zinc-950">
+                    First 30 Users Free
+                  </span>
+                  {earlyAccessInfo && (
+                    <span className="text-xs font-semibold text-emerald-400">
+                      {earlyAccessInfo.remaining} of {earlyAccessInfo.max_early_adopters} spots left
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-zinc-300 mt-1">
+                  As an early supporter, claim <strong>100% Free Gold Tier</strong> for your matrimonial search.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleClaimEarlyAccess}
+              disabled={isClaimingEarlyAccess}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:scale-95 text-white text-xs font-bold shadow-md cursor-pointer shrink-0 transition-all flex items-center gap-1.5"
+            >
+              {isClaimingEarlyAccess ? (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Crown className="w-3.5 h-3.5" />
+                  <span>Claim Free Gold</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Promo / Discount Coupon Section */}
+        <div className="mb-6 p-3.5 sm:p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Tag className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                Have a Promo or Discount Code?
+              </span>
+              {appliedCoupon && (
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                  {appliedCoupon.code} ({appliedCoupon.discount_percent}% OFF)
                 </span>
+              )}
+            </div>
+
+            {appliedCoupon ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  {appliedCoupon.discount_percent}% discount applied
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRemoveCoupon}
+                  className="text-xs text-zinc-400 hover:text-rose-500 underline cursor-pointer ml-1"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleApplyCoupon} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={couponCodeInput}
+                  onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                  placeholder="e.g. SUNNAH100"
+                  className="w-36 sm:w-44 px-3 py-1.5 text-xs font-mono font-bold tracking-wider rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white uppercase focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={isValidatingCoupon || !couponCodeInput.trim()}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold cursor-pointer transition-colors shadow-xs"
+                >
+                  {isValidatingCoupon ? 'Validating...' : 'Apply'}
+                </button>
+              </form>
+            )}
+          </div>
+
+          {couponError && (
+            <p className="text-[11px] text-rose-500 mt-2 font-medium flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              {couponError}
+            </p>
+          )}
+
+          {!appliedCoupon && !couponError && (
+            <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px] text-zinc-500 dark:text-zinc-400">
+              <span>Available codes:</span>
+              <button
+                type="button"
+                onClick={() => setCouponCodeInput('SUNNAH100')}
+                className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+              >
+                SUNNAH100 (100% OFF)
+              </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => setCouponCodeInput('BARAKAH50')}
+                className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+              >
+                BARAKAH50 (50% OFF)
+              </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => setCouponCodeInput('DAHEEJFREE20')}
+                className="font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+              >
+                DAHEEJFREE20 (20% OFF)
               </button>
             </div>
+          )}
+        </div>
+
+        {/* Billing Cycle Toggle */}
+        <div className="flex items-center justify-center mb-6">
+          <div className="bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setBillingCycle('monthly')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                billingCycle === 'monthly'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-zinc-600 dark:text-zinc-400'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle('yearly')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                billingCycle === 'yearly'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-zinc-600 dark:text-zinc-400'
+              }`}
+            >
+              Yearly
+              <span className="text-[9px] bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 px-1 py-0.2 rounded font-bold">
+                20% OFF
+              </span>
+            </button>
           </div>
         </div>
 
@@ -342,30 +643,25 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             const planLevel = TIER_LEVELS[t] ?? 0;
             const isCurrent = planLevel === userLevel;
             const isIncluded = planLevel < userLevel;
-            const isUpgrade = planLevel > userLevel;
             const isDiamond = t === 'diamond';
             const isGold = t === 'gold';
             const isLoading = loadingTier === t;
 
-            const price =
+            const basePrice =
               billingCycle === 'yearly' && plan.priceINR > 0
                 ? Math.round(plan.priceINR * 9.6)
                 : plan.priceINR;
 
-            // Plan button state & label logic strictly following requirement:
-            // - plan.level === user.level: Disable button, label it "Current Plan"
-            // - plan.level < user.level: Disable button, label it "Included in Your Plan" (prevent degradation)
-            // - plan.level > user.level: Keep button active, label it "Upgrade Plan"
-            let buttonLabel = 'Upgrade Plan';
-            if (isLoading) {
-              buttonLabel = 'Processing...';
-            } else if (isCurrent) {
-              buttonLabel = 'Current Plan';
-            } else if (isIncluded) {
-              buttonLabel = 'Included in Your Plan';
-            } else {
-              buttonLabel = 'Upgrade Plan';
-            }
+            // Check if coupon applies to this tier
+            const isCouponApplicable =
+              appliedCoupon &&
+              (appliedCoupon.tier_allowed === 'all' ||
+                appliedCoupon.tier_allowed.toLowerCase() === t.toLowerCase());
+
+            const discountPercent = isCouponApplicable ? appliedCoupon.discount_percent : 0;
+            const finalPrice = Math.max(0, Math.round(basePrice * (1 - discountPercent / 100)));
+            const hasDiscount = discountPercent > 0;
+            const isFullyDiscounted = hasDiscount && finalPrice === 0;
 
             const isButtonDisabled = isCurrent || isIncluded || isLoading;
 
@@ -401,11 +697,21 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                   </div>
 
                   <div className="my-3 pb-3 border-b border-zinc-100 dark:border-zinc-800">
-                    <div className="flex items-baseline gap-1">
+                    <div className="flex items-baseline gap-2">
+                      {hasDiscount && basePrice > 0 && (
+                        <span className="text-sm font-semibold line-through text-zinc-400 dark:text-zinc-500">
+                          ₹{basePrice.toLocaleString()}
+                        </span>
+                      )}
                       <span className="text-2xl font-extrabold text-zinc-900 dark:text-white">
-                        {price === 0 ? 'Free' : `₹${price.toLocaleString()}`}
+                        {finalPrice === 0 ? 'Free' : `₹${finalPrice.toLocaleString()}`}
                       </span>
-                      {price > 0 && (
+                      {hasDiscount && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                          {discountPercent}% OFF
+                        </span>
+                      )}
+                      {finalPrice > 0 && (
                         <span className="text-xs text-zinc-400">
                           /{billingCycle === 'yearly' ? 'yr' : 'mo'}
                         </span>
@@ -428,12 +734,22 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                   id={`btn-plan-${t}`}
                   data-action="select-plan"
                   data-testid={`select-plan-${t}`}
-                  aria-label={isCurrent ? 'Current Plan' : isIncluded ? 'Included in Your Plan' : `Select Plan ${plan.name}`}
+                  aria-label={
+                    isCurrent
+                      ? 'Current Plan'
+                      : isIncluded
+                      ? 'Included in Your Plan'
+                      : isFullyDiscounted
+                      ? 'Claim Free Subscription'
+                      : `Select Plan ${plan.name}`
+                  }
                   onClick={() => handleSelectPlan(t)}
                   disabled={isButtonDisabled}
                   className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
                     isButtonDisabled
                       ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed border border-zinc-200 dark:border-zinc-700'
+                      : isFullyDiscounted
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md active:scale-98 cursor-pointer ring-2 ring-emerald-400/50'
                       : isDiamond
                       ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md active:scale-98 cursor-pointer'
                       : isGold
@@ -453,6 +769,11 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                       <Lock className="w-3.5 h-3.5 text-zinc-400" />
                       Included in Your Plan
                     </span>
+                  ) : isFullyDiscounted ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-emerald-200" />
+                      Claim Free Subscription
+                    </span>
                   ) : (
                     <span>Upgrade Plan</span>
                   )}
@@ -464,7 +785,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
         <div className="text-center text-[10px] text-zinc-400 dark:text-zinc-500 mt-6 flex items-center justify-center gap-1.5">
           <CreditCard className="w-3.5 h-3.5" />
-          <span>Secure checkout powered by Razorpay (Server Order Integration)</span>
+          <span>Secure checkout powered by Razorpay (Server-Verified Orders & Promo Discounts)</span>
         </div>
       </div>
     </div>
